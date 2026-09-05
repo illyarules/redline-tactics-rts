@@ -1,0 +1,54 @@
+/** Base unit stats before faction modifiers. Provisional values, tuned in a later balance task. */
+import type { UnitTypeId } from '../core/ids';
+import type { UnitConfig } from './types';
+
+export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
+  worker: {
+    id: 'worker',
+    name: 'Worker',
+    cost: 150,
+    buildTimeSeconds: 8,
+    maxHealth: 120,
+    speedTilesPerSecond: 2.6,
+    visionRangeTiles: 5,
+    bodySizeTiles: 0.72,
+    armor: 'light',
+    attack: null,
+  },
+  infantry: {
+    id: 'infantry',
+    name: 'Infantry',
+    cost: 100,
+    buildTimeSeconds: 6,
+    maxHealth: 90,
+    speedTilesPerSecond: 2.4,
+    visionRangeTiles: 6,
+    bodySizeTiles: 0.8,
+    armor: 'light',
+    attack: { damage: 12, cooldownSeconds: 0.9, rangeTiles: 3.5 },
+  },
+  tank: {
+    id: 'tank',
+    name: 'Tank',
+    cost: 450,
+    buildTimeSeconds: 18,
+    maxHealth: 420,
+    speedTilesPerSecond: 1.8,
+    visionRangeTiles: 6,
+    bodySizeTiles: 1,
+    armor: 'armored',
+    attack: { damage: 45, cooldownSeconds: 2.2, rangeTiles: 4.5 },
+  },
+  rocket: {
+    id: 'rocket',
+    name: 'Rocket',
+    cost: 300,
+    buildTimeSeconds: 14,
+    maxHealth: 110,
+    speedTilesPerSecond: 1.9,
+    visionRangeTiles: 7,
+    bodySizeTiles: 0.86,
+    armor: 'light',
+    attack: { damage: 60, cooldownSeconds: 3, rangeTiles: 7 },
+  },
+};

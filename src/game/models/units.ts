@@ -1,0 +1,131 @@
+import type { Scene } from '@babylonjs/core/scene';
+import type { PlayerId, UnitTypeId } from '../../core/ids';
+import type { MaterialLibrary } from '../materials';
+import { NEUTRAL_TONES, OWNER_PALETTES, type OwnerPalette } from '../palette';
+import { QUARTER_TURN, buildModel, type ModelBuilder, type ModelSpec } from './kit';
+
+/**
+ * The four unit silhouettes, as original low-poly geometry.
+ *
+ * Each is built so its outline says what it does from directly above as well as from the game's
+ * angle: the Worker is a small cab with a load on the back, the Infantry a figure on foot, the Tank
+ * a low hull between two tracks with a barrel out front, the Rocket a long chassis carrying three
+ * raised tubes.
+ *
+ * Measurements are in tiles and roughly fill the `bodySizeTiles` the unit's config gives it, so what
+ * is drawn is the same size as the circle `core/selection.ts` picks with. Models face `+z`, which is
+ * north on screen; facing towards a destination arrives with movement.
+ */
+
+type UnitParts = (builder: ModelBuilder, palette: OwnerPalette) => void;
+
+/** A wheel: a short cylinder laid on its side so its disc faces along `x`. */
+function wheel(builder: ModelBuilder, x: number, z: number, diameter: number): void {
+  builder.cylinder(
+    { height: diameter * 0.4, diameter, sides: 10, at: [x, diameter / 2, z], turn: [0, 0, QUARTER_TURN] },
+    NEUTRAL_TONES.metalDark,
+  );
+}
+
+const WORKER: UnitParts = (b, palette) => {
+  b.box({size: [0.5, 0.1, 0.16], at: [0, 0.25, 0.42]}, NEUTRAL_TONES.metal)
+    .box({size: [0.12, 0.28, 0.28], at: [-0.24, 0.4, -0.12], turn: [0.3, 0, 0]}, palette.light);
+  b.box({ size: [0.5, 0.16, 0.72], at: [0, 0.2, 0] }, palette.body)
+    .box({ size: [0.4, 0.24, 0.3], at: [0, 0.4, 0.16] }, palette.light)
+    .box({ size: [0.34, 0.13, 0.05], at: [0, 0.43, 0.32] }, NEUTRAL_TONES.glass)
+    // Open bed with a crystal load, so a Worker reads as economic even when it is standing still.
+    .box({ size: [0.44, 0.07, 0.32], at: [0, 0.31, -0.2] }, palette.shell)
+    .cylinder(
+      { height: 0.24, diameter: 0.18, diameterTop: 0, sides: 5, at: [0, 0.46, -0.2] },
+      NEUTRAL_TONES.crystal,
+      'glowing',
+    );
+  for (const x of [-0.25, 0.25]) {
+    for (const z of [-0.22, 0.22]) {
+      wheel(b, x, z, 0.22);
+    }
+  }
+};
+
+const INFANTRY: UnitParts = (b, palette) => {
+  for (const x of [-0.1, 0.1]) {
+    b.box({size: [0.12, 0.18, 0.23], at: [x, 0.09, x]}, NEUTRAL_TONES.metalDark);
+  }
+  b.cylinder({height: 0.17, diameter: 0.27, diameterTop: 0.2, sides: 6, at: [0, 0.78, 0]}, palette.body);
+  b.box({ size: [0.24, 0.1, 0.2], at: [0, 0.05, 0] }, NEUTRAL_TONES.metalDark)
+    .box({ size: [0.18, 0.24, 0.16], at: [0, 0.22, 0] }, palette.shell)
+    .box({ size: [0.32, 0.28, 0.22], at: [0, 0.48, 0] }, palette.body)
+    .box({ size: [0.33, 0.04, 0.23], at: [0, 0.37, 0] }, palette.accent)
+    .box({ size: [0.22, 0.2, 0.1], at: [0, 0.5, -0.16] }, palette.shell)
+    .box({ size: [0.38, 0.09, 0.24], at: [0, 0.6, 0] }, palette.body)
+    .box({ size: [0.17, 0.16, 0.17], at: [0, 0.73, 0] }, palette.light)
+    .box({ size: [0.15, 0.07, 0.04], at: [0, 0.71, 0.09] }, NEUTRAL_TONES.glass)
+    .box({ size: [0.05, 0.05, 0.4], at: [0.17, 0.5, 0.08] }, NEUTRAL_TONES.metalDark);
+};
+
+const TANK: UnitParts = (b, palette) => {
+  for (const x of [-0.33, 0.33]) {
+    for (const z of [-0.32, -0.1, 0.12, 0.34]) {
+      b.box({size: [0.27, 0.035, 0.06], at: [x, 0.31, z]}, NEUTRAL_TONES.metalLight);
+    }
+    b.box({ size: [0.24, 0.24, 0.95], at: [x, 0.12, 0] }, NEUTRAL_TONES.metalDark).box(
+      { size: [0.26, 0.06, 0.98], at: [x, 0.27, 0] },
+      NEUTRAL_TONES.metal,
+    );
+  }
+  b.box({ size: [0.6, 0.26, 0.85], at: [0, 0.28, 0] }, palette.body)
+    .box({ size: [0.58, 0.1, 0.24], at: [0, 0.36, 0.4], turn: [0.35, 0, 0] }, palette.shell)
+    .box({ size: [0.34, 0.04, 0.07], at: [0, 0.42, -0.34] }, palette.accent)
+    .cylinder({ height: 0.22, diameter: 0.46, sides: 8, at: [0, 0.52, -0.05] }, palette.light)
+    .cylinder({ height: 0.06, diameter: 0.2, at: [0, 0.66, -0.14] }, NEUTRAL_TONES.metal)
+    .cylinder(
+      { height: 0.62, diameter: 0.09, at: [0, 0.54, 0.42], turn: [QUARTER_TURN, 0, 0] },
+      NEUTRAL_TONES.metalLight,
+    )
+    .cylinder(
+      { height: 0.1, diameter: 0.14, at: [0, 0.54, 0.75], turn: [QUARTER_TURN, 0, 0] },
+      NEUTRAL_TONES.metalDark,
+    );
+};
+
+const ROCKET: UnitParts = (b, palette) => {
+  b.box({ size: [0.46, 0.16, 0.86], at: [0, 0.21, 0] }, palette.body)
+    .box({ size: [0.4, 0.26, 0.3], at: [0, 0.42, 0.26] }, palette.light)
+    .box({ size: [0.34, 0.13, 0.05], at: [0, 0.45, 0.42] }, NEUTRAL_TONES.glass)
+    .box({ size: [0.38, 0.12, 0.36], at: [0, 0.35, -0.22] }, palette.shell);
+  b.box({size: [0.48, 0.08, 0.46], at: [0, 0.46, -0.22], turn: [-0.35, 0, 0]}, palette.body);
+  // Three tubes raised towards the front: the one silhouette in the set that points upwards.
+  for (const x of [-0.13, 0, 0.13]) {
+    b.cylinder(
+      { height: 0.5, diameter: 0.13, sides: 8, at: [x, 0.52, -0.24], turn: [QUARTER_TURN - 0.35, 0, 0] },
+      NEUTRAL_TONES.metalDark,
+    ).cylinder(
+      { height: 0.05, diameter: 0.14, sides: 8, at: [x, 0.61, -0.02], turn: [QUARTER_TURN - 0.35, 0, 0] },
+      NEUTRAL_TONES.metalLight,
+    );
+  }
+  for (const x of [-0.24, 0.24]) {
+    for (const z of [-0.3, 0, 0.3]) {
+      wheel(b, x, z, 0.2);
+    }
+  }
+};
+
+const UNIT_PARTS: Readonly<Record<UnitTypeId, UnitParts>> = {
+  worker: WORKER,
+  infantry: INFANTRY,
+  tank: TANK,
+  rocket: ROCKET,
+};
+
+/** Builds the prototype model for one unit role in one faction's colours. */
+export function buildUnitModel(
+  scene: Scene,
+  materials: MaterialLibrary,
+  type: UnitTypeId,
+  owner: PlayerId,
+): ModelSpec {
+  return buildModel(scene, materials, `unit:${type}:${owner}`, (builder) => {
+    UNIT_PARTS[type](builder, OWNER_PALETTES[owner]);
+  });
+}

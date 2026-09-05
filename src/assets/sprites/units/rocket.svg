@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!--
+    Rocket: a wheeled launcher carrying three tubes, seen from directly above, facing up (-Y).
+    Original artwork for Mini Command.
+  -->
+  <g stroke="{{outline}}" stroke-width="2.2" stroke-linejoin="round" fill="{{metalDark}}">
+    <rect x="2" y="15" width="9.5" height="11" rx="4"/>
+    <rect x="2" y="29" width="9.5" height="11" rx="4"/>
+    <rect x="2" y="43" width="9.5" height="11" rx="4"/>
+    <rect x="52.5" y="15" width="9.5" height="11" rx="4"/>
+    <rect x="52.5" y="29" width="9.5" height="11" rx="4"/>
+    <rect x="52.5" y="43" width="9.5" height="11" rx="4"/>
+  </g>
+  <rect x="8" y="7" width="48" height="52" rx="11" fill="{{body}}"
+        stroke="{{outline}}" stroke-width="2.6" stroke-linejoin="round"/>
+  <g stroke="{{outline}}" stroke-width="1.7" stroke-linejoin="round">
+    <rect x="16" y="43" width="32" height="13" rx="5" fill="{{light}}"/>
+    <rect x="12" y="15" width="40" height="26" rx="5" fill="{{shell}}"/>
+  </g>
+  <rect x="19.5" y="45.8" width="25" height="7.4" rx="3.4" fill="{{glass}}"/>
+  <g stroke="{{outline}}" stroke-width="1.9" stroke-linejoin="round" fill="{{metal}}">
+    <rect x="15.5" y="5" width="9.5" height="33" rx="4.7"/>
+    <rect x="27.2" y="5" width="9.5" height="33" rx="4.7"/>
+    <rect x="38.9" y="5" width="9.5" height="33" rx="4.7"/>
+  </g>
+  <g fill="{{accent}}">
+    <rect x="16" y="26" width="8.5" height="4.5"/>
+    <rect x="27.7" y="26" width="8.5" height="4.5"/>
+    <rect x="39.4" y="26" width="8.5" height="4.5"/>
+  </g>
+  <g fill="{{metalDark}}">
+    <circle cx="20.2" cy="10.5" r="3.2"/><circle cx="31.9" cy="10.5" r="3.2"/><circle cx="43.6" cy="10.5" r="3.2"/>
+  </g>
+</svg>
