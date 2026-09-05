@@ -27,7 +27,7 @@ export const CONTROL_HINTS: readonly ControlHint[] = [
   { input: 'Right-click a resource field', action: 'Send the selected Worker to gather it', short: 'right-click gather' },
   { input: 'Build menu button', action: 'Start placing that building (select a Worker)', short: 'build menu' },
   { input: 'Left-click ground', action: 'Clear the selection, or confirm a placement', short: 'click ground clears' },
-  { input: 'Escape', action: 'Cancel an in-progress building placement', short: 'esc cancels placement' },
+  { input: 'Escape', action: 'Pause the match (or cancel an in-progress building placement)', short: 'esc pause' },
   { input: '`', action: 'Toggle entity debug labels', short: '` labels' },
 ];
 

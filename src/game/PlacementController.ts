@@ -31,6 +31,7 @@ const PREVIEW_ALPHA = 0.45;
  * element, so this is the one reliable way to make placement clicks take priority while active.
  */
 export class PlacementController {
+  private enabled = true;
   private mesh: Mesh | null = null;
   private buildingType: BuildingTypeId | null = null;
   private workerId: EntityId | null = null;
@@ -56,14 +57,14 @@ export class PlacementController {
     private readonly onConfirm: (buildingType: BuildingTypeId, topLeft: TileCoord, workerId: EntityId) => void,
   ) {
     this.onPointerMove = (event) => {
-      if (this.buildingType === null) {
+      if (!this.enabled || this.buildingType === null) {
         return;
       }
       this.lastGroundPoint = this.groundPointFrom(event);
     };
 
     this.onPointerDown = (event) => {
-      if (this.buildingType === null) {
+      if (!this.enabled || this.buildingType === null) {
         return;
       }
       event.stopPropagation();
@@ -115,6 +116,10 @@ export class PlacementController {
 
   public isActive(): boolean {
     return this.buildingType !== null;
+  }
+
+  public setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
   }
 
   /** Repositions and recolors the preview from the last known pointer position. Call every frame. */

@@ -1,7 +1,10 @@
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { RENDER_CONFIG } from './config/render';
 import { FramePacer } from './game/framePacer';
+import { clearSnapshot } from './game/matchPersistence';
 import { MatchScene } from './game/MatchScene';
+import { GAME_TITLE } from './game/title';
+import { TitleScreen } from './ui/titleScreen';
 
 /**
  * Entry point: puts a Babylon canvas in the page, starts the match scene on it, and keeps both in
@@ -21,7 +24,8 @@ container.append(canvas);
 const engine = new Engine(canvas, true, { stencil: false, preserveDrawingBuffer: false }, false);
 const physicalPixelRatio = window.devicePixelRatio || 1;
 engine.setHardwareScalingLevel(Math.max(1, physicalPixelRatio / RENDER_CONFIG.maxDevicePixelRatio));
-const scene = new MatchScene(engine, canvas, container);
+let scene: MatchScene | null = null;
+let titleScreen: TitleScreen | null = null;
 const framePacer = new FramePacer(
   RENDER_CONFIG.targetFramesPerSecond,
   RENDER_CONFIG.maxDeltaSeconds,
@@ -30,7 +34,7 @@ const framePacer = new FramePacer(
 const render = (): void => {
   const deltaSeconds = framePacer.next(performance.now());
   if (deltaSeconds !== null) {
-    scene.render(deltaSeconds);
+    scene?.render(deltaSeconds);
   }
 };
 
@@ -49,4 +53,34 @@ window.addEventListener('resize', () => {
   engine.resize();
 });
 
-export { engine, scene };
+const showTitle = (): void => {
+  scene?.dispose();
+  scene = null;
+  canvas.style.display = 'none';
+  titleScreen?.destroy();
+  titleScreen = new TitleScreen(
+    container,
+    GAME_TITLE,
+    'Establish your base, secure crystal fields, and outmaneuver the Ember Collective in fast, readable RTS battles.',
+    startMatch,
+  );
+};
+
+const startMatch = (): void => {
+  titleScreen?.destroy();
+  titleScreen = null;
+  canvas.style.display = 'block';
+  scene = new MatchScene(engine, canvas, container, startNewMatch, showTitle);
+  framePacer.reset();
+};
+
+const startNewMatch = (): void => {
+  scene?.dispose();
+  scene = null;
+  clearSnapshot();
+  startMatch();
+};
+
+showTitle();
+
+export { engine };

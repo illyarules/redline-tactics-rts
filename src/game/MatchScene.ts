@@ -26,7 +26,7 @@ import { stepSeparation } from '../core/separation';
 import { createWorld, type World } from '../core/world';
 import { BuildMenu } from '../ui/buildMenu';
 import { ControlsOverlay } from '../ui/controlsOverlay';
-import { NewMatchButton } from '../ui/newMatchButton';
+import { PauseMenu } from '../ui/pauseMenu';
 import { SelectionPanel } from '../ui/selectionPanel';
 import { TacticalHud } from '../ui/tacticalHud';
 import { TitleBanner } from '../ui/titleBanner';
@@ -104,17 +104,20 @@ export class MatchScene {
   private readonly selectionPanel: SelectionPanel;
   private readonly buildMenu: BuildMenu;
   private readonly placement: PlacementController;
-  private readonly newMatchButton: NewMatchButton;
+  private readonly pauseMenu: PauseMenu;
   private readonly onKeyDown: (event: KeyboardEvent) => void;
   private readonly onPageHide: () => void;
   private hudElapsedSeconds = Number.POSITIVE_INFINITY;
   private saveElapsedSeconds = 0;
+  private paused = false;
 
   public constructor(
     engine: Engine,
     canvas: HTMLCanvasElement,
     /** The HTML layer above the canvas, where the title, controls card and readouts live. */
     overlayContainer: HTMLElement,
+    private readonly onNewMatch: () => void,
+    private readonly onReturnToTitle: () => void,
   ) {
     this.scene = new Scene(engine);
     this.scene.clearColor = Color4.FromColor3(color3(FIELD_TONES.sky), 1);
@@ -209,21 +212,28 @@ export class MatchScene {
       this.materials,
       (buildingType, topLeft, workerId) => this.confirmPlacement(buildingType, topLeft, workerId),
     );
-    this.newMatchButton = new NewMatchButton(overlayContainer, () => {
-      // `location.reload()` fires `pagehide` on its way out, which would otherwise re-run the
-      // pagehide save below and immediately re-write the snapshot this click means to discard.
-      window.removeEventListener('pagehide', this.onPageHide);
-      clearSnapshot();
-      location.reload();
-    });
+    this.pauseMenu = new PauseMenu(
+      overlayContainer,
+      () => this.setPaused(false),
+      this.onNewMatch,
+      () => {
+        this.saveNow();
+        this.onReturnToTitle();
+      },
+    );
     this.debugLabels = new DebugLabelsView(overlayContainer, this.scene, canvas, this.space);
 
     this.onKeyDown = (event) => {
-      if (event.code === DEBUG_LABEL_KEY) {
+      if (event.code === 'Escape') {
+        if (this.placement.isActive()) {
+          this.placement.cancel();
+        } else {
+          this.setPaused(!this.paused);
+        }
+        event.preventDefault();
+      } else if (!this.paused && event.code === DEBUG_LABEL_KEY) {
         this.debugLabels.setEnabled(!this.debugLabels.isEnabled());
         this.routeDebug.setEnabled(this.debugLabels.isEnabled());
-      } else if (event.code === 'Escape' && this.placement.isActive()) {
-        this.placement.cancel();
       }
     };
     window.addEventListener('keydown', this.onKeyDown);
@@ -270,6 +280,10 @@ export class MatchScene {
 
   /** Advances and draws one budgeted frame. Called by the capped engine render loop. */
   public render(deltaSeconds: number): void {
+    if (this.paused) {
+      this.scene.render();
+      return;
+    }
     this.cameraController.update(deltaSeconds);
     stepMovement(this.world, deltaSeconds);
     stepGather(this.world, this.grid, this.resourceFieldState, this.economy, deltaSeconds);
@@ -318,8 +332,24 @@ export class MatchScene {
     this.selectionPanel.destroy();
     this.buildMenu.destroy();
     this.placement.dispose();
-    this.newMatchButton.destroy();
+    this.pauseMenu.destroy();
     this.scene.dispose();
+  }
+
+  /** Freezes simulation and all map input while the pause menu owns the screen. */
+  private setPaused(paused: boolean): void {
+    if (this.paused === paused) return;
+    this.paused = paused;
+    if (paused) {
+      // A placement preview is intentionally not resumable through a pause; this prevents a stale
+      // click behind the overlay from confirming an old footprint.
+      this.placement.cancel();
+      this.saveNow();
+    }
+    this.cameraController.setEnabled(!paused);
+    this.selection.setEnabled(!paused);
+    this.placement.setEnabled(!paused);
+    this.pauseMenu.setVisible(paused);
   }
 
   /** Saves the current world and selection to local storage now, and resets the autosave timer. */

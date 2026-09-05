@@ -1,4 +1,4 @@
-# Mini Command
+# Redline Tactics
 
 A small, original browser RTS built with TypeScript, Babylon.js and Vite.
 

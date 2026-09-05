@@ -34,6 +34,7 @@ const PAN_KEY_CODES: Readonly<Record<string, keyof PanKeys>> = {
 const NO_KEYS: PanKeys = { up: false, down: false, left: false, right: false };
 
 export class CameraController {
+  private enabled = true;
   private view: CameraView;
   private readonly held = new Set<keyof PanKeys>();
   private pointer: PointerState | null = null;
@@ -62,6 +63,7 @@ export class CameraController {
     this.apply();
 
     this.onKeyDown = (event) => {
+      if (!this.enabled) return;
       const key = PAN_KEY_CODES[event.code];
       if (key !== undefined) {
         this.held.add(key);
@@ -78,6 +80,7 @@ export class CameraController {
     this.onBlur = () => this.held.clear();
 
     this.onPointerMove = (event) => {
+      if (!this.enabled) return;
       const rect = this.canvas.getBoundingClientRect();
       this.pointer = {
         x: event.clientX - rect.left,
@@ -89,6 +92,7 @@ export class CameraController {
       this.pointer = null;
     };
     this.onWheel = (event) => {
+      if (!this.enabled) return;
       event.preventDefault();
       this.view = zoomCamera3dView(
         this.view,
@@ -109,6 +113,7 @@ export class CameraController {
   }
 
   public update(deltaSeconds: number): void {
+    if (!this.enabled) return;
     this.view = stepCamera3dView(
       this.view,
       { keys: this.readKeys(), pointer: this.pointer },
@@ -124,6 +129,15 @@ export class CameraController {
     const size = groundFootprint(this.viewport(), this.view.zoom, this.config);
     return { x: this.view.centerX - size.width / 2, y: this.view.centerY - size.height / 2,
       width: size.width, height: size.height };
+  }
+
+  /** Pausing must also freeze wheel/keyboard camera input, not only simulation movement. */
+  public setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    if (!enabled) {
+      this.held.clear();
+      this.pointer = null;
+    }
   }
 
   public dispose(): void {

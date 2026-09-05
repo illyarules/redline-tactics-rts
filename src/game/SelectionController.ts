@@ -16,6 +16,7 @@ const DRAG_THRESHOLD_PIXELS = 6;
 
 /** Babylon input adapter for click, box and additive selection plus ground move requests. */
 export class SelectionController {
+  private enabled = true;
   private selected: EntityId[] = [];
   private drag: DragState | null = null;
   private readonly ray = new Ray(Vector3.Zero(), Vector3.Up());
@@ -46,6 +47,7 @@ export class SelectionController {
     canvas.parentElement?.append(this.dragBox);
 
     this.onPointerDown = (event) => {
+      if (!this.enabled) return;
       const point = this.canvasPoint(event);
       if (event.button === 0) {
         this.drag = { start: point, additive: event.shiftKey };
@@ -61,11 +63,13 @@ export class SelectionController {
       if (target !== null) this.onMove(this.selected, target);
     };
     this.onPointerMove = (event) => {
+      if (!this.enabled) return;
       if (this.drag === null) return;
       const point = this.canvasPoint(event);
       if (this.isDrag(point)) this.drawDragBox(this.drag.start, point);
     };
     this.onPointerUp = (event) => {
+      if (!this.enabled) return;
       if (event.button !== 0 || this.drag === null) return;
       const drag = this.drag;
       this.drag = null;
@@ -93,6 +97,15 @@ export class SelectionController {
   /** Allows the opening scene to seed a whole selection restored from a local match snapshot. */
   public restoreSelection(ids: readonly EntityId[]): void { this.setSelection(ids); }
   public refresh(): void { this.setSelection(pruneSelection(this.world, this.selected, this.player)); }
+
+  /** Lets the pause layer disable map commands even if it is temporarily not covering a pointer. */
+  public setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    if (!enabled) {
+      this.drag = null;
+      this.dragBox.style.display = 'none';
+    }
+  }
 
   public dispose(): void {
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
