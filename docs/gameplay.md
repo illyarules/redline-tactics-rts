@@ -8,7 +8,26 @@ controls card and the selection readout sit in an HTML layer above the canvas, s
 can scale them. Gameplay systems are added incrementally by the tasks in the implementation plan.
 
 Both bases stand on the map. Each player starts with an HQ and one of each mobile role — Worker,
-Infantry, Tank and Rocket — and the view opens on the player's own base. The starting units support selection and direct right-click movement. Combat, economy and AI arrive in later tasks.
+Infantry, Tank and Rocket — and the view opens on the player's own base. The starting units support selection and direct right-click movement. Combat and AI arrive in later tasks.
+
+Each player has a Credits balance, shown in the HUD, that starts from `src/config/economy.ts` and
+never goes negative. Right-clicking a resource field with a Worker selected sends it to gather
+instead of just walking there: it travels to the field, stands and gathers for a few seconds, carries
+what it collected back to the HQ or a Resource Depot, deposits it as Credits, and repeats until the
+field runs dry, at which point it goes idle. A mixed selection still sends any non-Worker units a
+normal Move to the same point.
+
+Selecting a lone friendly Worker opens a small build menu next to its readout, with one button per
+building role. A button is disabled with a tooltip explaining why when its prerequisites are unmet or
+its cost is unaffordable right now — Barracks needs an HQ, the Factory needs a completed Barracks
+*and* Power Plant. Clicking an enabled button starts placement: the building's footprint follows the
+pointer, snapped to the grid, green while its full footprint is in bounds, on passable ground and
+clear of every other building, red otherwise. Left-click on a green footprint spends the cost once and
+sends the Worker to the site; right-click or Escape cancels without spending anything. A site under
+construction stands shorter and a little translucent, rising to full height as the assigned Worker
+finishes it — building progress only advances while that Worker is actually there. Losing every
+Power Plant pauses whatever in the tech chain needs power (the HUD's power line turns red); completing
+a new one resumes it immediately.
 
 An unfinished match survives a browser reload on the same device: units mid-route resume their
 route, and the selection is restored too. The `New Match` button in the top-right corner clears the
@@ -50,6 +69,10 @@ can click. A health bar appears above an entity while it is selected and wheneve
 | Shift + left-click/drag | Toggle a friendly unit or drag selection |
 | Left-click open ground | Clear the selection |
 | Right-click ground | Move the selected friendly units |
+| Right-click a resource field | Send the selected Worker(s) to gather it |
+| Build menu button (Worker selected) | Start placing that building |
+| Left-click a valid (green) placement | Confirm it: spend Credits, send the Worker to build |
+| Right-click, or `Escape`, during placement | Cancel placement; nothing is spent |
 | `` ` `` (backtick) | Toggle entity debug labels (type and id) |
 
 A compact one-line version of this list sits in the bottom-left corner in game, and it grows as

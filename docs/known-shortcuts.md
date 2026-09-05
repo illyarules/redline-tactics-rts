@@ -9,4 +9,21 @@ Marked in the source as `TODO(post-MVP)`:
   past a map edge can show at the top corners of the screen; the field is drawn past its own edge so
   that this is never an empty void.
 
-TODO(post-MVP): connect Credits to the future economy, enable command buttons with their gameplay, and add minimap navigation. Grass and small stones remain painted detail; models remain static low-poly geometry.
+TODO(post-MVP): enable the remaining command buttons (Move, Attack) with their gameplay, and add
+minimap navigation. Grass and small stones remain painted detail; models remain static low-poly
+geometry.
+
+Deliberate simplifications from the economy and construction tasks (13–17), none of them tagged
+`TODO(post-MVP)` since each is either exactly matched to its task's scope or waits on a specific later
+task, not the end of the MVP:
+
+- `checkBuildingPlacement` does not check "explored": fog of war does not exist until Task 23, so
+  every tile reads as valid ground on that front for now.
+- Exactly one Worker is ever tracked as "assigned" to a construction site — a second Worker cannot
+  help build it faster. This falls out naturally from placement already rejecting an occupied
+  footprint, not from an explicit cap.
+- A construction site starts and stays at full health throughout, only its `constructionProgress`
+  fraction changes; combat does not exist yet (Tasks 19–20), so nothing can damage it either way.
+- A Worker with a full load that cannot find any reachable drop-off (every accepting building
+  destroyed) waits holding it rather than dropping it on the ground; it retries every tick once a new
+  drop-off exists.

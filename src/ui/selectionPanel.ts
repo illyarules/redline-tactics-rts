@@ -75,7 +75,11 @@ export class SelectionPanel {
     this.nameLine.textContent = entity.stats.name;
     this.healthLine.textContent = `Health ${health} / ${entity.stats.maxHealth}`;
     this.healthLine.style.color = healthColor(healthFraction(entity));
-    this.detailLine.textContent = entity.status === 'idle' ? 'Idle' : entity.status;
+    const carrying = entity.kind === 'unit' && entity.carriedCredits > 0 ? ` — carrying ${Math.floor(entity.carriedCredits)} Credits` : '';
+    const progress = entity.kind === 'building' && entity.status === 'constructing'
+      ? ` (${Math.floor(entity.constructionProgress * 100)}%)`
+      : '';
+    this.detailLine.textContent = `${entity.status === 'idle' ? 'Idle' : entity.status}${progress}${carrying}`;
     this.root.style.display = 'block';
   }
 

@@ -41,6 +41,10 @@ const BAR_BACKING = 0x141b18;
 const OVERLAY_RENDERING_GROUP = 1;
 
 const DEAD_VISIBILITY = 0.35;
+/** Distinct from both a finished building (1) and a dead entity ({@link DEAD_VISIBILITY}). */
+const CONSTRUCTING_VISIBILITY = 0.6;
+/** Never fully flat, so even a freshly placed site reads as something standing there. */
+const MIN_CONSTRUCTION_SCALE = 0.15;
 
 interface Bar {
   readonly node: TransformNode;
@@ -241,10 +245,16 @@ export class EntitiesView {
     }
 
     const alive = isAlive(entity);
-    const visibility = alive ? 1 : DEAD_VISIBILITY;
+    const constructing = entity.kind === 'building' && entity.status === 'constructing';
+    const visibility = !alive ? DEAD_VISIBILITY : constructing ? CONSTRUCTING_VISIBILITY : 1;
     for (const mesh of display.pickableMeshes) {
       mesh.visibility = visibility;
     }
+    // A building under construction rises out of the ground as it completes, rather than standing
+    // at full height (and looking finished) the instant its site is placed.
+    display.root.scaling.y = constructing
+      ? Math.max(entity.constructionProgress, MIN_CONSTRUCTION_SCALE)
+      : 1;
 
     if (display.kind === 'squad' && entity.kind === 'unit') {
       this.updateSquadAnimation(display, entity, deltaSeconds);

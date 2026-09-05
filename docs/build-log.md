@@ -39,3 +39,54 @@ clearing whatever bad data was there. `render()` autosaves on a timer (`PERSISTE
 `pagehide` event, so the very latest state before a reload or tab close is not lost waiting for the
 next tick. The `New Match` control in `src/ui/newMatchButton.ts` sits in the top-right corner; it
 clears the saved snapshot and reloads the page into the normal fresh opening.
+
+## Economy and construction (Tasks 13–17)
+
+`src/core/economy.ts`'s `createEconomy` holds one Credits balance per player and is the only thing
+that may change one: `spend` fails and leaves the balance untouched rather than going negative,
+`earn` adds freely, and `refund` credits a rounded share of a paid cost from the configured
+`cancelRefundFraction`. `src/core/resourceFieldState.ts` tracks each field's remaining Credits
+separately from `MapGrid` (which stays a pure, static view of the map config) since the amount left
+is match state, not map data. The local match snapshot now carries both alongside the entities it
+always has (`WorldSnapshot.credits`/`resourceFields`, `SNAPSHOT_SCHEMA_VERSION` bumped to 2), plus a
+Worker's `carriedCredits` and a building's `constructionProgress` per entity.
+
+`src/core/gather.ts`'s `issueGatherOrder`/`stepGather` drive the whole Worker loop as one `Gather`
+order with a `toField` / `gathering` / `toDropoff` phase: travel legs reuse `core/movement.ts`'s
+`advanceAlongRoute` (pulled out of `stepMovement` for exactly this reuse) rather than duplicating
+waypoint-following, the field is chosen once at order time, and the nearest living building with
+`acceptsDeliveries` is re-resolved every return trip so a destroyed drop-off does not strand the load.
+A depleted field sends the Worker idle instead of starting another cycle. Redirecting a Worker that is
+still carrying an undelivered load to a new field deposits that load immediately rather than losing it
+or silently keeping the old order.
+
+`src/core/placement.ts`'s `checkBuildingPlacement` is the single source of truth for whether a
+footprint could stand somewhere — in bounds, on passable ground, clear of every other building's
+footprint (`constructing` or finished, both fully occupy it) — used both to colour the placement
+preview and to gate `startConstruction`. `src/core/prerequisites.ts` and `src/core/power.ts` add the
+tech-chain and binary-power rules on top: a building only counts toward a prerequisite once it is
+alive and `constructionProgress` has reached 1, and power is available whenever at least one such
+Power Plant is standing.
+
+`src/core/construction.ts`'s `startConstruction` spends the cost exactly once, raises a `constructing`
+building at 0 progress, and sends the assigned Worker there — its route avoids the *prospective*
+footprint too, since the site does not exist as an occupancy-blocking building yet at routing time.
+`stepConstruction` only advances progress while that specific Worker's `Build` order still names the
+site and it has arrived; pulling the Worker off the job (or losing it) pauses progress rather than
+resetting it. `cancelConstruction` refunds the same configured share `Economy.refund` uses, frees the
+Worker, and removes the site, which clears its footprint occupancy immediately. Only one Worker is
+ever tracked as "assigned" to a site — a second Worker sent to the same footprint has nothing to build,
+since placement already rejects a footprint that is occupied.
+
+`src/game/PlacementController.ts` is the only Babylon-facing piece: it tracks the pointer over the
+ground, recolors a preview plane from `checkBuildingPlacement` every frame, and confirms or cancels on
+click. Its pointer listeners sit on `window` in the capture phase specifically so a placement click
+cannot also reach `SelectionController`'s own canvas listeners — same-element registration order does
+not otherwise guarantee that. `src/ui/buildMenu.ts` shows one button per buildable role while a lone
+friendly Worker is selected, disabled with a reason (missing prerequisite or unaffordable) read
+straight from `checkPrerequisites`/`Economy.canAfford`. `EntitiesView` scales a `constructing`
+building's height by its progress and dims it, so an incomplete site reads as unfinished rather than a
+building that just happens to be doing nothing yet.
+
+Fog of war does not exist yet (it lands with the vision task), so `checkBuildingPlacement` does not
+check "explored" — every tile reads as valid ground on that front until then.

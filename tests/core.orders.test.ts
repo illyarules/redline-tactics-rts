@@ -5,6 +5,7 @@ import {
   attackMoveOrder,
   attackOrder,
   buildOrder,
+  gatherOrder,
   moveOrder,
   produceOrder,
   type Order,
@@ -45,8 +46,9 @@ describe('core orders', () => {
       moveOrder({ x: 1, y: 2 }),
       attackOrder('e7'),
       attackMoveOrder({ x: 3, y: 4 }),
-      buildOrder('barracks', { tx: 8, ty: 9 }),
+      buildOrder('barracks', { tx: 8, ty: 9 }, 'e2', null),
       produceOrder('e1', 'infantry'),
+      gatherOrder('west-home', 'toField', null),
     ];
 
     expect(orders.map((order) => order.kind)).toEqual([
@@ -55,14 +57,28 @@ describe('core orders', () => {
       'AttackMove',
       'Build',
       'Produce',
+      'Gather',
     ]);
   });
 
   it('keeps order payloads intact', () => {
-    expect(buildOrder('factory', { tx: 4, ty: 5 })).toEqual({
+    expect(buildOrder('factory', { tx: 4, ty: 5 }, 'e9', null)).toEqual({
       kind: 'Build',
       buildingType: 'factory',
       topLeft: { tx: 4, ty: 5 },
+      buildingId: 'e9',
+      route: null,
+    });
+  });
+
+  it('defaults a Gather order to no elapsed time and no drop-off', () => {
+    expect(gatherOrder('west-home', 'gathering', null)).toEqual({
+      kind: 'Gather',
+      fieldId: 'west-home',
+      phase: 'gathering',
+      route: null,
+      gatherElapsedSeconds: 0,
+      dropoffId: null,
     });
   });
 });

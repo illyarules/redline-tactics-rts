@@ -5,8 +5,9 @@
  * entity's own order rather than the last click: it is state, not a one-off animation, and it is
  * right again after a restart or a re-selection.
  *
- * Orders that have no single point on the map — production, and construction, which gets its own
- * placement feedback — are deliberately unmarked.
+ * Orders that have no single point on the map — production, construction (which gets its own
+ * placement feedback), and gathering (which cycles between a field and a drop-off) — are
+ * deliberately unmarked.
  *
  * Pure and renderer-free, so the rule can be tested without starting the game.
  */
@@ -48,6 +49,7 @@ export function orderMarkerFor(
     }
     case 'Build':
     case 'Produce':
+    case 'Gather':
       return null;
   }
 }

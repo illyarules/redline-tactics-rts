@@ -63,11 +63,72 @@ export function issueMoveOrders(
   return accepted;
 }
 
+export interface RouteAdvance {
+  readonly position: Vec2;
+  /** Index of the waypoint still ahead, or `waypoints.length` once the route is fully walked. */
+  readonly waypointIndex: number;
+  /** The heading faced this step, or `null` when there was no waypoint left to face. */
+  readonly heading: number | null;
+  /** True once `waypointIndex` reached the end of `waypoints`. */
+  readonly arrived: boolean;
+}
+
 /**
- * Follows each unit's resolved route waypoint by waypoint at configured speed. A frame's travel
- * budget can cross several short waypoints, so results stay independent of frame partitioning.
- * Facing turns toward whichever waypoint is current when the step begins. Arrival tolerance applies
- * only to the final waypoint; completion clears the order and leaves the unit idle.
+ * Advances `position` toward `waypoints[waypointIndex]` and beyond by up to `budget` world units,
+ * crossing several short waypoints in one call so results stay independent of frame partitioning.
+ * `finalTolerance` shortens only the very last waypoint's approach, so a unit does not have to land
+ * exactly on it to arrive. Shared by every system that walks a unit along a resolved route: direct
+ * Move orders, and the travel legs of gathering and construction.
+ */
+export function advanceAlongRoute(
+  waypoints: readonly Vec2[],
+  waypointIndex: number,
+  position: Vec2,
+  budget: number,
+  finalTolerance: number,
+): RouteAdvance {
+  let index = waypointIndex;
+  let current = position;
+  let remaining = budget;
+  let heading: number | null = null;
+  let headingTaken = false;
+
+  while (index < waypoints.length) {
+    const waypoint = waypoints[index] as Vec2;
+    const dx = waypoint.x - current.x;
+    const dy = waypoint.y - current.y;
+    const distance = Math.hypot(dx, dy);
+    if (!headingTaken) {
+      heading = headingForMovement(dx, dy);
+      headingTaken = true;
+    }
+
+    const isFinalWaypoint = index === waypoints.length - 1;
+    const travelToArrive = isFinalWaypoint ? Math.max(0, distance - finalTolerance) : distance;
+
+    // A shortfall this small is float noise from dividing and re-multiplying by speed, not a real
+    // gap: treating it as a gap would leave a unit stalled a hair short of its waypoint forever.
+    if (remaining + 1e-9 < travelToArrive) {
+      if (distance > 0 && remaining > 0) {
+        current = { x: current.x + (dx / distance) * remaining, y: current.y + (dy / distance) * remaining };
+      }
+      remaining = 0;
+      break;
+    }
+    if (distance > 0) {
+      current = { x: current.x + (dx / distance) * travelToArrive, y: current.y + (dy / distance) * travelToArrive };
+    }
+    remaining -= travelToArrive;
+    index += 1;
+  }
+
+  return { position: current, waypointIndex: index, heading, arrived: index >= waypoints.length };
+}
+
+/**
+ * Follows each unit's resolved route waypoint by waypoint at configured speed. Facing turns toward
+ * whichever waypoint is current when the step begins. Arrival tolerance applies only to the final
+ * waypoint; completion clears the order and leaves the unit idle.
  */
 export function stepMovement(
   world: World,
@@ -81,57 +142,24 @@ export function stepMovement(
   for (const unit of world.units()) {
     if (!isAlive(unit) || unit.order?.kind !== 'Move') continue;
     const order = unit.order;
-    const waypoints = order.route.waypoints;
-    let index = order.route.waypointIndex;
-    let position = unit.position;
-    let budget = unit.stats.speedTilesPerSecond * world.tileSizePixels * deltaSeconds;
-    let heading: number | null = null;
-    let headingTaken = false;
+    const budget = unit.stats.speedTilesPerSecond * world.tileSizePixels * deltaSeconds;
+    const step = advanceAlongRoute(order.route.waypoints, order.route.waypointIndex, unit.position, budget, tolerance);
 
-    while (index < waypoints.length) {
-      const waypoint = waypoints[index] as Vec2;
-      const dx = waypoint.x - position.x;
-      const dy = waypoint.y - position.y;
-      const distance = Math.hypot(dx, dy);
-      if (!headingTaken) {
-        heading = headingForMovement(dx, dy);
-        headingTaken = true;
-      }
-
-      const isFinalWaypoint = index === waypoints.length - 1;
-      const travelToArrive = isFinalWaypoint ? Math.max(0, distance - tolerance) : distance;
-
-      // A shortfall this small is float noise from dividing and re-multiplying by speed, not a real
-      // gap: treating it as a gap would leave a unit stalled a hair short of its waypoint forever.
-      if (budget + 1e-9 < travelToArrive) {
-        if (distance > 0 && budget > 0) {
-          position = { x: position.x + (dx / distance) * budget, y: position.y + (dy / distance) * budget };
-        }
-        budget = 0;
-        break;
-      }
-      if (distance > 0) {
-        position = { x: position.x + (dx / distance) * travelToArrive, y: position.y + (dy / distance) * travelToArrive };
-      }
-      budget -= travelToArrive;
-      index += 1;
+    if (step.position.x !== unit.position.x || step.position.y !== unit.position.y) {
+      world.setPosition(unit.id, step.position);
     }
-
-    if (position.x !== unit.position.x || position.y !== unit.position.y) {
-      world.setPosition(unit.id, position);
-    }
-    if (heading !== null) {
+    if (step.heading !== null) {
       world.setFacingRadians(
         unit.id,
-        turnTowards(unit.facingRadians, heading, rules.maxTurnRadiansPerSecond * deltaSeconds),
+        turnTowards(unit.facingRadians, step.heading, rules.maxTurnRadiansPerSecond * deltaSeconds),
       );
     }
 
-    if (index >= waypoints.length) {
+    if (step.arrived) {
       world.setOrder(unit.id, null);
       world.setStatus(unit.id, 'idle');
-    } else if (index !== order.route.waypointIndex) {
-      world.setOrder(unit.id, moveOrder(order.target, { ...order.route, waypointIndex: index }));
+    } else if (step.waypointIndex !== order.route.waypointIndex) {
+      world.setOrder(unit.id, moveOrder(order.target, { ...order.route, waypointIndex: step.waypointIndex }));
     }
   }
 }

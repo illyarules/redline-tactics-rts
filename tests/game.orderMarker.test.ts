@@ -109,7 +109,7 @@ describe('orderMarkerFor', () => {
       topLeft: { tx: 10, ty: 10 },
     });
 
-    world.setOrder(worker.id, buildOrder('barracks', { tx: 20, ty: 20 }));
+    world.setOrder(worker.id, buildOrder('barracks', { tx: 20, ty: 20 }, hq.id, null));
     expect(orderMarkerFor(world.get(worker.id) ?? null, positionsIn(world))).toBeNull();
 
     world.setOrder(hq.id, produceOrder(hq.id, 'worker'));

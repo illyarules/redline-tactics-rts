@@ -26,9 +26,13 @@ import type { SceneSpace } from './sceneSpace';
 /** How far past the map edge the ground keeps going, in map widths, so the horizon is never void. */
 const SURROUND_SCALE = 4;
 
+/** A depleted field still reads as something rather than vanishing outright. */
+const MIN_FIELD_SCALE = 0.08;
+
 export class MapView {
   private readonly meshes: Mesh[] = [];
   private readonly crystals: Mesh[] = [];
+  private readonly crystalsByField = new Map<string, Mesh>();
   private readonly disposables: { dispose(): void }[] = [];
   private readonly ground: Mesh;
 
@@ -72,12 +76,26 @@ export class MapView {
       const crystals = this.buildCrystals(scene, materials, space, field);
       this.crystals.push(crystals);
       this.meshes.push(crystals);
+      this.crystalsByField.set(field.id, crystals);
     }
   }
 
   /** The ground mesh, which is what a click on open ground lands on. */
   public groundMesh(): Mesh {
     return this.ground;
+  }
+
+  /**
+   * Shrinks a field's crystal deposit toward the ground as it is gathered out, so how much is left
+   * reads at a glance instead of only through the HUD. `fraction` is remaining Credits over the
+   * field's original total.
+   */
+  public setFieldFraction(fieldId: string, fraction: number): void {
+    const mesh = this.crystalsByField.get(fieldId);
+    if (mesh === undefined) {
+      return;
+    }
+    mesh.scaling.y = Math.max(fraction, MIN_FIELD_SCALE);
   }
 
   /** Meshes that should cast a shadow. The ground itself only receives them. */

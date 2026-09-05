@@ -55,6 +55,8 @@ export interface CreateBuildingSpec {
   readonly health?: number;
   /** Defaults to `idle`. Construction passes `constructing` when that task arrives. */
   readonly status?: EntityStatus;
+  /** 0 to 1. Defaults to 1 (already complete). Construction passes 0 for a freshly placed site. */
+  readonly constructionProgress?: number;
 }
 
 export interface DamageResult {
@@ -95,6 +97,10 @@ export interface World {
   setStatus(id: EntityId, status: EntityStatus): boolean;
   /** Reduces health by `amount`, never below zero and never upwards. */
   damage(id: EntityId, amount: number): DamageResult | undefined;
+  /** Sets a Worker's carried Credits. Not meaningful for other unit types, but never rejected. */
+  setCarriedCredits(id: EntityId, credits: number): boolean;
+  /** Clamped to 0..1. Only meaningful for a building whose `status` is `constructing`. */
+  setConstructionProgress(id: EntityId, progress: number): boolean;
   remove(id: EntityId): boolean;
 }
 
@@ -141,6 +147,7 @@ export function createWorld(options: WorldOptions): World {
         stats,
         position: spec.position,
         facingRadians: 0,
+        carriedCredits: 0,
         health: startingHealth(spec.health, stats.maxHealth),
         order: null,
         status: 'idle',
@@ -169,6 +176,7 @@ export function createWorld(options: WorldOptions): World {
         health: startingHealth(spec.health, stats.maxHealth),
         order: null,
         status: spec.status ?? 'idle',
+        constructionProgress: clampFraction(spec.constructionProgress ?? 1),
       };
       entities.set(building.id, building);
       return building;
@@ -279,6 +287,27 @@ export function createWorld(options: WorldOptions): World {
       return { applied, health: entity.health, destroyed };
     },
 
+    setCarriedCredits(id, credits) {
+      const entity = live(id);
+      if (entity === undefined || entity.kind !== 'unit') {
+        return false;
+      }
+      if (!Number.isFinite(credits) || credits < 0) {
+        throw new Error(`Carried Credits must be a non-negative number, got ${credits}`);
+      }
+      entity.carriedCredits = credits;
+      return true;
+    },
+
+    setConstructionProgress(id, progress) {
+      const entity = live(id);
+      if (entity === undefined || entity.kind !== 'building') {
+        return false;
+      }
+      entity.constructionProgress = clampFraction(progress);
+      return true;
+    },
+
     remove(id) {
       return entities.delete(id);
     },
@@ -323,6 +352,13 @@ function assertTile(tile: TileCoord): void {
   if (!Number.isInteger(tile.tx) || !Number.isInteger(tile.ty)) {
     throw new Error(`Footprint tile must be whole numbers, got (${tile.tx}, ${tile.ty})`);
   }
+}
+
+function clampFraction(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return value < 0 ? 0 : value > 1 ? 1 : value;
 }
 
 function normalizeRadians(angle: number): number {

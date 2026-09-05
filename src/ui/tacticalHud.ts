@@ -2,22 +2,33 @@ import type { World } from '../core/world';
 import type { MapGrid } from '../core/map';
 import type { Rect } from '../core/geometry';
 import { ECONOMY_CONFIG } from '../config/economy';
+import type { Economy } from '../core/economy';
+import type { PlayerId } from '../core/ids';
+import { isPowerAvailable } from '../core/power';
 
-/** Read-only tactical overview; no economy or command simulation lives here. */
+/** Read-only tactical overview; command simulation lives in `BuildMenu` and `PlacementController`. */
 export class TacticalHud {
   private readonly root = document.createElement('div');
   private readonly map = document.createElement('canvas');
+  private readonly creditsValue: HTMLElement;
+  private readonly powerLine: HTMLElement;
   public constructor(container: HTMLElement) {
     this.root.className = 'tactical-hud';
-    this.root.innerHTML = `<div class="credits"><span>CREDITS</span><strong>${ECONOMY_CONFIG.startingCredits.toLocaleString()}</strong><small>MERIDIAN / FORWARD BASE</small></div>
-      <div class="commands" aria-label="Commands unavailable in this preview"><button disabled title="Right-click ground to move a selected unit">↗<small>MOVE</small></button><button disabled title="Combat is not available yet">◎<small>ATTACK</small></button><button disabled title="Production is not available yet">⌂<small>BUILD</small></button></div>
+    this.root.innerHTML = `<div class="credits"><span>CREDITS</span><strong>${ECONOMY_CONFIG.startingCredits.toLocaleString()}</strong><small class="power"></small></div>
+      <div class="commands" aria-label="Commands unavailable in this preview"><button disabled title="Right-click ground to move a selected unit">↗<small>MOVE</small></button><button disabled title="Combat is not available yet">◎<small>ATTACK</small></button><button disabled title="Select a Worker to build">⌂<small>BUILD</small></button></div>
       <div class="sector">OPEN FIELD <span>TACTICAL PREVIEW</span></div>`;
+    this.creditsValue = this.root.querySelector('.credits strong') as HTMLElement;
+    this.powerLine = this.root.querySelector('.credits .power') as HTMLElement;
     this.map.width = 180; this.map.height = 180;
     this.map.setAttribute('aria-label', 'Minimap: factions, resource fields and camera footprint');
     this.map.className = 'minimap';
     this.root.append(this.map); container.append(this.root);
   }
-  public update(world: World, grid: MapGrid, view: Rect): void {
+  public update(world: World, grid: MapGrid, view: Rect, economy: Economy, player: PlayerId): void {
+    this.creditsValue.textContent = Math.floor(economy.balance(player)).toLocaleString();
+    const powered = isPowerAvailable(world, player);
+    this.powerLine.textContent = powered ? 'POWER ONLINE' : 'NO POWER';
+    this.powerLine.style.color = powered ? '#9fb0c9' : '#e2874f';
     const ctx = this.map.getContext('2d');
     if (!ctx) return;
     const sx = 180 / grid.bounds.width, sy = 180 / grid.bounds.height;

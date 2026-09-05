@@ -7,25 +7,34 @@
  * would only be duplicated state that could drift from a future balance change.
  * Pure TypeScript: this module must not import Babylon, `game/` or `ui/`.
  */
-import type { EntityStatus } from './entities';
+import { createEconomy, serializeEconomy, type Economy, type EconomySnapshot } from './economy';
 import { isAlive, isUnit } from './entities';
+import type { EntityStatus } from './entities';
 import type { TileCoord, Vec2 } from './geometry';
 import type { BuildingTypeId, EntityId, FactionId, PlayerId, UnitTypeId } from './ids';
+import type { MapGrid } from './map';
 import {
   attackMoveOrder,
   attackOrder,
   buildOrder,
+  gatherOrder,
   moveOrder,
   produceOrder,
   type Order,
 } from './orders';
+import {
+  createResourceFieldState,
+  serializeResourceFieldState,
+  type ResourceFieldState,
+  type ResourceFieldStateSnapshot,
+} from './resourceFieldState';
 import { createWorld, type World } from './world';
 
 /**
  * Bumped whenever a saved shape stops matching what `restoreWorld` expects, so an old save from a
  * prior version is discarded instead of misread.
  */
-export const SNAPSHOT_SCHEMA_VERSION = 1;
+export const SNAPSHOT_SCHEMA_VERSION = 2;
 
 /**
  * The persisted shape of an `Order`. Structurally identical to `core/orders.ts`'s `Order` union —
@@ -48,12 +57,14 @@ export interface UnitSnapshot extends EntitySnapshotBase {
   readonly kind: 'unit';
   readonly type: UnitTypeId;
   readonly facingRadians: number;
+  readonly carriedCredits: number;
 }
 
 export interface BuildingSnapshot extends EntitySnapshotBase {
   readonly kind: 'building';
   readonly type: BuildingTypeId;
   readonly topLeft: TileCoord;
+  readonly constructionProgress: number;
 }
 
 export type EntitySnapshot = UnitSnapshot | BuildingSnapshot;
@@ -63,13 +74,22 @@ export interface WorldSnapshot {
   readonly schemaVersion: number;
   readonly entities: readonly EntitySnapshot[];
   readonly selection: readonly EntityId[];
+  readonly credits: EconomySnapshot;
+  readonly resourceFields: ResourceFieldStateSnapshot;
 }
 
 /**
- * Captures every living entity in `world`, in creation order, plus the given selection. Destroyed
- * entities are left out: a corpse carries no rule that matters once the match resumes.
+ * Captures every living entity in `world`, in creation order, plus the given selection, every
+ * player's Credits balance and every field's remaining Credits. Destroyed entities are left out: a
+ * corpse carries no rule that matters once the match resumes.
  */
-export function serializeWorld(world: World, selection: readonly EntityId[]): WorldSnapshot {
+export function serializeWorld(
+  world: World,
+  selection: readonly EntityId[],
+  economy: Economy,
+  resourceFieldState: ResourceFieldState,
+  grid: MapGrid,
+): WorldSnapshot {
   const entities: EntitySnapshot[] = [];
 
   for (const entity of world.entities()) {
@@ -89,12 +109,30 @@ export function serializeWorld(world: World, selection: readonly EntityId[]): Wo
 
     entities.push(
       isUnit(entity)
-        ? { ...base, kind: 'unit', type: entity.type, facingRadians: entity.facingRadians }
-        : { ...base, kind: 'building', type: entity.type, topLeft: entity.topLeft },
+        ? {
+            ...base,
+            kind: 'unit',
+            type: entity.type,
+            facingRadians: entity.facingRadians,
+            carriedCredits: entity.carriedCredits,
+          }
+        : {
+            ...base,
+            kind: 'building',
+            type: entity.type,
+            topLeft: entity.topLeft,
+            constructionProgress: entity.constructionProgress,
+          },
     );
   }
 
-  return { schemaVersion: SNAPSHOT_SCHEMA_VERSION, entities, selection: [...selection] };
+  return {
+    schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+    entities,
+    selection: [...selection],
+    credits: serializeEconomy(economy),
+    resourceFields: serializeResourceFieldState(resourceFieldState, grid),
+  };
 }
 
 /**
@@ -110,7 +148,10 @@ export function isValidSnapshotShape(raw: unknown): raw is WorldSnapshot {
   return (
     candidate.schemaVersion === SNAPSHOT_SCHEMA_VERSION &&
     Array.isArray(candidate.entities) &&
-    Array.isArray(candidate.selection)
+    Array.isArray(candidate.selection) &&
+    typeof candidate.credits === 'object' &&
+    candidate.credits !== null &&
+    Array.isArray(candidate.resourceFields)
   );
 }
 
@@ -126,9 +167,14 @@ export function isValidSnapshotShape(raw: unknown): raw is WorldSnapshot {
  */
 export function restoreWorld(
   snapshot: WorldSnapshot,
-  tileSizePixels: number,
-): { world: World; selection: readonly EntityId[] } {
-  const world = createWorld({ tileSizePixels });
+  grid: MapGrid,
+): {
+  world: World;
+  selection: readonly EntityId[];
+  economy: Economy;
+  resourceFieldState: ResourceFieldState;
+} {
+  const world = createWorld({ tileSizePixels: grid.tileSizePixels });
   const idMap = new Map<EntityId, EntityId>();
 
   for (const entitySnapshot of snapshot.entities) {
@@ -147,6 +193,7 @@ export function restoreWorld(
             faction: entitySnapshot.faction,
             topLeft: entitySnapshot.topLeft,
             health: entitySnapshot.health,
+            constructionProgress: entitySnapshot.constructionProgress,
           });
     idMap.set(entitySnapshot.id, created.id);
   }
@@ -162,6 +209,7 @@ export function restoreWorld(
     world.setStatus(newId, entitySnapshot.status);
     if (entitySnapshot.kind === 'unit') {
       world.setFacingRadians(newId, entitySnapshot.facingRadians);
+      world.setCarriedCredits(newId, entitySnapshot.carriedCredits);
     }
     if (entitySnapshot.order !== null) {
       world.setOrder(newId, remapOrder(entitySnapshot.order, idMap));
@@ -173,7 +221,12 @@ export function restoreWorld(
     return mapped === undefined ? [] : [mapped];
   });
 
-  return { world, selection };
+  return {
+    world,
+    selection,
+    economy: createEconomy(undefined, snapshot.credits),
+    resourceFieldState: createResourceFieldState(grid, snapshot.resourceFields),
+  };
 }
 
 /**
@@ -188,8 +241,10 @@ function remapOrder(order: OrderSnapshot, idMap: ReadonlyMap<EntityId, EntityId>
       return moveOrder(order.target, order.route);
     case 'AttackMove':
       return attackMoveOrder(order.target);
-    case 'Build':
-      return buildOrder(order.buildingType, order.topLeft);
+    case 'Build': {
+      const buildingId = idMap.get(order.buildingId);
+      return buildingId === undefined ? null : buildOrder(order.buildingType, order.topLeft, buildingId, order.route);
+    }
     case 'Attack': {
       const targetId = idMap.get(order.targetId);
       return targetId === undefined ? null : attackOrder(targetId);
@@ -197,6 +252,12 @@ function remapOrder(order: OrderSnapshot, idMap: ReadonlyMap<EntityId, EntityId>
     case 'Produce': {
       const buildingId = idMap.get(order.buildingId);
       return buildingId === undefined ? null : produceOrder(buildingId, order.unitType);
+    }
+    case 'Gather': {
+      // The drop-off is resolved lazily by `stepGather` when it is missing or stale, so an
+      // unpersisted drop-off only means one extra lookup next tick, not a broken restore.
+      const dropoffId = order.dropoffId === null ? null : (idMap.get(order.dropoffId) ?? null);
+      return gatherOrder(order.fieldId, order.phase, order.route, order.gatherElapsedSeconds, dropoffId);
     }
   }
 }

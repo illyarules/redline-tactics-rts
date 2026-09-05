@@ -45,6 +45,8 @@ export interface UnitEntity extends EntityBase {
   readonly stats: ResolvedUnitStats;
   /** Heading in world space. Zero faces north (negative world Y). */
   facingRadians: number;
+  /** Credits a Worker is currently carrying back from a field. Always 0 for other unit types. */
+  carriedCredits: number;
 }
 
 export interface BuildingEntity extends EntityBase {
@@ -54,6 +56,8 @@ export interface BuildingEntity extends EntityBase {
   /** Top-left tile of the footprint. */
   readonly topLeft: TileCoord;
   readonly footprint: TileSize;
+  /** 0 to 1. Always 1 for a building that was not raised through construction. */
+  constructionProgress: number;
 }
 
 export type Entity = UnitEntity | BuildingEntity;

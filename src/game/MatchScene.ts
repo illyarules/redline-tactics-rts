@@ -11,15 +11,20 @@ import { MAP_CONFIG } from '../config/map';
 import { PERSISTENCE_CONFIG } from '../config/persistence';
 import { RENDER_CONFIG } from '../config/render';
 import { createMapGrid, type MapGrid } from '../core/map';
-import type { Vec2 } from '../core/geometry';
-import type { EntityId, PlayerId } from '../core/ids';
+import type { TileCoord, Vec2 } from '../core/geometry';
+import type { BuildingTypeId, EntityId, PlayerId } from '../core/ids';
+import { startConstruction, stepConstruction } from '../core/construction';
+import { createEconomy, type Economy } from '../core/economy';
 import { issueGroupMoveOrders } from '../core/formation';
+import { issueGatherOrder, stepGather } from '../core/gather';
 import { stepMovement } from '../core/movement';
 import { populateStartingEntities } from '../core/matchSetup';
+import { createResourceFieldState, type ResourceFieldState } from '../core/resourceFieldState';
 import { pruneSelection } from '../core/selection';
 import { restoreWorld, serializeWorld, type WorldSnapshot } from '../core/snapshot';
 import { stepSeparation } from '../core/separation';
 import { createWorld, type World } from '../core/world';
+import { BuildMenu } from '../ui/buildMenu';
 import { ControlsOverlay } from '../ui/controlsOverlay';
 import { NewMatchButton } from '../ui/newMatchButton';
 import { SelectionPanel } from '../ui/selectionPanel';
@@ -31,6 +36,7 @@ import { EntitiesView } from './EntitiesView';
 import { clearSnapshot, loadSnapshot, saveSnapshot } from './matchPersistence';
 import { MapView } from './MapView';
 import { OrderMarkerView } from './OrderMarkerView';
+import { PlacementController } from './PlacementController';
 import { RouteDebugView } from './RouteDebugView';
 import { SelectionController } from './SelectionController';
 import { SelectionMarker } from './SelectionMarker';
@@ -76,6 +82,8 @@ export class MatchScene {
   private readonly scene: Scene;
   private readonly grid: MapGrid;
   private readonly world: World;
+  private readonly economy: Economy;
+  private readonly resourceFieldState: ResourceFieldState;
   private readonly space: SceneSpace;
   private readonly materials: MaterialLibrary;
   private readonly models: ModelLibrary;
@@ -94,6 +102,8 @@ export class MatchScene {
   private readonly titleBanner: TitleBanner;
   private readonly controlsOverlay: ControlsOverlay;
   private readonly selectionPanel: SelectionPanel;
+  private readonly buildMenu: BuildMenu;
+  private readonly placement: PlacementController;
   private readonly newMatchButton: NewMatchButton;
   private readonly onKeyDown: (event: KeyboardEvent) => void;
   private readonly onPageHide: () => void;
@@ -114,13 +124,17 @@ export class MatchScene {
 
     // Resume an unfinished match saved on this device when one exists and is readable; otherwise
     // open the same opening position every fresh match always has.
-    const restored = MatchScene.tryRestore(loadSnapshot(), this.grid.tileSizePixels);
+    const restored = MatchScene.tryRestore(loadSnapshot(), this.grid);
     if (restored !== null) {
       this.world = restored.world;
+      this.economy = restored.economy;
+      this.resourceFieldState = restored.resourceFieldState;
     } else {
       clearSnapshot();
       this.world = createWorld({ tileSizePixels: this.grid.tileSizePixels });
       populateStartingEntities(this.world, this.grid);
+      this.economy = createEconomy();
+      this.resourceFieldState = createResourceFieldState(this.grid);
     }
 
     this.camera = new TargetCamera('camera', Vector3.Zero(), this.scene);
@@ -160,7 +174,7 @@ export class MatchScene {
       (mesh) => this.entitiesView.entityIdOfMesh(mesh),
       () => this.showSelection(),
       (ids, target) => {
-        issueGroupMoveOrders(this.world, this.grid, PLAYER_ID, ids, target);
+        this.issueRightClickOrders(ids, target);
         this.showSelection();
       },
     );
@@ -179,6 +193,22 @@ export class MatchScene {
     this.titleBanner = new TitleBanner(overlayContainer, GAME_TITLE);
     this.controlsOverlay = new ControlsOverlay(overlayContainer);
     this.selectionPanel = new SelectionPanel(overlayContainer);
+    this.buildMenu = new BuildMenu(overlayContainer, (buildingType) => {
+      const workerId = this.selectedWorkerId();
+      if (workerId !== null) {
+        this.placement.start(buildingType, workerId);
+      }
+    });
+    this.placement = new PlacementController(
+      this.scene,
+      this.camera,
+      canvas,
+      this.space,
+      this.grid,
+      this.world,
+      this.materials,
+      (buildingType, topLeft, workerId) => this.confirmPlacement(buildingType, topLeft, workerId),
+    );
     this.newMatchButton = new NewMatchButton(overlayContainer, () => {
       // `location.reload()` fires `pagehide` on its way out, which would otherwise re-run the
       // pagehide save below and immediately re-write the snapshot this click means to discard.
@@ -192,6 +222,8 @@ export class MatchScene {
       if (event.code === DEBUG_LABEL_KEY) {
         this.debugLabels.setEnabled(!this.debugLabels.isEnabled());
         this.routeDebug.setEnabled(this.debugLabels.isEnabled());
+      } else if (event.code === 'Escape' && this.placement.isActive()) {
+        this.placement.cancel();
       }
     };
     window.addEventListener('keydown', this.onKeyDown);
@@ -218,13 +250,18 @@ export class MatchScene {
    */
   private static tryRestore(
     snapshot: WorldSnapshot | null,
-    tileSizePixels: number,
-  ): { world: World; selection: readonly EntityId[] } | null {
+    grid: MapGrid,
+  ): {
+    world: World;
+    selection: readonly EntityId[];
+    economy: Economy;
+    resourceFieldState: ResourceFieldState;
+  } | null {
     if (snapshot === null) {
       return null;
     }
     try {
-      return restoreWorld(snapshot, tileSizePixels);
+      return restoreWorld(snapshot, grid);
     } catch (error) {
       console.warn('Mini Command: discarding an unreadable local match snapshot.', error);
       return null;
@@ -235,16 +272,22 @@ export class MatchScene {
   public render(deltaSeconds: number): void {
     this.cameraController.update(deltaSeconds);
     stepMovement(this.world, deltaSeconds);
+    stepGather(this.world, this.grid, this.resourceFieldState, this.economy, deltaSeconds);
+    stepConstruction(this.world, deltaSeconds);
+    for (const field of this.grid.resourceFields) {
+      this.mapView.setFieldFraction(field.id, this.resourceFieldState.remaining(field.id) / field.credits);
+    }
     stepSeparation(this.world, this.grid, deltaSeconds);
     // The selected entity keeps moving and taking damage, so the markers and the readout follow it.
     this.selection.refresh();
     this.entitiesView.sync(this.world, this.selection.selectedIds(), deltaSeconds);
     this.showSelection();
+    this.placement.update();
     this.debugLabels.update(this.world, (id) => this.entitiesView.modelHeightOf(id));
 
     this.hudElapsedSeconds += deltaSeconds;
     if (this.hudElapsedSeconds >= RENDER_CONFIG.hudUpdateIntervalSeconds) {
-      this.hud.update(this.world, this.grid, this.cameraController.visibleBounds());
+      this.hud.update(this.world, this.grid, this.cameraController.visibleBounds(), this.economy, PLAYER_ID);
       this.hudElapsedSeconds = 0;
     }
 
@@ -273,13 +316,23 @@ export class MatchScene {
     this.titleBanner.destroy();
     this.controlsOverlay.destroy();
     this.selectionPanel.destroy();
+    this.buildMenu.destroy();
+    this.placement.dispose();
     this.newMatchButton.destroy();
     this.scene.dispose();
   }
 
   /** Saves the current world and selection to local storage now, and resets the autosave timer. */
   private saveNow(): void {
-    saveSnapshot(serializeWorld(this.world, this.selection.selectedIds()));
+    saveSnapshot(
+      serializeWorld(
+        this.world,
+        this.selection.selectedIds(),
+        this.economy,
+        this.resourceFieldState,
+        this.grid,
+      ),
+    );
     this.saveElapsedSeconds = 0;
   }
 
@@ -332,6 +385,56 @@ export class MatchScene {
     this.slotMarker.update(entities);
     this.routeDebug.update(entities);
     this.selectionPanel.update(entities);
+    this.buildMenu.update(entities, this.world, this.economy);
+  }
+
+  /** The single selected friendly Worker's id, or `null` when the selection is not exactly that. */
+  private selectedWorkerId(): EntityId | null {
+    const ids = this.selection.selectedIds();
+    if (ids.length !== 1) {
+      return null;
+    }
+    const unit = this.world.unit(ids[0] as EntityId);
+    return unit !== undefined && unit.owner === PLAYER_ID && unit.type === 'worker' ? unit.id : null;
+  }
+
+  /** Spends Credits and raises a construction site once a placement preview is confirmed. */
+  private confirmPlacement(buildingType: BuildingTypeId, topLeft: TileCoord, workerId: EntityId): void {
+    const worker = this.world.unit(workerId);
+    if (worker === undefined) {
+      return;
+    }
+    startConstruction(this.world, this.grid, this.economy, PLAYER_ID, worker.faction, buildingType, topLeft, workerId);
+    this.showSelection();
+  }
+
+  /**
+   * A right-click on a resource field sends every selected Worker to gather it instead of merely
+   * walking there; any other selected units in the same click still receive a normal group Move.
+   */
+  private issueRightClickOrders(ids: readonly EntityId[], target: Vec2): void {
+    const targetTile = this.grid.worldToTile(target);
+    const field = this.grid.resourceFields.find((candidate) =>
+      candidate.tiles.some((tile) => tile.tx === targetTile.tx && tile.ty === targetTile.ty),
+    );
+
+    if (field === undefined) {
+      issueGroupMoveOrders(this.world, this.grid, PLAYER_ID, ids, target);
+      return;
+    }
+
+    const workers: EntityId[] = [];
+    const others: EntityId[] = [];
+    for (const id of ids) {
+      const unit = this.world.unit(id);
+      (unit?.type === 'worker' ? workers : others).push(id);
+    }
+    for (const workerId of workers) {
+      issueGatherOrder(this.world, this.grid, this.economy, PLAYER_ID, workerId, field.id);
+    }
+    if (others.length > 0) {
+      issueGroupMoveOrders(this.world, this.grid, PLAYER_ID, others, target);
+    }
   }
 
   /**

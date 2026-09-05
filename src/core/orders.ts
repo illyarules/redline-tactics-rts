@@ -40,6 +40,10 @@ export interface BuildOrder {
   readonly kind: 'Build';
   readonly buildingType: BuildingTypeId;
   readonly topLeft: TileCoord;
+  /** The construction-site entity, created the moment the order is issued. */
+  readonly buildingId: EntityId;
+  /** The route still being walked to reach the site, or `null` once the Worker has arrived. */
+  readonly route: MoveRoute | null;
 }
 
 /** Queue a unit at a production building. */
@@ -49,7 +53,24 @@ export interface ProduceOrder {
   readonly unitType: UnitTypeId;
 }
 
-export type Order = MoveOrder | AttackOrder | AttackMoveOrder | BuildOrder | ProduceOrder;
+/** One leg of a Worker's gather cycle. */
+export type GatherPhase = 'toField' | 'gathering' | 'toDropoff';
+
+/** Travel to a resource field, gather timed Credits, carry them to a drop-off, and repeat. */
+export interface GatherOrder {
+  readonly kind: 'Gather';
+  readonly fieldId: string;
+  readonly phase: GatherPhase;
+  /** The route still being walked this leg, or `null` while standing still (`gathering`, or having
+   * just arrived and about to switch phase). */
+  readonly route: MoveRoute | null;
+  /** Elapsed seconds of the current `gathering` phase. 0 outside that phase. */
+  readonly gatherElapsedSeconds: number;
+  /** The building being delivered to. Set once the `toDropoff` phase begins. */
+  readonly dropoffId: EntityId | null;
+}
+
+export type Order = MoveOrder | AttackOrder | AttackMoveOrder | BuildOrder | ProduceOrder | GatherOrder;
 
 export type OrderKind = Order['kind'];
 
@@ -68,10 +89,25 @@ export function attackMoveOrder(target: Vec2): AttackMoveOrder {
   return { kind: 'AttackMove', target };
 }
 
-export function buildOrder(buildingType: BuildingTypeId, topLeft: TileCoord): BuildOrder {
-  return { kind: 'Build', buildingType, topLeft };
+export function buildOrder(
+  buildingType: BuildingTypeId,
+  topLeft: TileCoord,
+  buildingId: EntityId,
+  route: MoveRoute | null,
+): BuildOrder {
+  return { kind: 'Build', buildingType, topLeft, buildingId, route };
 }
 
 export function produceOrder(buildingId: EntityId, unitType: UnitTypeId): ProduceOrder {
   return { kind: 'Produce', buildingId, unitType };
+}
+
+export function gatherOrder(
+  fieldId: string,
+  phase: GatherPhase,
+  route: MoveRoute | null,
+  gatherElapsedSeconds = 0,
+  dropoffId: EntityId | null = null,
+): GatherOrder {
+  return { kind: 'Gather', fieldId, phase, route, gatherElapsedSeconds, dropoffId };
 }

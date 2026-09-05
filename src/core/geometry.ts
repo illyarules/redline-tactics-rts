@@ -94,6 +94,16 @@ export function tileRectContains(rect: TileRect, tile: TileCoord): boolean {
   );
 }
 
+/** True when two tile rectangles share any tile. */
+export function tileRectsOverlap(a: TileRect, b: TileRect): boolean {
+  return (
+    a.tx < b.tx + b.width &&
+    a.tx + a.width > b.tx &&
+    a.ty < b.ty + b.height &&
+    a.ty + a.height > b.ty
+  );
+}
+
 /** Builds a normalized rectangle from two opposite corners (drag selection, previews). */
 export function rectFromCorners(a: Vec2, b: Vec2): Rect {
   const x = Math.min(a.x, b.x);

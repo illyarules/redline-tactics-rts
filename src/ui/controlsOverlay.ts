@@ -24,7 +24,10 @@ export const CONTROL_HINTS: readonly ControlHint[] = [
   { input: 'Mouse wheel', action: 'Zoom in and out', short: 'wheel zoom' },
   { input: 'Left-click', action: 'Select one of your units or buildings', short: 'click select' },
   { input: 'Right-click ground', action: 'Move the selected friendly unit', short: 'right-click move' },
-  { input: 'Left-click ground', action: 'Clear the selection', short: 'click ground clears' },
+  { input: 'Right-click a resource field', action: 'Send the selected Worker to gather it', short: 'right-click gather' },
+  { input: 'Build menu button', action: 'Start placing that building (select a Worker)', short: 'build menu' },
+  { input: 'Left-click ground', action: 'Clear the selection, or confirm a placement', short: 'click ground clears' },
+  { input: 'Escape', action: 'Cancel an in-progress building placement', short: 'esc cancels placement' },
   { input: '`', action: 'Toggle entity debug labels', short: '` labels' },
 ];
 

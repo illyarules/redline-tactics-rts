@@ -262,6 +262,14 @@ export interface SquadAnimationConfig {
   readonly idleSwayRadians: number;
 }
 
+/** Worker gather-loop timing and capacity. */
+export interface GatherConfig {
+  /** Credits a Worker carries per completed gather cycle, capped by what the field has left. */
+  readonly workerCapacityCredits: number;
+  /** Seconds spent standing at a field per gather cycle, regardless of the amount carried away. */
+  readonly gatherSeconds: number;
+}
+
 /** Faceted low-poly crystal deposit tuning for a resource field. Distances are tiles. */
 export interface CrystalFieldConfig {
   /** Every this-many-th field tile (in declaration order) grows one deposit cluster. */
