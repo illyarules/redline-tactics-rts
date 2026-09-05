@@ -107,6 +107,14 @@ export interface ProductionConfig {
 /** Damage multiplier applied per attacker type against each armor category. */
 export type DamageTable = Readonly<Record<AttackerTypeId, Readonly<Record<ArmorCategory, number>>>>;
 
+/** Core combat-behaviour cadence, separate from weapon damage/cooldown balance. */
+export interface CombatBehaviorConfig {
+  /** Idle and Attack-Move target searches are batched at this cadence, never every simulation frame. */
+  readonly targetScanIntervalSeconds: number;
+  /** Maximum range at which a combat unit notices a legal enemy in the current visible world. */
+  readonly acquisitionRangeTiles: number;
+}
+
 /**
  * Camera limits and speeds. Distances are screen pixels so panning feels the same at every zoom.
  *
@@ -241,6 +249,83 @@ export interface RenderConfig {
   readonly hudUpdateIntervalSeconds: number;
   /** Size of the one dynamic shadow map. */
   readonly shadowMapSize: number;
+}
+
+/**
+ * Render-only combat feedback. These values deliberately describe no gameplay rule: core combat
+ * still owns targeting, damage, cooldowns and death.
+ */
+export interface CombatEffectWeaponConfig {
+  readonly projectileDurationSeconds: number;
+  readonly projectileHeightTiles: number;
+  readonly projectileLengthTiles: number;
+  readonly projectileWidthTiles: number;
+  readonly muzzleDurationSeconds: number;
+  readonly muzzleDiameterTiles: number;
+  readonly impactDurationSeconds: number;
+  readonly impactDiameterTiles: number;
+  readonly debrisDiameterTiles: number;
+  readonly debrisTravelTiles: number;
+  /** Zero disables the expanding impact ring for this weapon. */
+  readonly ringDiameterTiles: number;
+  readonly projectileColor: number;
+  readonly trailColor: number;
+  readonly impactColor: number;
+}
+
+export interface CombatEffectsConfig {
+  /** Bounded pools prevent a crowded battle from creating an unbounded number of scene objects. */
+  readonly projectilePoolCapacity: number;
+  readonly muzzlePoolCapacity: number;
+  readonly impactPoolCapacity: number;
+  readonly targetFlashPoolCapacity: number;
+  readonly deathPoolCapacity: number;
+  readonly targetFlashDurationSeconds: number;
+  readonly unitFlashDiameterTiles: number;
+  readonly buildingFlashDiameterTiles: number;
+  readonly deathDurationSeconds: number;
+  readonly lowPolySides: number;
+  readonly debrisPerImpact: number;
+  /** Shared cosmetic opacity, growth and placement values for the low-poly effect kit. */
+  readonly visual: {
+    readonly metallicImpactColor: number;
+    readonly targetFlashColor: number;
+    readonly deathColor: number;
+    readonly muzzleAlpha: number;
+    readonly impactFlashAlpha: number;
+    readonly projectileAlpha: number;
+    readonly trailAlpha: number;
+    readonly debrisAlpha: number;
+    readonly debrisVisibility: number;
+    readonly targetFlashAlpha: number;
+    readonly muzzleOffsetDiameterFraction: number;
+    readonly projectileArrivalFade: number;
+    readonly rocketHeadDiameterMultiplier: number;
+    readonly rocketTrailOffsetLengthMultiplier: number;
+    readonly rocketTrailLengthMultiplier: number;
+    readonly rocketTrailWidthMultiplier: number;
+    readonly rocketTrailArrivalFade: number;
+    readonly impactGroundHeightTiles: number;
+    readonly impactGrowthAtEnd: number;
+    readonly ringGrowthAtEnd: number;
+    readonly ringVisibility: number;
+    readonly ringAlpha: number;
+    readonly ringThicknessTiles: number;
+    readonly unitFlashHeightTiles: number;
+    readonly buildingFlashHeightTiles: number;
+    readonly targetFlashDiameterMultiplier: number;
+    readonly targetFlashVisibility: number;
+    readonly deathHeightTiles: number;
+    readonly deathDiameterTiles: number;
+    readonly deathThicknessTiles: number;
+    readonly deathVisibility: number;
+    readonly deathGrowthAtEnd: number;
+    /** Deterministic debris variation avoids per-hit random allocation while keeping the burst organic. */
+    readonly debrisAngleSeedPerSlot: number;
+    readonly debrisVerticalBase: number;
+    readonly debrisVerticalStep: number;
+  };
+  readonly weapons: Readonly<Record<AttackerTypeId, CombatEffectWeaponConfig>>;
 }
 
 /**

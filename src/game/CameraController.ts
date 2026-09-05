@@ -63,7 +63,7 @@ export class CameraController {
     this.apply();
 
     this.onKeyDown = (event) => {
-      if (!this.enabled) return;
+      if (!this.enabled || event.defaultPrevented) return;
       const key = PAN_KEY_CODES[event.code];
       if (key !== undefined) {
         this.held.add(key);

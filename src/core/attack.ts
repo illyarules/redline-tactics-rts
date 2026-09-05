@@ -34,7 +34,7 @@ export function issueAttackOrders(
     if (!canPursue(eligibility)) continue;
     const attacker = world.unit(id);
     if (attacker === undefined || attacker.owner !== player) continue;
-    world.setOrder(id, attackOrder(targetId));
+    world.setOrder(id, attackOrder(targetId, null, 'explicit'));
     world.setStatus(id, eligibility.allowed || eligibility.reason === 'cooling-down' ? 'attacking' : 'moving');
     accepted.push(id);
   }
@@ -82,7 +82,7 @@ export function stepAttackOrders(world: World, grid: MapGrid, deltaSeconds: numb
     if (route === null) {
       // The target may have moved after the route's endpoint was reached. Replan next frame rather
       // than assigning a fake movement route that could make the unit appear to walk in place.
-      world.setOrder(attacker.id, attackOrder(order.targetId));
+      world.setOrder(attacker.id, attackOrder(order.targetId, null, order.source));
       world.setStatus(attacker.id, 'moving');
       continue;
     }
@@ -101,7 +101,7 @@ export function stepAttackOrders(world: World, grid: MapGrid, deltaSeconds: numb
     }
     world.setOrder(
       attacker.id,
-      attackOrder(order.targetId, step.arrived ? null : { ...route, waypointIndex: step.waypointIndex }),
+      attackOrder(order.targetId, step.arrived ? null : { ...route, waypointIndex: step.waypointIndex }, order.source),
     );
     world.setStatus(attacker.id, 'moving');
   }

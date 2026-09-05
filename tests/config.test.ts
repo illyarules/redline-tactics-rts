@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUILDING_CONFIG } from '../src/config/buildings';
 import { UNIT_CONFIG } from '../src/config/units';
 import { FACTION_CONFIG } from '../src/config/factions';
-import { DAMAGE_TABLE } from '../src/config/combat';
+import { COMBAT_BEHAVIOR_CONFIG, DAMAGE_TABLE } from '../src/config/combat';
 import { ECONOMY_CONFIG } from '../src/config/economy';
 import { RENDER_CONFIG } from '../src/config/render';
 import { FORMATION_CONFIG } from '../src/config/formation';
@@ -149,6 +149,13 @@ describe('damage table', () => {
 
   it('has no entry for the worker', () => {
     expect(Object.keys(DAMAGE_TABLE).sort()).toEqual(['infantry', 'rocket', 'tank']);
+  });
+});
+
+describe('combat behaviour values', () => {
+  it('uses a positive, finite target acquisition range and scan interval', () => {
+    expect(isPositiveFinite(COMBAT_BEHAVIOR_CONFIG.targetScanIntervalSeconds)).toBe(true);
+    expect(isPositiveFinite(COMBAT_BEHAVIOR_CONFIG.acquisitionRangeTiles)).toBe(true);
   });
 });
 

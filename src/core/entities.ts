@@ -32,6 +32,8 @@ export type EntityStatus =
   | 'gathering'
   | 'constructing'
   | 'producing'
+  /** A requested order could not find a route; it remains visible until another order replaces it. */
+  | 'failed'
   | 'destroyed';
 
 interface EntityBase {

@@ -22,3 +22,6 @@ Rules that keep the boundaries useful:
 - Entities are referenced by a stable `EntityId` shared between `core/` state and rendered views.
 - Player intent is expressed as typed commands (`Move`, `Attack`, `AttackMove`, `Build`, `Produce`)
   defined in `core/orders.ts`.
+
+Current combat controls: idle combat units defend themselves; press `A`, then left-click passable
+ground to issue Attack-Move. Those units pause for acquired enemies and resume toward the destination.

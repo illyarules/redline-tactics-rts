@@ -29,12 +29,20 @@ export interface AttackOrder {
   readonly targetId: EntityId;
   /** Current route into weapon range, or `null` while firing / waiting to repath. */
   readonly route: MoveRoute | null;
+  /** Explicit player attacks win over automatic acquisition and retaliation. */
+  readonly source: AttackOrderSource;
 }
+
+export type AttackOrderSource = 'explicit' | 'acquired' | 'retaliation' | 'attackMove';
 
 /** Travel to a world position, engaging enemies met on the way. */
 export interface AttackMoveOrder {
   readonly kind: 'AttackMove';
   readonly target: Vec2;
+  /** The original travel route, retained unchanged while a temporary engagement plays out. */
+  readonly route: MoveRoute;
+  /** The temporary enemy being pursued/fired upon, if acquisition found one. */
+  readonly engagement: AttackOrder | null;
 }
 
 /** Send a worker to raise a building whose footprint starts at `topLeft`. */
@@ -83,12 +91,20 @@ export function moveOrder(
   return { kind: 'Move', target, route };
 }
 
-export function attackOrder(targetId: EntityId, route: MoveRoute | null = null): AttackOrder {
-  return { kind: 'Attack', targetId, route };
+export function attackOrder(
+  targetId: EntityId,
+  route: MoveRoute | null = null,
+  source: AttackOrderSource = 'explicit',
+): AttackOrder {
+  return { kind: 'Attack', targetId, route, source };
 }
 
-export function attackMoveOrder(target: Vec2): AttackMoveOrder {
-  return { kind: 'AttackMove', target };
+export function attackMoveOrder(
+  target: Vec2,
+  route: MoveRoute = { resolvedTarget: target, waypoints: [target], waypointIndex: 0 },
+  engagement: AttackOrder | null = null,
+): AttackMoveOrder {
+  return { kind: 'AttackMove', target, route, engagement };
 }
 
 export function buildOrder(

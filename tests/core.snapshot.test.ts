@@ -3,7 +3,7 @@ import { MAP_CONFIG } from '../src/config/map';
 import { createEconomy } from '../src/core/economy';
 import { createMapGrid } from '../src/core/map';
 import { issueMoveOrders, stepMovement } from '../src/core/movement';
-import { attackOrder } from '../src/core/orders';
+import { attackMoveOrder, attackOrder } from '../src/core/orders';
 import { createResourceFieldState } from '../src/core/resourceFieldState';
 import {
   isValidSnapshotShape,
@@ -128,6 +128,45 @@ describe('serializeWorld / restoreWorld round trip (AC-001)', () => {
 
     // Restored ids are freshly assigned, so the selection must have followed the same remap.
     expect(restoredSelection).toEqual([restoredMoving.id, restoredHq.id]);
+  });
+});
+
+describe('automatic and Attack-Move order persistence', () => {
+  it('round-trips acquired source and an Attack-Move route with its temporary engagement', () => {
+    const { grid, world, economy, resourceFieldState } = setup();
+    const acquired = world.createUnit({
+      type: 'infantry', owner: 'player', faction: 'meridian', position: grid.tileCenter(10, 10),
+    });
+    const moving = world.createUnit({
+      type: 'rocket', owner: 'player', faction: 'meridian', position: grid.tileCenter(11, 10),
+    });
+    const target = world.createUnit({
+      type: 'tank', owner: 'ai', faction: 'ember', position: grid.tileCenter(14, 10),
+    });
+    world.setOrder(acquired.id, attackOrder(target.id, null, 'acquired'));
+    const route = {
+      resolvedTarget: grid.tileCenter(20, 10),
+      waypoints: [grid.tileCenter(12, 10), grid.tileCenter(20, 10)],
+      waypointIndex: 1,
+    };
+    world.setOrder(moving.id, attackMoveOrder(grid.tileCenter(20, 10), route, attackOrder(target.id, null, 'attackMove')));
+
+    const { world: restored } = restoreWorld(
+      serializeWorld(world, [], economy, resourceFieldState, grid),
+      grid,
+    );
+    const restoredAcquired = restored.units('player').find((unit) => unit.type === 'infantry');
+    const restoredMoving = restored.units('player').find((unit) => unit.type === 'rocket');
+    const restoredTarget = restored.units('ai').find((unit) => unit.type === 'tank');
+
+    expect(restoredAcquired?.order).toEqual(expect.objectContaining({
+      kind: 'Attack', source: 'acquired', targetId: restoredTarget?.id,
+    }));
+    expect(restoredMoving?.order).toEqual(expect.objectContaining({
+      kind: 'AttackMove', route, engagement: expect.objectContaining({
+        targetId: restoredTarget?.id, source: 'attackMove',
+      }),
+    }));
   });
 });
 

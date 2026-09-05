@@ -14,6 +14,8 @@ import { createMapGrid, type MapGrid } from '../core/map';
 import type { TileCoord, Vec2 } from '../core/geometry';
 import type { BuildingTypeId, EntityId, PlayerId, UnitTypeId } from '../core/ids';
 import { issueAttackOrders, stepAttackOrders, type AttackHitEvent } from '../core/attack';
+import { issueAttackMoveOrders, stepAttackMoveOrders } from '../core/attackMove';
+import { createAutoTargetingState, issueRetaliationOrders, stepAutomaticTargeting } from '../core/autoCombat';
 import { startConstruction, stepConstruction } from '../core/construction';
 import { stepAttackCooldowns } from '../core/combat';
 import { createEconomy, type Economy } from '../core/economy';
@@ -35,7 +37,8 @@ import { ProductionMenu } from '../ui/productionMenu';
 import { TacticalHud } from '../ui/tacticalHud';
 import { TitleBanner } from '../ui/titleBanner';
 import { CameraController } from './CameraController';
-import { CombatFeedbackView } from './CombatFeedbackView';
+import { CombatEffectsView } from './CombatEffectsView';
+import { deathEffectAt, mapAttackHitToCombatEffect } from './combatEffectEvents';
 import { DebugLabelsView } from './DebugLabelsView';
 import { EntitiesView } from './EntitiesView';
 import { clearSnapshot, loadSnapshot, saveSnapshot } from './matchPersistence';
@@ -55,7 +58,7 @@ import { GAME_TITLE } from './title';
 /**
  * The single gameplay scene. It builds the map grid and the world from typed config, renders both in
  * three dimensions, and lets the player look around and select what they own. Selection, movement,
- * economy, production and explicit attacks are backed by pure `core/` systems.
+ * economy, production and combat orders are backed by pure `core/` systems.
  *
  * The scene owns the world but never edits entity state directly: the rules live in `core/`. Nothing
  * in this file — or in any other view — decides damage, cost or prerequisites.
@@ -94,7 +97,7 @@ export class MatchScene {
   private readonly models: ModelLibrary;
   private readonly mapView: MapView;
   private readonly entitiesView: EntitiesView;
-  private readonly combatFeedback: CombatFeedbackView;
+  private readonly combatEffects: CombatEffectsView;
   private readonly selectionMarker: SelectionMarker;
   private readonly orderMarker: OrderMarkerView;
   private readonly slotMarker: SlotMarkerView;
@@ -114,6 +117,7 @@ export class MatchScene {
   private readonly pauseMenu: PauseMenu;
   private readonly onKeyDown: (event: KeyboardEvent) => void;
   private readonly onPageHide: () => void;
+  private readonly autoTargeting = createAutoTargetingState();
   private hudElapsedSeconds = Number.POSITIVE_INFINITY;
   private saveElapsedSeconds = 0;
   private paused = false;
@@ -169,7 +173,7 @@ export class MatchScene {
       (mesh: Mesh) => this.shadows.addShadowCaster(mesh),
     );
     this.entitiesView.sync(this.world);
-    this.combatFeedback = new CombatFeedbackView(this.scene, this.space, this.materials);
+    this.combatEffects = new CombatEffectsView(this.scene, this.space, this.materials);
 
     this.selectionMarker = new SelectionMarker(this.scene, this.materials, this.space);
     this.orderMarker = new OrderMarkerView(this.scene, this.materials, this.space);
@@ -190,6 +194,10 @@ export class MatchScene {
       },
       (ids, targetId) => {
         issueAttackOrders(this.world, PLAYER_ID, ids, targetId);
+        this.showSelection();
+      },
+      (ids, target) => {
+        issueAttackMoveOrders(this.world, this.grid, PLAYER_ID, ids, target);
         this.showSelection();
       },
     );
@@ -242,18 +250,24 @@ export class MatchScene {
 
     this.onKeyDown = (event) => {
       if (event.code === 'Escape') {
-        if (this.placement.isActive()) {
+        if (this.selection.isAttackMoveArmed()) {
+          this.selection.setAttackMoveArmed(false);
+        } else if (this.placement.isActive()) {
           this.placement.cancel();
         } else {
           this.setPaused(!this.paused);
         }
+        event.preventDefault();
+      } else if (!this.paused && !this.placement.isActive() && event.code === 'KeyA') {
+        this.selection.setAttackMoveArmed(true);
         event.preventDefault();
       } else if (!this.paused && event.code === DEBUG_LABEL_KEY) {
         this.debugLabels.setEnabled(!this.debugLabels.isEnabled());
         this.routeDebug.setEnabled(this.debugLabels.isEnabled());
       }
     };
-    window.addEventListener('keydown', this.onKeyDown);
+    // Capture A before the camera's WASD listener so it becomes a one-click command, not a left pan.
+    window.addEventListener('keydown', this.onKeyDown, true);
 
     // The very latest state right before a reload or tab close should not be lost waiting for the
     // next periodic autosave tick.
@@ -307,8 +321,14 @@ export class MatchScene {
     stepConstruction(this.world, deltaSeconds);
     stepProduction(this.world, this.grid, deltaSeconds);
     stepAttackCooldowns(this.world, deltaSeconds);
-    this.showAttackFeedback(stepAttackOrders(this.world, this.grid, deltaSeconds));
-    this.combatFeedback.update(deltaSeconds);
+    stepAutomaticTargeting(this.world, this.autoTargeting, deltaSeconds);
+    const hits = [
+      ...stepAttackOrders(this.world, this.grid, deltaSeconds),
+      ...stepAttackMoveOrders(this.world, this.grid, deltaSeconds),
+    ];
+    issueRetaliationOrders(this.world, hits);
+    this.showAttackFeedback(hits);
+    this.combatEffects.update(deltaSeconds);
     for (const field of this.grid.resourceFields) {
       this.mapView.setFieldFraction(field.id, this.resourceFieldState.remaining(field.id) / field.credits);
     }
@@ -334,7 +354,7 @@ export class MatchScene {
   }
 
   public dispose(): void {
-    window.removeEventListener('keydown', this.onKeyDown);
+    window.removeEventListener('keydown', this.onKeyDown, true);
     window.removeEventListener('pagehide', this.onPageHide);
     this.cameraController.dispose();
     this.selection.dispose();
@@ -342,7 +362,7 @@ export class MatchScene {
     this.orderMarker.dispose();
     this.slotMarker.dispose();
     this.routeDebug.dispose();
-    this.combatFeedback.dispose();
+    this.combatEffects.dispose();
     this.entitiesView.dispose();
     this.mapView.dispose();
     this.models.dispose();
@@ -442,15 +462,17 @@ export class MatchScene {
     this.productionMenu.update(entities, this.world, this.economy, PLAYER_ID);
   }
 
-  /** Turns pure attack events into short-lived effects, then removes a confirmed dead entity once. */
+  /** Maps only confirmed core hits into renderer-safe cues, then removes a confirmed dead entity once. */
   private showAttackFeedback(events: readonly AttackHitEvent[]): void {
     for (const event of events) {
       const attacker = this.world.get(event.attackerId);
       const target = this.world.get(event.targetId);
-      if (attacker === undefined || target === undefined) continue;
-      this.combatFeedback.hit(attacker.position, target.position);
+      const effect = mapAttackHitToCombatEffect(event, attacker, target);
+      if (effect === null || target === undefined) continue;
+      this.combatEffects.play(effect);
       if (event.destroyed) {
-        this.combatFeedback.death(target.position);
+        const death = deathEffectAt(effect.to, effect.targetToken);
+        if (death !== null) this.combatEffects.play(death);
         this.world.remove(target.id);
       }
     }

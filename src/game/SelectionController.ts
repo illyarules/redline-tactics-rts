@@ -14,9 +14,10 @@ interface DragState { readonly start: PointerPoint; readonly additive: boolean; 
 
 const DRAG_THRESHOLD_PIXELS = 6;
 
-/** Babylon input adapter for click, box/additive selection, ground moves and enemy attack requests. */
+/** Babylon input adapter for selection, ground moves, explicit attacks and one-click Attack-Move. */
 export class SelectionController {
   private enabled = true;
+  private attackMoveArmed = false;
   private selected: EntityId[] = [];
   private drag: DragState | null = null;
   private readonly ray = new Ray(Vector3.Zero(), Vector3.Up());
@@ -38,6 +39,7 @@ export class SelectionController {
     private readonly onChange: (selected: readonly EntityId[]) => void,
     private readonly onMove: (selected: readonly EntityId[], target: Vec2) => void,
     private readonly onAttack: (selected: readonly EntityId[], targetId: EntityId) => void,
+    private readonly onAttackMove: (selected: readonly EntityId[], target: Vec2) => void,
   ) {
     this.dragBox = document.createElement('div');
     Object.assign(this.dragBox.style, {
@@ -51,6 +53,13 @@ export class SelectionController {
       if (!this.enabled) return;
       const point = this.canvasPoint(event);
       if (event.button === 0) {
+        if (this.attackMoveArmed && this.selected.length > 0) {
+          this.attackMoveArmed = false;
+          this.scene.createPickingRayToRef(point.x, point.y, this.identity, this.ray, this.camera);
+          const target = this.groundPoint();
+          if (target !== null) this.onAttackMove(this.selected, target);
+          return;
+        }
         this.drag = { start: point, additive: event.shiftKey };
         canvas.setPointerCapture(event.pointerId);
         return;
@@ -101,6 +110,11 @@ export class SelectionController {
 
   public selectedIds(): readonly EntityId[] { return this.selected; }
   public selectedId(): EntityId | null { return this.selected[0] ?? null; }
+  public isAttackMoveArmed(): boolean { return this.attackMoveArmed; }
+  /** The next left-click on ground becomes an Attack-Move request. */
+  public setAttackMoveArmed(armed: boolean): void {
+    this.attackMoveArmed = armed && this.enabled && this.selected.length > 0;
+  }
   /** Allows the opening scene to seed one selected building. */
   public select(id: EntityId | null): void { this.setSelection(id === null ? [] : [id]); }
   /** Allows the opening scene to seed a whole selection restored from a local match snapshot. */
@@ -112,6 +126,7 @@ export class SelectionController {
     this.enabled = enabled;
     if (!enabled) {
       this.drag = null;
+      this.attackMoveArmed = false;
       this.dragBox.style.display = 'none';
     }
   }

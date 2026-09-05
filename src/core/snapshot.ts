@@ -20,6 +20,7 @@ import {
   gatherOrder,
   moveOrder,
   produceOrder,
+  type AttackOrder,
   type Order,
 } from './orders';
 import {
@@ -34,7 +35,7 @@ import { createWorld, type World } from './world';
  * Bumped whenever a saved shape stops matching what `restoreWorld` expects, so an old save from a
  * prior version is discarded instead of misread.
  */
-export const SNAPSHOT_SCHEMA_VERSION = 4;
+export const SNAPSHOT_SCHEMA_VERSION = 5;
 
 /**
  * The persisted shape of an `Order`. Structurally identical to `core/orders.ts`'s `Order` union —
@@ -255,14 +256,17 @@ function remapOrder(order: OrderSnapshot, idMap: ReadonlyMap<EntityId, EntityId>
     case 'Move':
       return moveOrder(order.target, order.route);
     case 'AttackMove':
-      return attackMoveOrder(order.target);
+      return attackMoveOrder(
+        order.target,
+        order.route,
+        order.engagement === null ? null : remapAttackOrder(order.engagement, idMap),
+      );
     case 'Build': {
       const buildingId = idMap.get(order.buildingId);
       return buildingId === undefined ? null : buildOrder(order.buildingType, order.topLeft, buildingId, order.route);
     }
     case 'Attack': {
-      const targetId = idMap.get(order.targetId);
-      return targetId === undefined ? null : attackOrder(targetId, order.route);
+      return remapAttackOrder(order, idMap);
     }
     case 'Produce': {
       const buildingId = idMap.get(order.buildingId);
@@ -275,4 +279,12 @@ function remapOrder(order: OrderSnapshot, idMap: ReadonlyMap<EntityId, EntityId>
       return gatherOrder(order.fieldId, order.phase, order.route, order.gatherElapsedSeconds, dropoffId);
     }
   }
+}
+
+function remapAttackOrder(
+  order: AttackOrder,
+  idMap: ReadonlyMap<EntityId, EntityId>,
+): AttackOrder | null {
+  const targetId = idMap.get(order.targetId);
+  return targetId === undefined ? null : attackOrder(targetId, order.route, order.source);
 }
