@@ -5,12 +5,11 @@ import { NEUTRAL_TONES, OWNER_PALETTES, type OwnerPalette } from '../palette';
 import { QUARTER_TURN, buildModel, type ModelBuilder, type ModelSpec } from './kit';
 
 /**
- * The four unit silhouettes, as original low-poly geometry.
- *
- * Each is built so its outline says what it does from directly above as well as from the game's
- * angle: the Worker is a small cab with a load on the back, the Infantry a figure on foot, the Tank
- * a low hull between two tracks with a barrel out front, the Rocket a long chassis carrying three
- * raised tubes.
+ * Three of the four unit silhouettes, as original low-poly geometry: the Worker a small cab with a
+ * load on the back, the Tank a low hull between two tracks with a barrel out front, the Rocket a long
+ * chassis carrying three raised tubes. Infantry is not among them — it renders as a three-soldier
+ * squad built by `models/soldier.ts` instead of a single merged model, so it needs limbs that move
+ * independently rather than one static mesh.
  *
  * Measurements are in tiles and roughly fill the `bodySizeTiles` the unit's config gives it, so what
  * is drawn is the same size as the circle `core/selection.ts` picks with. Models face `+z`, which is
@@ -45,22 +44,6 @@ const WORKER: UnitParts = (b, palette) => {
       wheel(b, x, z, 0.22);
     }
   }
-};
-
-const INFANTRY: UnitParts = (b, palette) => {
-  for (const x of [-0.1, 0.1]) {
-    b.box({size: [0.12, 0.18, 0.23], at: [x, 0.09, x]}, NEUTRAL_TONES.metalDark);
-  }
-  b.cylinder({height: 0.17, diameter: 0.27, diameterTop: 0.2, sides: 6, at: [0, 0.78, 0]}, palette.body);
-  b.box({ size: [0.24, 0.1, 0.2], at: [0, 0.05, 0] }, NEUTRAL_TONES.metalDark)
-    .box({ size: [0.18, 0.24, 0.16], at: [0, 0.22, 0] }, palette.shell)
-    .box({ size: [0.32, 0.28, 0.22], at: [0, 0.48, 0] }, palette.body)
-    .box({ size: [0.33, 0.04, 0.23], at: [0, 0.37, 0] }, palette.accent)
-    .box({ size: [0.22, 0.2, 0.1], at: [0, 0.5, -0.16] }, palette.shell)
-    .box({ size: [0.38, 0.09, 0.24], at: [0, 0.6, 0] }, palette.body)
-    .box({ size: [0.17, 0.16, 0.17], at: [0, 0.73, 0] }, palette.light)
-    .box({ size: [0.15, 0.07, 0.04], at: [0, 0.71, 0.09] }, NEUTRAL_TONES.glass)
-    .box({ size: [0.05, 0.05, 0.4], at: [0.17, 0.5, 0.08] }, NEUTRAL_TONES.metalDark);
 };
 
 const TANK: UnitParts = (b, palette) => {
@@ -111,9 +94,11 @@ const ROCKET: UnitParts = (b, palette) => {
   }
 };
 
-const UNIT_PARTS: Readonly<Record<UnitTypeId, UnitParts>> = {
+/** Every unit role except Infantry, which is built by `models/soldier.ts` instead. */
+export type MergedUnitTypeId = Exclude<UnitTypeId, 'infantry'>;
+
+const UNIT_PARTS: Readonly<Record<MergedUnitTypeId, UnitParts>> = {
   worker: WORKER,
-  infantry: INFANTRY,
   tank: TANK,
   rocket: ROCKET,
 };
@@ -122,7 +107,7 @@ const UNIT_PARTS: Readonly<Record<UnitTypeId, UnitParts>> = {
 export function buildUnitModel(
   scene: Scene,
   materials: MaterialLibrary,
-  type: UnitTypeId,
+  type: MergedUnitTypeId,
   owner: PlayerId,
 ): ModelSpec {
   return buildModel(scene, materials, `unit:${type}:${owner}`, (builder) => {

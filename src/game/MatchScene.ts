@@ -238,7 +238,7 @@ export class MatchScene {
     stepSeparation(this.world, this.grid, deltaSeconds);
     // The selected entity keeps moving and taking damage, so the markers and the readout follow it.
     this.selection.refresh();
-    this.entitiesView.sync(this.world, this.selection.selectedIds());
+    this.entitiesView.sync(this.world, this.selection.selectedIds(), deltaSeconds);
     this.showSelection();
     this.debugLabels.update(this.world, (id) => this.entitiesView.modelHeightOf(id));
 

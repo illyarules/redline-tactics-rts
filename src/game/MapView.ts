@@ -4,35 +4,27 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder';
 import type { Scene } from '@babylonjs/core/scene';
+import { CRYSTAL_FIELD_CONFIG } from '../config/crystalField';
 import type { MapGrid, ResourceField } from '../core/map';
 import { createGroundTexture } from './groundTexture';
 import type { MaterialLibrary } from './materials';
+import { generateCrystalFieldLayout } from './models/crystalField';
 import { buildModel } from './models/kit';
-import { FIELD_TONES, NEUTRAL_TONES } from './palette';
+import { CRYSTAL_FIELD_TONES, FIELD_TONES } from './palette';
 import type { SceneSpace } from './sceneSpace';
 
 /**
  * The static battlefield: the ground the match is played on, the edge of the playable area, and the
- * Credits crystals standing in the resource fields.
+ * crystal deposits standing in the resource fields.
  *
  * Everything here is read from the `MapGrid` and never decides a rule. "Open Field" has no blocking
- * terrain at all, so there is nothing to build but the surface itself.
+ * terrain at all, so there is nothing to build but the surface itself. A deposit's own layout —
+ * where its shards, rocks and fragments sit — comes from `generateCrystalFieldLayout`, so the same
+ * map always grows the same crystals; this view only turns that layout into merged geometry.
  */
 
 /** How far past the map edge the ground keeps going, in map widths, so the horizon is never void. */
 const SURROUND_SCALE = 4;
-/** Shards per resource tile, and how large they get. Small numbers: a field is a cluster, not a forest. */
-const CRYSTAL_HEIGHT_TILES = 1.05;
-const CRYSTAL_DIAMETER_TILES = 0.58;
-const SHARDS_PER_TILE = 1;
-
-/** Deterministic value in [0, 1) so a field always grows the same crystals. */
-function hash01(x: number, y: number, salt: number): number {
-  let h = Math.imul(x + 0x2545f491, 0x27d4eb2f) ^ Math.imul(y + 0x9e3779b9, 0x85ebca6b);
-  h = Math.imul(h ^ (h >>> 15), 0xc2b2ae35) ^ Math.imul(salt + 0x165667b1, 0x1b873593);
-  h ^= h >>> 13;
-  return (h >>> 0) / 0x100000000;
-}
 
 export class MapView {
   private readonly meshes: Mesh[] = [];
@@ -106,9 +98,9 @@ export class MapView {
   }
 
   /**
-   * One resource field's crystals, merged into a single mesh. A field is a cluster of tall cyan
-   * shards on the tiles the field data already describes, jittered so the cluster never looks
-   * stamped, and it is the only saturated cool thing on the field besides the player's own colour.
+   * One resource field's crystal deposit, merged into a single mesh: a dense, irregular group of
+   * faceted cyan gems rooted directly in the grass. This follows the concept art deliberately — no
+   * pads, glowing circles or generic rock scatter competing with the crystals' silhouette.
    */
   private buildCrystals(
     scene: Scene,
@@ -116,41 +108,78 @@ export class MapView {
     space: SceneSpace,
     field: ResourceField,
   ): Mesh {
+    const layout = generateCrystalFieldLayout(field.tiles, CRYSTAL_FIELD_CONFIG);
+    const config = CRYSTAL_FIELD_CONFIG;
+
     const model = buildModel(scene, materials, `crystals:${field.id}`, (builder) => {
-      for (const [index, tile] of field.tiles.entries()) {
-        if (index % 2 !== 0) continue;
-        const center = this.grid.tileCenter(tile.tx, tile.ty);
-        const x = space.sceneX(center.x);
-        const z = space.sceneZ(center.y);
-        builder.cylinder({height: 0.08, diameter: 1.35, diameterTop: 1.1,
-          sides: 7, at: [x, 0.04, z]}, 0x586560);
-        builder.cylinder({height: 0.025, diameter: 0.72, sides: 7,
-          at: [x, 0.09, z]}, 0x368c93, 'glowing');
-        for (let shard = 0; shard < SHARDS_PER_TILE; shard++) {
-          const salt = index * SHARDS_PER_TILE + shard;
-          const scale = 0.45 + hash01(tile.tx, tile.ty, salt) * 0.75;
-          const height = CRYSTAL_HEIGHT_TILES * scale;
-          builder.cylinder(
-            {
-              height,
-              diameter: CRYSTAL_DIAMETER_TILES * scale,
-              diameterTop: 0,
-              sides: 5,
-              at: [
-                space.sceneX(center.x) + (hash01(tile.tx, tile.ty, salt + 64) - 0.5) * 0.7,
-                height / 2 + 0.08,
-                space.sceneZ(center.y) + (hash01(tile.tx, tile.ty, salt + 128) - 0.5) * 0.7,
-              ],
-              turn: [
-                (hash01(tile.tx, tile.ty, salt + 192) - 0.5) * 0.35,
-                0,
-                (hash01(tile.tx, tile.ty, salt + 256) - 0.5) * 0.35,
-              ],
-            },
-            NEUTRAL_TONES.crystal,
-            'surface',
-          );
-        }
+      const center = this.sceneTileCenter(space, field.center.tx, field.center.ty);
+      for (const rock of layout.rocks) {
+        const { x, z } = this.sceneTileCenter(space, rock.tx, rock.ty);
+        const rx = center.x + (x + rock.offsetXTiles - center.x) * 0.7;
+        const rz = center.z + (z + rock.offsetZTiles - center.z) * 0.7;
+        builder.cylinder(
+          {
+            height: rock.heightTiles,
+            diameter: rock.diameterTiles,
+            diameterTop: rock.diameterTiles * 0.7,
+            sides: 6,
+            at: [rx, rock.heightTiles / 2 + 0.09, rz],
+            turn: [0, rock.rotationRadians, 0],
+          },
+          CRYSTAL_FIELD_TONES.rock,
+        );
+      }
+      for (const shard of layout.shards) {
+        const { x, z } = this.sceneTileCenter(space, shard.tx, shard.ty);
+        // Pull the deterministic tile samples toward the field centre, so a radius-three resource
+        // field reads as a dense vein with negative space around it rather than a loose ring.
+        const sx = center.x + (x + shard.offsetXTiles - center.x) * 0.7;
+        const sz = center.z + (z + shard.offsetZTiles - center.z) * 0.7;
+        const baseHeight = shard.heightTiles * config.lowerBandShare;
+        const crownHeight = shard.heightTiles - baseHeight;
+        const groundY = 0.025;
+        // Two pyramidal rings make a true low-poly gem: narrow at the ground, widest at its
+        // shoulder, then tapering to a point. The prior shape widened at the ground and read as a
+        // traffic cone from this camera.
+        builder.cylinder(
+          {
+            height: baseHeight,
+            diameter: shard.lowerDiameterTiles * 0.14,
+            diameterTop: shard.lowerDiameterTiles,
+            sides: shard.sides,
+            at: [sx, groundY + baseHeight / 2, sz],
+            turn: [shard.tiltXRadians, shard.rotationRadians, shard.tiltZRadians],
+          },
+          CRYSTAL_FIELD_TONES.crystalLower,
+        );
+        builder.cylinder(
+          {
+            height: crownHeight,
+            diameter: shard.lowerDiameterTiles,
+            diameterTop: shard.capDiameterTiles,
+            sides: shard.sides,
+            at: [sx, groundY + baseHeight + crownHeight / 2, sz],
+            turn: [shard.tiltXRadians, shard.rotationRadians, shard.tiltZRadians],
+          },
+          CRYSTAL_FIELD_TONES.crystalUpper,
+        );
+      }
+      for (const fragment of layout.fragments) {
+        const { x, z } = this.sceneTileCenter(space, fragment.tx, fragment.ty);
+        const fx = center.x + (x + fragment.offsetXTiles - center.x) * 0.7;
+        const fz = center.z + (z + fragment.offsetZTiles - center.z) * 0.7;
+        // Tipped onto its side near the ground: a shard that broke off rather than one still growing.
+        builder.cylinder(
+          {
+            height: fragment.lengthTiles,
+            diameter: fragment.lengthTiles * 0.3,
+            diameterTop: fragment.lengthTiles * 0.14,
+            sides: 5,
+            at: [fx, 0.1, fz],
+            turn: [fragment.tiltXRadians, fragment.rotationRadians, fragment.tiltZRadians],
+          },
+          CRYSTAL_FIELD_TONES.fragment,
+        );
       }
     });
 
@@ -158,5 +187,10 @@ export class MapView {
     // shown directly instead of being cloned per entity the way `EntitiesView` uses a model.
     model.mesh.setEnabled(true);
     return model.mesh;
+  }
+
+  private sceneTileCenter(space: SceneSpace, tx: number, ty: number): { x: number; z: number } {
+    const center = this.grid.tileCenter(tx, ty);
+    return { x: space.sceneX(center.x), z: space.sceneZ(center.y) };
   }
 }

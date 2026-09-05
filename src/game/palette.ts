@@ -44,6 +44,22 @@ export const NEUTRAL_TONES = {
   crystal: 0x5fdcee,
 } as const;
 
+/** The crystal deposits resource fields grow: a dark stone bed under two-tone faceted shards. */
+export const CRYSTAL_FIELD_TONES = {
+  /** Uneven dark stone/ore the deposit sits on. */
+  oreBed: 0x363a34,
+  /** Loose rocks scattered near the base — a shade off the bed so they still read as separate. */
+  rock: 0x5c6256,
+  /** Deep cyan body facets. Their value stays below the tip so a shard remains readable. */
+  crystalLower: 0x0d617a,
+  /** Sunlit facets, not emissive: avoids the previous near-white cones. */
+  crystalUpper: 0x1da7c5,
+  /** Tiny emissive apex, the only truly bright surface in a deposit. */
+  crystalTip: 0x8feefa,
+  /** Small broken-off shard pieces lying around the base. Dim: they carry no glow of their own. */
+  fragment: 0x2d7d84,
+} as const;
+
 /** The battlefield's own tones: a dark, subdued green that lets the factions be the only loud thing. */
 export const FIELD_TONES = {
   /** Base colour of the grass, before the per-tile variation the ground texture paints. */

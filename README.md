@@ -91,14 +91,19 @@ is imported, sampled or traced from any other game, and the concept image in `as
 reference for the direction only, never a texture.
 
 **Nothing on the field is an asset file.** Units and buildings are boxes and cylinders assembled in
-`src/game/models/`, and each role is merged into a single mesh per faction that `EntitiesView`
+`src/game/models/`, and most roles are merged into a single mesh per faction that `EntitiesView`
 clones per entity, so a crowded field costs a handful of shapes each rather than a stack of parts.
 `src/game/palette.ts` owns the two palettes both sides are built from — four planes plus a pennant
 tone — and `src/game/materials.ts` caches one material per colour, so two parts painted the same
 tone share one draw state.
 
 - **Worker** — a small four-wheeled utility vehicle: lit cab in front, open bed carrying crystal.
-- **Infantry** — a figure on foot: helmet and visor over shoulders, rifle carried to one side.
+- **Infantry** — one entity, three soldiers: a compact asymmetric triangle of low-poly figures (helmet,
+  torso and legs, one carrying a rifle) sharing the entity's single health pool, order and selection
+  ring. Legs and rifle arm swing in a small procedural walk cycle while the squad moves, with a tiny
+  phase offset between soldiers so their steps never land together, and settle into a subtle idle sway
+  once it stops — all driven by `EntitiesView`/`src/game/models/soldier.ts` from the entity's own
+  status, never by `src/core`.
 - **Tank** — a low hull between two tracks, with a round turret and a barrel past the front.
 - **Rocket** — a six-wheeled chassis carrying three raised tubes, cab in front of them.
 
@@ -113,7 +118,7 @@ because a door on the far side of a building is a door nobody sees.
 The ground is a single plane carrying one baked texture: a barely-there tint per tile to say where
 the grid is, then soft blotches at free positions to stop those tints reading as a checkerboard, and
 a faint grid so distances can be judged by eye. It is decoration only — **it never changes what a
-tile reports as passable**. The field continues past the camera bounds without a lit border. Sparse grass, small painted stones and faded wheel tracks add scale without blocking movement. Each resource field uses fewer, wider faceted cyan crystals on shallow mineral beds, with restrained glow at their bases.
+tile reports as passable**. The field continues past the camera bounds without a lit border. Sparse grass, small painted stones and faded wheel tracks add scale without blocking movement. Each resource field is a grounded crystal deposit — an uneven dark stone bed, loose rocks and broken shard fragments around the base, and faceted prismatic shards of varied height, width, tilt and rotation, shading from a dark teal lower band into a bright, glowing cyan tip. `src/game/models/crystalField.ts` grows the same layout deterministically from the same map data every time; nothing about it is random per match.
 
 A warm directional sun and cool hemispheric fill separate model faces with soft percentage-closer shadows. The opening camera uses a 58-degree pitch and fits roughly 26 tiles across on smaller desktop windows, up to the configured opening zoom. The HQ is selected on arrival.
 

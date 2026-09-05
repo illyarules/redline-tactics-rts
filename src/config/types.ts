@@ -229,3 +229,53 @@ export interface RenderConfig {
   /** Size of the one dynamic shadow map. */
   readonly shadowMapSize: number;
 }
+
+/**
+ * The compact triangular arrangement a three-soldier Infantry squad stands in around its entity's
+ * position, in tiles and in the model's own local space (`+z` forward, `+x` right).
+ */
+export interface SquadFormationConfig {
+  /** How far the lead soldier stands ahead of the entity's position. */
+  readonly leadOffsetTiles: number;
+  /** How far the two rear soldiers stand behind the entity's position. */
+  readonly rearOffsetTiles: number;
+  /** Half the distance between the two rear soldiers. */
+  readonly rearSpreadTiles: number;
+}
+
+/**
+ * Procedural walk-cycle tuning for the Infantry squad. Angles are radians, distances are tiles.
+ * Purely a rendering concern: the simulation never sees these values.
+ */
+export interface SquadAnimationConfig {
+  readonly formation: SquadFormationConfig;
+  /** Full stride cycles per second while an Infantry entity is moving. */
+  readonly walkCyclesPerSecond: number;
+  readonly legSwingRadians: number;
+  readonly armSwingRadians: number;
+  readonly walkBobTiles: number;
+  /** Radians of cycle phase each soldier is offset from the last, so steps never land in lockstep. */
+  readonly soldierPhaseOffsetRadians: number;
+  /** Breathing cycles per second while idle. */
+  readonly idleCyclesPerSecond: number;
+  readonly idleBobTiles: number;
+  readonly idleSwayRadians: number;
+}
+
+/** Faceted low-poly crystal deposit tuning for a resource field. Distances are tiles. */
+export interface CrystalFieldConfig {
+  /** Every this-many-th field tile (in declaration order) grows one deposit cluster. */
+  readonly tileStride: number;
+  readonly oreBedDiameterTiles: number;
+  readonly glowPoolDiameterTiles: number;
+  readonly rockChance: number;
+  readonly fragmentChance: number;
+  readonly shardHeightTiles: { readonly min: number; readonly max: number };
+  readonly shardDiameterTiles: { readonly min: number; readonly max: number };
+  /** Share of a shard's height given to its darker lower band; the rest is the bright upper band. */
+  readonly lowerBandShare: number;
+  /** How far a shard, rock or fragment may drift from its tile centre. */
+  readonly jitterTiles: number;
+  /** Largest lean applied to a shard or fragment, in radians. */
+  readonly maxTiltRadians: number;
+}
