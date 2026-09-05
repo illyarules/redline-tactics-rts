@@ -9,7 +9,7 @@
  */
 import { createEconomy, serializeEconomy, type Economy, type EconomySnapshot } from './economy';
 import { isAlive, isUnit } from './entities';
-import type { EntityStatus } from './entities';
+import type { EntityStatus, ProductionQueueItem } from './entities';
 import type { TileCoord, Vec2 } from './geometry';
 import type { BuildingTypeId, EntityId, FactionId, PlayerId, UnitTypeId } from './ids';
 import type { MapGrid } from './map';
@@ -34,7 +34,7 @@ import { createWorld, type World } from './world';
  * Bumped whenever a saved shape stops matching what `restoreWorld` expects, so an old save from a
  * prior version is discarded instead of misread.
  */
-export const SNAPSHOT_SCHEMA_VERSION = 2;
+export const SNAPSHOT_SCHEMA_VERSION = 4;
 
 /**
  * The persisted shape of an `Order`. Structurally identical to `core/orders.ts`'s `Order` union —
@@ -57,6 +57,7 @@ export interface UnitSnapshot extends EntitySnapshotBase {
   readonly kind: 'unit';
   readonly type: UnitTypeId;
   readonly facingRadians: number;
+  readonly attackCooldownRemainingSeconds: number;
   readonly carriedCredits: number;
 }
 
@@ -65,6 +66,7 @@ export interface BuildingSnapshot extends EntitySnapshotBase {
   readonly type: BuildingTypeId;
   readonly topLeft: TileCoord;
   readonly constructionProgress: number;
+  readonly productionQueue: readonly ProductionQueueItem[];
 }
 
 export type EntitySnapshot = UnitSnapshot | BuildingSnapshot;
@@ -114,6 +116,7 @@ export function serializeWorld(
             kind: 'unit',
             type: entity.type,
             facingRadians: entity.facingRadians,
+            attackCooldownRemainingSeconds: entity.attackCooldownRemainingSeconds,
             carriedCredits: entity.carriedCredits,
           }
         : {
@@ -122,6 +125,7 @@ export function serializeWorld(
             type: entity.type,
             topLeft: entity.topLeft,
             constructionProgress: entity.constructionProgress,
+            productionQueue: entity.productionQueue.map((item) => ({ ...item })),
           },
     );
   }
@@ -178,6 +182,15 @@ export function restoreWorld(
   const idMap = new Map<EntityId, EntityId>();
 
   for (const entitySnapshot of snapshot.entities) {
+    if (entitySnapshot.kind === 'building' && !Array.isArray(entitySnapshot.productionQueue)) {
+      throw new Error('Building snapshot needs a production queue');
+    }
+    if (
+      entitySnapshot.kind === 'unit' &&
+      typeof entitySnapshot.attackCooldownRemainingSeconds !== 'number'
+    ) {
+      throw new Error('Unit snapshot needs an attack cooldown');
+    }
     const created =
       entitySnapshot.kind === 'unit'
         ? world.createUnit({
@@ -186,6 +199,7 @@ export function restoreWorld(
             faction: entitySnapshot.faction,
             position: entitySnapshot.position,
             health: entitySnapshot.health,
+            attackCooldownRemainingSeconds: entitySnapshot.attackCooldownRemainingSeconds,
           })
         : world.createBuilding({
             type: entitySnapshot.type,
@@ -194,6 +208,7 @@ export function restoreWorld(
             topLeft: entitySnapshot.topLeft,
             health: entitySnapshot.health,
             constructionProgress: entitySnapshot.constructionProgress,
+            productionQueue: entitySnapshot.productionQueue,
           });
     idMap.set(entitySnapshot.id, created.id);
   }
@@ -247,7 +262,7 @@ function remapOrder(order: OrderSnapshot, idMap: ReadonlyMap<EntityId, EntityId>
     }
     case 'Attack': {
       const targetId = idMap.get(order.targetId);
-      return targetId === undefined ? null : attackOrder(targetId);
+      return targetId === undefined ? null : attackOrder(targetId, order.route);
     }
     case 'Produce': {
       const buildingId = idMap.get(order.buildingId);

@@ -10,6 +10,9 @@ import type { TileCoord, TileRect, TileSize } from '../core/geometry';
 /** Minimal damage categories: mobile units are light or armored, buildings are structures. */
 export type ArmorCategory = 'light' | 'armored' | 'structure';
 
+/** Entity kinds a weapon may legally target. Buildings and units share the same damage rules. */
+export type AttackTargetCategory = 'unit' | 'building';
+
 /** Unit types that can shoot. Workers cannot. */
 export type AttackerTypeId = Exclude<UnitTypeId, 'worker'>;
 
@@ -17,6 +20,8 @@ export interface AttackProfile {
   readonly damage: number;
   readonly cooldownSeconds: number;
   readonly rangeTiles: number;
+  /** Target kinds this weapon is permitted to damage. */
+  readonly targetCategories: readonly AttackTargetCategory[];
 }
 
 export interface UnitConfig {
@@ -89,6 +94,14 @@ export interface EconomyConfig {
   readonly startingCredits: number;
   /** Share of the paid cost returned when construction or production is cancelled. */
   readonly cancelRefundFraction: number;
+}
+
+/** Shared limits for every completed production building. */
+export interface ProductionConfig {
+  /** Maximum number of paid units a building can hold, including the one currently building. */
+  readonly queueCapacity: number;
+  /** How far from a producer's footprint a completed unit may look for a free spawn tile. */
+  readonly spawnSearchRadiusTiles: number;
 }
 
 /** Damage multiplier applied per attacker type against each armor category. */

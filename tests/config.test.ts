@@ -8,6 +8,7 @@ import { RENDER_CONFIG } from '../src/config/render';
 import { FORMATION_CONFIG } from '../src/config/formation';
 import { PERSISTENCE_CONFIG } from '../src/config/persistence';
 import { SEPARATION_CONFIG } from '../src/config/separation';
+import { PRODUCTION_CONFIG } from '../src/config/production';
 import type { ArmorCategory } from '../src/config/types';
 import {
   BUILDING_TYPE_IDS,
@@ -83,6 +84,7 @@ describe('unit values', () => {
       expect(isPositiveFinite(attack!.cooldownSeconds)).toBe(true);
       expect(isPositiveFinite(attack!.rangeTiles)).toBe(true);
       expect(attack!.rangeTiles).toBeLessThanOrEqual(UNIT_CONFIG[id].visionRangeTiles);
+      expect(attack!.targetCategories).toEqual(expect.arrayContaining(['unit', 'building']));
     }
   });
 });
@@ -159,6 +161,15 @@ describe('economy values', () => {
     expect(ECONOMY_CONFIG.cancelRefundFraction).toBeGreaterThan(0);
     expect(ECONOMY_CONFIG.cancelRefundFraction).toBeLessThan(1);
     expect(ECONOMY_CONFIG.cancelRefundFraction).toBe(0.75);
+  });
+});
+
+describe('production values', () => {
+  it('uses a positive configured queue capacity and spawn-search radius', () => {
+    expect(Number.isInteger(PRODUCTION_CONFIG.queueCapacity)).toBe(true);
+    expect(PRODUCTION_CONFIG.queueCapacity).toBeGreaterThan(0);
+    expect(Number.isInteger(PRODUCTION_CONFIG.spawnSearchRadiusTiles)).toBe(true);
+    expect(PRODUCTION_CONFIG.spawnSearchRadiusTiles).toBeGreaterThan(0);
   });
 });
 

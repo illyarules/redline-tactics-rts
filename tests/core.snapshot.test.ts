@@ -40,6 +40,7 @@ describe('serializeWorld / restoreWorld round trip (AC-001)', () => {
     // Advance partway so the route is mid-flight: a non-zero waypointIndex and a turned heading.
     const secondsPerTile = 1 / moving.stats.speedTilesPerSecond;
     stepMovement(world, secondsPerTile);
+    world.setAttackCooldown(moving.id, 0.35);
     expect(moving.order?.kind).toBe('Move');
     if (moving.order?.kind !== 'Move') return;
     expect(moving.order.route.waypointIndex).toBeGreaterThan(0);
@@ -61,6 +62,7 @@ describe('serializeWorld / restoreWorld round trip (AC-001)', () => {
       faction: 'meridian',
       topLeft: { tx: 30, ty: 30 },
     });
+    world.setProductionQueue(hq.id, [{ unitType: 'worker', elapsedSeconds: 3, paidCost: 165 }]);
     world.createBuilding({
       type: 'barracks',
       owner: 'player',
@@ -93,6 +95,7 @@ describe('serializeWorld / restoreWorld round trip (AC-001)', () => {
     const restoredSite = restoredWorld.buildings().find((building) => building.type === 'barracks');
     expect(restoredSite?.status).toBe('constructing');
     expect(restoredSite?.constructionProgress).toBeCloseTo(0.4);
+    expect(restoredSite?.productionQueue).toEqual([]);
     const restoredMoving = restoredWorld
       .units()
       .find((unit) => unit.type === 'infantry' && unit.owner === 'player');
@@ -109,6 +112,7 @@ describe('serializeWorld / restoreWorld round trip (AC-001)', () => {
     expect(restoredMoving.health).toBe(moving.health);
     expect(restoredMoving.status).toBe(moving.status);
     expect(restoredMoving.facingRadians).toBeCloseTo(moving.facingRadians);
+    expect(restoredMoving.attackCooldownRemainingSeconds).toBeCloseTo(0.35);
     expect(restoredMoving.order).toEqual(moving.order);
 
     expect(restoredIdle.position).toEqual(idle.position);
@@ -120,6 +124,7 @@ describe('serializeWorld / restoreWorld round trip (AC-001)', () => {
     expect(restoredHq.health).toBe(hq.health);
     expect(restoredHq.status).toBe(hq.status);
     expect(restoredHq.topLeft).toEqual(hq.topLeft);
+    expect(restoredHq.productionQueue).toEqual([{ unitType: 'worker', elapsedSeconds: 3, paidCost: 165 }]);
 
     // Restored ids are freshly assigned, so the selection must have followed the same remap.
     expect(restoredSelection).toEqual([restoredMoving.id, restoredHq.id]);
@@ -212,6 +217,7 @@ describe('restoreWorld failure handling (AC-003)', () => {
       status: 'idle',
       order: null,
       facingRadians: 0,
+      attackCooldownRemainingSeconds: 0,
       carriedCredits: 0,
     };
   }
@@ -258,6 +264,29 @@ describe('restoreWorld failure handling (AC-003)', () => {
     const { grid } = setup();
     expect(() => restoreWorld(snapshotOf({ ...validUnitSnapshot(), health: -5 }), grid)).toThrow();
   });
+
+  it('throws when a building snapshot omits its production queue', () => {
+    const { grid } = setup();
+    expect(() =>
+      restoreWorld(
+        snapshotOf({
+          ...validUnitSnapshot(),
+          kind: 'building',
+          type: 'hq',
+          topLeft: { tx: 0, ty: 0 },
+          constructionProgress: 1,
+        } as never),
+        grid,
+      ),
+    ).toThrow();
+  });
+
+  it('throws when a unit snapshot omits its attack cooldown', () => {
+    const { grid } = setup();
+    const unit = validUnitSnapshot() as unknown as Record<string, unknown>;
+    delete unit.attackCooldownRemainingSeconds;
+    expect(() => restoreWorld(snapshotOf(unit as never), grid)).toThrow();
+  });
 });
 
 describe('id remapping correctness (AC-005)', () => {
@@ -286,7 +315,12 @@ describe('id remapping correctness (AC-005)', () => {
     // Removing the first-created entity opens a gap: the next fresh world's ids will not line up
     // one-to-one with these entities' current ids, so a correct remap has real work to do.
     world.remove(gapFiller.id);
-    world.setOrder(attacker.id, attackOrder(target.id));
+    const pursuitRoute = {
+      resolvedTarget: grid.tileCenter(3, 3),
+      waypoints: [grid.tileCenter(3, 3)],
+      waypointIndex: 0,
+    };
+    world.setOrder(attacker.id, attackOrder(target.id, pursuitRoute));
 
     const snapshot = serializeWorld(
       world,
@@ -310,7 +344,7 @@ describe('id remapping correctness (AC-005)', () => {
     // The restored target's id must differ from its original snapshot id...
     expect(restoredTarget.id).not.toBe(target.id);
     // ...and the restored order must follow that new id, not the stale original one.
-    expect(restoredAttacker.order).toEqual(attackOrder(restoredTarget.id));
+    expect(restoredAttacker.order).toEqual(attackOrder(restoredTarget.id, pursuitRoute));
 
     // The stale, already-gone gapFiller id must be dropped from the restored selection, and the
     // surviving ids must be the new ones.

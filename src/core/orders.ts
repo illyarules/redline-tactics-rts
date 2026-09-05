@@ -27,6 +27,8 @@ export interface MoveOrder {
 export interface AttackOrder {
   readonly kind: 'Attack';
   readonly targetId: EntityId;
+  /** Current route into weapon range, or `null` while firing / waiting to repath. */
+  readonly route: MoveRoute | null;
 }
 
 /** Travel to a world position, engaging enemies met on the way. */
@@ -81,8 +83,8 @@ export function moveOrder(
   return { kind: 'Move', target, route };
 }
 
-export function attackOrder(targetId: EntityId): AttackOrder {
-  return { kind: 'Attack', targetId };
+export function attackOrder(targetId: EntityId, route: MoveRoute | null = null): AttackOrder {
+  return { kind: 'Attack', targetId, route };
 }
 
 export function attackMoveOrder(target: Vec2): AttackMoveOrder {

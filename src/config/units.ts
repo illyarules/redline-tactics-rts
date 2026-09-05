@@ -25,7 +25,7 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     visionRangeTiles: 6,
     bodySizeTiles: 0.8,
     armor: 'light',
-    attack: { damage: 12, cooldownSeconds: 0.9, rangeTiles: 3.5 },
+    attack: { damage: 12, cooldownSeconds: 0.9, rangeTiles: 3.5, targetCategories: ['unit', 'building'] },
   },
   tank: {
     id: 'tank',
@@ -37,7 +37,7 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     visionRangeTiles: 6,
     bodySizeTiles: 1,
     armor: 'armored',
-    attack: { damage: 45, cooldownSeconds: 2.2, rangeTiles: 4.5 },
+    attack: { damage: 45, cooldownSeconds: 2.2, rangeTiles: 4.5, targetCategories: ['unit', 'building'] },
   },
   rocket: {
     id: 'rocket',
@@ -49,6 +49,6 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     visionRangeTiles: 7,
     bodySizeTiles: 0.86,
     armor: 'light',
-    attack: { damage: 60, cooldownSeconds: 3, rangeTiles: 7 },
+    attack: { damage: 60, cooldownSeconds: 3, rangeTiles: 7, targetCategories: ['unit', 'building'] },
   },
 };

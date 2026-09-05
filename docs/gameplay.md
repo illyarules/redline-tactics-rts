@@ -29,6 +29,13 @@ finishes it — building progress only advances while that Worker is actually th
 Power Plant pauses whatever in the tech chain needs power (the HUD's power line turns red); completing
 a new one resumes it immediately.
 
+Selecting a completed HQ, Barracks, or Factory opens its production panel. HQs queue Workers,
+Barracks queue Infantry, and Factories queue Tanks or Rockets. Each building has a configured FIFO
+queue: only its front item advances, and completion spawns the unit at a nearby passable tile. The
+panel shows queue progress and capacity, explains full queues or insufficient Credits, and lets the
+player cancel any paid entry for the normal 75% refund. Factory production pauses without a completed
+Power Plant and resumes from the same progress when power returns.
+
 An unfinished match survives a browser reload on the same device: units mid-route resume their
 route, and the selection is restored too. The `New Match` button in the top-right corner clears the
 local save and reloads into the normal fresh opening. Local saves are not synchronized, transferable,
@@ -39,7 +46,10 @@ the rectangle; buildings are excluded from box selection. Hold Shift to toggle o
 every unit in a dragged rectangle. Every selected entity gets a ground ring, and the HUD summarizes
 multi-unit selections. Clicking empty ground clears the selection; enemies are never selectable.
 Right-click passable ground moves every selected friendly unit. Buildings, enemies, blocked terrain
-and out-of-map destinations are rejected; right-clicking an entity does not issue a ground order.
+and out-of-map destinations are rejected. Right-clicking a visible enemy issues an explicit Attack
+order to selected combat units: they path into weapon range, fire on their configured cooldown, and
+stop when the target is gone or unreachable. Workers and buildings ignore attack requests. Brief
+tracers, impact flashes, health bars and a loss ring make combat results readable.
 
 `src/core/world.ts` holds the authoritative entity state: units and buildings keyed by a stable id,
 each with an owner, faction, resolved stats, position, health, current order and status. It knows
@@ -69,14 +79,17 @@ can click. A health bar appears above an entity while it is selected and wheneve
 | Shift + left-click/drag | Toggle a friendly unit or drag selection |
 | Left-click open ground | Clear the selection |
 | Right-click ground | Move the selected friendly units |
+| Right-click a visible enemy | Order selected combat units to attack it |
 | Right-click a resource field | Send the selected Worker(s) to gather it |
 | Build menu button (Worker selected) | Start placing that building |
+| Production panel button (completed producer selected) | Queue the named unit |
+| Cancel in a production queue | Cancel that entry for a 75% refund |
 | Left-click a valid (green) placement | Confirm it: spend Credits, send the Worker to build |
 | Right-click, or `Escape`, during placement | Cancel placement; nothing is spent |
 | `` ` `` (backtick) | Toggle entity debug labels (type and id) |
 
 A compact one-line version of this list sits in the bottom-left corner in game, and it grows as
-later tasks add controls. Attack and attack-move are introduced by a later task.
+later tasks add controls. Attack-move is introduced by a later task.
 
 The match opens zoomed in close, between the player's HQ and the resource field it will work first,
 so the base, its opening squad and the Credits are all on screen from the first frame.

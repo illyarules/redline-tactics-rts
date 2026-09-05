@@ -12,6 +12,14 @@ import type { ResolvedUnitStats } from './factionStats';
 import type { BuildingTypeId, EntityId, FactionId, PlayerId, UnitTypeId } from './ids';
 import type { Order } from './orders';
 
+/** A paid unit waiting at a producer. Only index zero is allowed to accumulate elapsed time. */
+export interface ProductionQueueItem {
+  readonly unitType: UnitTypeId;
+  readonly elapsedSeconds: number;
+  /** Captured at queue time, so cancellation refunds exactly what this faction paid. */
+  readonly paidCost: number;
+}
+
 /**
  * What an entity is doing, in one word, for the HUD and for debugging. These are labels only — the
  * systems that drive them (movement, gathering, construction, production, combat) arrive in later
@@ -45,6 +53,8 @@ export interface UnitEntity extends EntityBase {
   readonly stats: ResolvedUnitStats;
   /** Heading in world space. Zero faces north (negative world Y). */
   facingRadians: number;
+  /** Seconds before this unit's next shot is legal. Zero means its weapon is ready. */
+  attackCooldownRemainingSeconds: number;
   /** Credits a Worker is currently carrying back from a field. Always 0 for other unit types. */
   carriedCredits: number;
 }
@@ -58,6 +68,8 @@ export interface BuildingEntity extends EntityBase {
   readonly footprint: TileSize;
   /** 0 to 1. Always 1 for a building that was not raised through construction. */
   constructionProgress: number;
+  /** Paid unit requests, in first-in-first-out order. */
+  productionQueue: readonly ProductionQueueItem[];
 }
 
 export type Entity = UnitEntity | BuildingEntity;

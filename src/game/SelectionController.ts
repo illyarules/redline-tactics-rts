@@ -14,7 +14,7 @@ interface DragState { readonly start: PointerPoint; readonly additive: boolean; 
 
 const DRAG_THRESHOLD_PIXELS = 6;
 
-/** Babylon input adapter for click, box and additive selection plus ground move requests. */
+/** Babylon input adapter for click, box/additive selection, ground moves and enemy attack requests. */
 export class SelectionController {
   private enabled = true;
   private selected: EntityId[] = [];
@@ -37,6 +37,7 @@ export class SelectionController {
     private readonly entityIdOfMesh: (mesh: AbstractMesh) => EntityId | null,
     private readonly onChange: (selected: readonly EntityId[]) => void,
     private readonly onMove: (selected: readonly EntityId[], target: Vec2) => void,
+    private readonly onAttack: (selected: readonly EntityId[], targetId: EntityId) => void,
   ) {
     this.dragBox = document.createElement('div');
     Object.assign(this.dragBox.style, {
@@ -58,7 +59,15 @@ export class SelectionController {
       event.preventDefault();
       this.scene.createPickingRayToRef(point.x, point.y, this.identity, this.ray, this.camera);
       const hit = this.scene.pickWithRay(this.ray, (mesh) => this.entityIdOfMesh(mesh) !== null);
-      if (hit?.hit) return;
+      const targetId = hit?.pickedMesh === undefined || hit.pickedMesh === null
+        ? null
+        : this.entityIdOfMesh(hit.pickedMesh);
+      if (targetId !== null) {
+        if (this.world.get(targetId)?.owner !== this.player) {
+          this.onAttack(this.selected, targetId);
+        }
+        return;
+      }
       const target = this.groundPoint();
       if (target !== null) this.onMove(this.selected, target);
     };

@@ -12,12 +12,15 @@ import { PERSISTENCE_CONFIG } from '../config/persistence';
 import { RENDER_CONFIG } from '../config/render';
 import { createMapGrid, type MapGrid } from '../core/map';
 import type { TileCoord, Vec2 } from '../core/geometry';
-import type { BuildingTypeId, EntityId, PlayerId } from '../core/ids';
+import type { BuildingTypeId, EntityId, PlayerId, UnitTypeId } from '../core/ids';
+import { issueAttackOrders, stepAttackOrders, type AttackHitEvent } from '../core/attack';
 import { startConstruction, stepConstruction } from '../core/construction';
+import { stepAttackCooldowns } from '../core/combat';
 import { createEconomy, type Economy } from '../core/economy';
 import { issueGroupMoveOrders } from '../core/formation';
 import { issueGatherOrder, stepGather } from '../core/gather';
 import { stepMovement } from '../core/movement';
+import { cancelProduction, queueProduction, stepProduction } from '../core/production';
 import { populateStartingEntities } from '../core/matchSetup';
 import { createResourceFieldState, type ResourceFieldState } from '../core/resourceFieldState';
 import { pruneSelection } from '../core/selection';
@@ -28,9 +31,11 @@ import { BuildMenu } from '../ui/buildMenu';
 import { ControlsOverlay } from '../ui/controlsOverlay';
 import { PauseMenu } from '../ui/pauseMenu';
 import { SelectionPanel } from '../ui/selectionPanel';
+import { ProductionMenu } from '../ui/productionMenu';
 import { TacticalHud } from '../ui/tacticalHud';
 import { TitleBanner } from '../ui/titleBanner';
 import { CameraController } from './CameraController';
+import { CombatFeedbackView } from './CombatFeedbackView';
 import { DebugLabelsView } from './DebugLabelsView';
 import { EntitiesView } from './EntitiesView';
 import { clearSnapshot, loadSnapshot, saveSnapshot } from './matchPersistence';
@@ -49,8 +54,8 @@ import { GAME_TITLE } from './title';
 
 /**
  * The single gameplay scene. It builds the map grid and the world from typed config, renders both in
- * three dimensions, and lets the player look around and select what they own. Direct movement is supported; economy,
- * combat and the AI arrive in later tasks.
+ * three dimensions, and lets the player look around and select what they own. Selection, movement,
+ * economy, production and explicit attacks are backed by pure `core/` systems.
  *
  * The scene owns the world but never edits entity state directly: the rules live in `core/`. Nothing
  * in this file — or in any other view — decides damage, cost or prerequisites.
@@ -89,6 +94,7 @@ export class MatchScene {
   private readonly models: ModelLibrary;
   private readonly mapView: MapView;
   private readonly entitiesView: EntitiesView;
+  private readonly combatFeedback: CombatFeedbackView;
   private readonly selectionMarker: SelectionMarker;
   private readonly orderMarker: OrderMarkerView;
   private readonly slotMarker: SlotMarkerView;
@@ -103,6 +109,7 @@ export class MatchScene {
   private readonly controlsOverlay: ControlsOverlay;
   private readonly selectionPanel: SelectionPanel;
   private readonly buildMenu: BuildMenu;
+  private readonly productionMenu: ProductionMenu;
   private readonly placement: PlacementController;
   private readonly pauseMenu: PauseMenu;
   private readonly onKeyDown: (event: KeyboardEvent) => void;
@@ -162,6 +169,7 @@ export class MatchScene {
       (mesh: Mesh) => this.shadows.addShadowCaster(mesh),
     );
     this.entitiesView.sync(this.world);
+    this.combatFeedback = new CombatFeedbackView(this.scene, this.space, this.materials);
 
     this.selectionMarker = new SelectionMarker(this.scene, this.materials, this.space);
     this.orderMarker = new OrderMarkerView(this.scene, this.materials, this.space);
@@ -178,6 +186,10 @@ export class MatchScene {
       () => this.showSelection(),
       (ids, target) => {
         this.issueRightClickOrders(ids, target);
+        this.showSelection();
+      },
+      (ids, targetId) => {
+        issueAttackOrders(this.world, PLAYER_ID, ids, targetId);
         this.showSelection();
       },
     );
@@ -202,6 +214,11 @@ export class MatchScene {
         this.placement.start(buildingType, workerId);
       }
     });
+    this.productionMenu = new ProductionMenu(
+      overlayContainer,
+      (unitType) => this.queueSelectedProduction(unitType),
+      (queueIndex) => this.cancelSelectedProduction(queueIndex),
+    );
     this.placement = new PlacementController(
       this.scene,
       this.camera,
@@ -288,6 +305,10 @@ export class MatchScene {
     stepMovement(this.world, deltaSeconds);
     stepGather(this.world, this.grid, this.resourceFieldState, this.economy, deltaSeconds);
     stepConstruction(this.world, deltaSeconds);
+    stepProduction(this.world, this.grid, deltaSeconds);
+    stepAttackCooldowns(this.world, deltaSeconds);
+    this.showAttackFeedback(stepAttackOrders(this.world, this.grid, deltaSeconds));
+    this.combatFeedback.update(deltaSeconds);
     for (const field of this.grid.resourceFields) {
       this.mapView.setFieldFraction(field.id, this.resourceFieldState.remaining(field.id) / field.credits);
     }
@@ -321,6 +342,7 @@ export class MatchScene {
     this.orderMarker.dispose();
     this.slotMarker.dispose();
     this.routeDebug.dispose();
+    this.combatFeedback.dispose();
     this.entitiesView.dispose();
     this.mapView.dispose();
     this.models.dispose();
@@ -331,6 +353,7 @@ export class MatchScene {
     this.controlsOverlay.destroy();
     this.selectionPanel.destroy();
     this.buildMenu.destroy();
+    this.productionMenu.destroy();
     this.placement.dispose();
     this.pauseMenu.destroy();
     this.scene.dispose();
@@ -416,6 +439,21 @@ export class MatchScene {
     this.routeDebug.update(entities);
     this.selectionPanel.update(entities);
     this.buildMenu.update(entities, this.world, this.economy);
+    this.productionMenu.update(entities, this.world, this.economy, PLAYER_ID);
+  }
+
+  /** Turns pure attack events into short-lived effects, then removes a confirmed dead entity once. */
+  private showAttackFeedback(events: readonly AttackHitEvent[]): void {
+    for (const event of events) {
+      const attacker = this.world.get(event.attackerId);
+      const target = this.world.get(event.targetId);
+      if (attacker === undefined || target === undefined) continue;
+      this.combatFeedback.hit(attacker.position, target.position);
+      if (event.destroyed) {
+        this.combatFeedback.death(target.position);
+        this.world.remove(target.id);
+      }
+    }
   }
 
   /** The single selected friendly Worker's id, or `null` when the selection is not exactly that. */
@@ -426,6 +464,28 @@ export class MatchScene {
     }
     const unit = this.world.unit(ids[0] as EntityId);
     return unit !== undefined && unit.owner === PLAYER_ID && unit.type === 'worker' ? unit.id : null;
+  }
+
+  /** Queues at the one selected friendly production building; the menu presents any failure. */
+  private queueSelectedProduction(unitType: UnitTypeId) {
+    const building = this.selectedProductionBuilding();
+    return building === null
+      ? { allowed: false as const, reason: 'invalid-building' as const }
+      : queueProduction(this.world, this.economy, PLAYER_ID, building.id, unitType);
+  }
+
+  private cancelSelectedProduction(queueIndex: number) {
+    const building = this.selectedProductionBuilding();
+    return building === null
+      ? { cancelled: false as const, reason: 'invalid-building' as const }
+      : cancelProduction(this.world, this.economy, building.id, queueIndex);
+  }
+
+  private selectedProductionBuilding() {
+    const ids = this.selection.selectedIds();
+    if (ids.length !== 1) return null;
+    const building = this.world.building(ids[0] as EntityId);
+    return building !== undefined && building.owner === PLAYER_ID ? building : null;
   }
 
   /** Spends Credits and raises a construction site once a placement preview is confirmed. */

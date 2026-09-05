@@ -11,6 +11,7 @@ import {
   footprintCenter,
   type BuildingEntity,
   type EntityStatus,
+  type ProductionQueueItem,
   type ReadonlyBuilding,
   type ReadonlyEntity,
   type ReadonlyUnit,
@@ -44,6 +45,8 @@ export interface CreateUnitSpec {
   readonly position: Vec2;
   /** Defaults to full health. Must be above zero and no more than the resolved maximum. */
   readonly health?: number;
+  /** Remaining weapon cooldown when restoring a match. Defaults to a ready weapon. */
+  readonly attackCooldownRemainingSeconds?: number;
 }
 
 export interface CreateBuildingSpec {
@@ -57,6 +60,8 @@ export interface CreateBuildingSpec {
   readonly status?: EntityStatus;
   /** 0 to 1. Defaults to 1 (already complete). Construction passes 0 for a freshly placed site. */
   readonly constructionProgress?: number;
+  /** Restores paid queued units; normal construction starts with an empty queue. */
+  readonly productionQueue?: readonly ProductionQueueItem[];
 }
 
 export interface DamageResult {
@@ -93,6 +98,8 @@ export interface World {
   setPosition(id: EntityId, position: Vec2): boolean;
   /** Sets a mobile unit's normalized heading. Buildings have no heading. */
   setFacingRadians(id: EntityId, facingRadians: number): boolean;
+  /** Sets a unit weapon's remaining cooldown; non-units are ignored. */
+  setAttackCooldown(id: EntityId, remainingSeconds: number): boolean;
   setOrder(id: EntityId, order: Order | null): boolean;
   setStatus(id: EntityId, status: EntityStatus): boolean;
   /** Reduces health by `amount`, never below zero and never upwards. */
@@ -101,6 +108,8 @@ export interface World {
   setCarriedCredits(id: EntityId, credits: number): boolean;
   /** Clamped to 0..1. Only meaningful for a building whose `status` is `constructing`. */
   setConstructionProgress(id: EntityId, progress: number): boolean;
+  /** Replaces a building's queue after validating its unit types and saved numeric state. */
+  setProductionQueue(id: EntityId, queue: readonly ProductionQueueItem[]): boolean;
   remove(id: EntityId): boolean;
 }
 
@@ -147,6 +156,7 @@ export function createWorld(options: WorldOptions): World {
         stats,
         position: spec.position,
         facingRadians: 0,
+        attackCooldownRemainingSeconds: validatedCooldown(spec.attackCooldownRemainingSeconds ?? 0),
         carriedCredits: 0,
         health: startingHealth(spec.health, stats.maxHealth),
         order: null,
@@ -177,6 +187,7 @@ export function createWorld(options: WorldOptions): World {
         order: null,
         status: spec.status ?? 'idle',
         constructionProgress: clampFraction(spec.constructionProgress ?? 1),
+        productionQueue: validatedProductionQueue(stats.produces, spec.productionQueue ?? []),
       };
       entities.set(building.id, building);
       return building;
@@ -249,6 +260,15 @@ export function createWorld(options: WorldOptions): World {
       return true;
     },
 
+    setAttackCooldown(id, remainingSeconds) {
+      const entity = live(id);
+      if (entity === undefined || entity.kind !== 'unit') {
+        return false;
+      }
+      entity.attackCooldownRemainingSeconds = validatedCooldown(remainingSeconds);
+      return true;
+    },
+
     setOrder(id, order) {
       const entity = live(id);
       if (entity === undefined) {
@@ -308,6 +328,15 @@ export function createWorld(options: WorldOptions): World {
       return true;
     },
 
+    setProductionQueue(id, queue) {
+      const entity = live(id);
+      if (entity === undefined || entity.kind !== 'building') {
+        return false;
+      }
+      entity.productionQueue = validatedProductionQueue(entity.stats.produces, queue);
+      return true;
+    },
+
     remove(id) {
       return entities.delete(id);
     },
@@ -359,6 +388,31 @@ function clampFraction(value: number): number {
     return 0;
   }
   return value < 0 ? 0 : value > 1 ? 1 : value;
+}
+
+function validatedCooldown(value: number): number {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`Attack cooldown must be a non-negative number, got ${value}`);
+  }
+  return value;
+}
+
+function validatedProductionQueue(
+  produces: readonly UnitTypeId[],
+  queue: readonly ProductionQueueItem[],
+): readonly ProductionQueueItem[] {
+  return queue.map((item) => {
+    if (!produces.includes(item.unitType)) {
+      throw new Error(`Building cannot produce unit type "${item.unitType}"`);
+    }
+    if (!Number.isFinite(item.elapsedSeconds) || item.elapsedSeconds < 0) {
+      throw new Error(`Production elapsed time must be non-negative, got ${item.elapsedSeconds}`);
+    }
+    if (!Number.isFinite(item.paidCost) || item.paidCost < 0) {
+      throw new Error(`Production paid cost must be non-negative, got ${item.paidCost}`);
+    }
+    return { unitType: item.unitType, elapsedSeconds: item.elapsedSeconds, paidCost: item.paidCost };
+  });
 }
 
 function normalizeRadians(angle: number): number {
