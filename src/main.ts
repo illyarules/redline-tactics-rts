@@ -17,6 +17,7 @@ if (container === null) {
 
 const canvas = document.createElement('canvas');
 canvas.id = 'game-canvas';
+canvas.dataset.testid = 'game-canvas';
 // Without this the browser scrolls or zooms the page when the pointer is dragged over the canvas.
 canvas.style.touchAction = 'none';
 container.append(canvas);

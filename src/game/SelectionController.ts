@@ -8,6 +8,7 @@ import type { EntityId, PlayerId } from '../core/ids';
 import type { ReadonlyEntity } from '../core/entities';
 import { pruneSelection, updateSelection } from '../core/selection';
 import type { World } from '../core/world';
+import { projectToScreen } from './screenProjection';
 import type { SceneSpace } from './sceneSpace';
 
 interface PointerPoint { readonly x: number; readonly y: number; }
@@ -183,14 +184,7 @@ export class SelectionController {
   }
 
   private project(point: Vec2, height: number): PointerPoint {
-    const engine = this.scene.getEngine();
-    const renderWidth = engine.getRenderWidth();
-    const renderHeight = engine.getRenderHeight();
-    const projected = Vector3.Project(
-      this.space.point(point, height), this.identity, this.scene.getTransformMatrix(),
-      this.camera.viewport.toGlobal(renderWidth, renderHeight),
-    );
-    return { x: projected.x * this.canvas.clientWidth / renderWidth, y: projected.y * this.canvas.clientHeight / renderHeight };
+    return projectToScreen(this.scene, this.camera, this.canvas, this.space, point, height);
   }
 
   private pickAt(x: number, y: number): EntityId | null {

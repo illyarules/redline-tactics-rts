@@ -24,6 +24,7 @@ export class ProductionMenu {
     private readonly onCancel: (queueIndex: number) => CancelProductionResult,
   ) {
     this.root = document.createElement('div');
+    this.root.dataset.testid = 'production-menu';
     Object.assign(this.root.style, panelStyle, { left: '435px', bottom: '38px', display: 'none' });
     this.heading = document.createElement('div');
     Object.assign(this.heading.style, { color: '#9fd2ff', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '10px' });
@@ -56,6 +57,7 @@ export class ProductionMenu {
       const check = checkProductionRequest(world, economy, player, building.id, unitType);
       const button = document.createElement('button');
       button.textContent = `${stats.name} · ${stats.cost}`;
+      button.dataset.testid = `produce-${unitType}`;
       Object.assign(button.style, buttonStyle);
       button.disabled = !check.allowed;
       button.title = check.allowed

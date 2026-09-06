@@ -10,6 +10,7 @@ export class TitleScreen {
 
   public constructor(container: HTMLElement, title: string, description: string, onStart: () => void) {
     this.root = document.createElement('div');
+    this.root.dataset.testid = 'title-screen';
     Object.assign(this.root.style, {
       position: 'fixed', inset: '0', display: 'grid', placeItems: 'center', zIndex: '60',
       backgroundImage: `linear-gradient(rgba(4, 11, 15, 0.38), rgba(4, 11, 15, 0.78)), url("${OPEN_FIELD_RENDER}")`,
@@ -30,6 +31,7 @@ export class TitleScreen {
     this.startButton = document.createElement('button');
     this.startButton.type = 'button';
     this.startButton.textContent = 'Start Match';
+    this.startButton.dataset.testid = 'start-match';
     Object.assign(this.startButton.style, {
       minWidth: '190px', padding: '13px 22px', border: '1px solid #9ee6ff', borderRadius: '4px',
       background: 'linear-gradient(180deg, #2d91bd, #176181)', color: '#f2fbff', cursor: 'pointer',

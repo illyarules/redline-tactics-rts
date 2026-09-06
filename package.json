@@ -6,17 +6,20 @@
   "description": "A small original browser RTS built with TypeScript, Babylon.js and Vite.",
   "license": "UNLICENSED",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@babylonjs/core": "9.25.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/node": "20.19.43",
     "typescript": "5.9.3",
     "vite": "6.4.3",

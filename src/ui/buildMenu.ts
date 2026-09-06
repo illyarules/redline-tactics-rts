@@ -23,6 +23,7 @@ export class BuildMenu {
 
   public constructor(container: HTMLElement, onSelect: (buildingType: BuildingTypeId) => void) {
     this.root = document.createElement('div');
+    this.root.dataset.testid = 'build-menu';
     Object.assign(this.root.style, {
       position: 'fixed',
       left: '235px',
@@ -36,6 +37,7 @@ export class BuildMenu {
     for (const type of BUILDABLE_TYPES) {
       const button = document.createElement('button');
       button.textContent = BUILDING_CONFIG[type].name;
+      button.dataset.testid = `build-${type}`;
       Object.assign(button.style, {
         font: '11px/1.3 system-ui, sans-serif',
         padding: '6px 10px',

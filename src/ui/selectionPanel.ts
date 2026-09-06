@@ -17,6 +17,7 @@ export class SelectionPanel {
 
   public constructor(container: HTMLElement) {
     this.root = document.createElement('div');
+    this.root.dataset.testid = 'selection-panel';
     Object.assign(this.root.style, {
       position: 'fixed',
       left: '235px',

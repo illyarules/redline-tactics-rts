@@ -9,6 +9,7 @@ export class PauseMenu {
     onReturnToTitle: () => void,
   ) {
     this.root = document.createElement('div');
+    this.root.dataset.testid = 'pause-menu';
     Object.assign(this.root.style, {
       position: 'fixed', inset: '0', display: 'none', placeItems: 'center', zIndex: '50',
       background: 'rgba(3, 9, 13, 0.7)', backdropFilter: 'blur(3px)',
@@ -22,7 +23,12 @@ export class PauseMenu {
     const heading = document.createElement('h2');
     heading.textContent = 'Paused';
     Object.assign(heading.style, { margin: '0 0 8px', color: '#e9f8ff', font: '600 27px/1 system-ui,sans-serif' });
-    panel.append(heading, this.button('Resume', onResume), this.button('New Match', onNewMatch), this.button('Return to Title', onReturnToTitle));
+    panel.append(
+      heading,
+      this.button('Resume', onResume, 'pause-resume'),
+      this.button('New Match', onNewMatch, 'pause-new-match'),
+      this.button('Return to Title', onReturnToTitle, 'pause-return-title'),
+    );
     this.root.append(panel);
     container.append(this.root);
   }
@@ -33,9 +39,10 @@ export class PauseMenu {
 
   public destroy(): void { this.root.remove(); }
 
-  private button(label: string, onClick: () => void): HTMLButtonElement {
+  private button(label: string, onClick: () => void, testId: string): HTMLButtonElement {
     const button = document.createElement('button');
     button.type = 'button'; button.textContent = label;
+    button.dataset.testid = testId;
     Object.assign(button.style, {
       padding: '11px 16px', border: '1px solid rgba(143, 213, 248, 0.38)', borderRadius: '4px',
       background: '#163545', color: '#e3f5ff', cursor: 'pointer', font: '600 12px/1 system-ui,sans-serif',

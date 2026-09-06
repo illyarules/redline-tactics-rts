@@ -13,6 +13,7 @@ The first milestone is a complete, playable single-player match. Prefer a modest
 - Vite for development and production builds.
 - React only if Babylon.js/HTML cannot keep a UI screen simple. Do not add React by default.
 - Vitest for deterministic, pure game-logic tests.
+- Playwright for a small end-to-end suite covering the critical player journey only (see "End-to-end tests" below). Do not grow it into a broad UI-testing framework.
 - Browser only. Desktop mouse and keyboard are the primary input target.
 
 ## Hard scope limits
@@ -48,10 +49,18 @@ src/
   game/         Babylon.js scenes, views, input, camera, effects
   ui/           HUD and menus
   assets/       original or clearly licensed assets
-tests/          pure-logic tests, if not colocated
+tests/
+  unit/         pure-logic Vitest tests, if not colocated
+  e2e/          Playwright end-to-end tests (see "End-to-end tests" below)
 ```
 
 Use stable entity IDs between core state and rendered objects. Express player orders as typed commands such as `Move`, `Attack`, `AttackMove`, `Build`, and `Produce`.
+
+## End-to-end tests
+
+`tests/e2e/` holds a small Playwright suite covering only the critical player journey (title screen
+and start, pause lifecycle, group selection/movement, save/reload persistence, combat, and
+build/production). Keep it small, fast (well under 3 minutes total), and stable.
 
 ## Definition of done for every implementation task
 
@@ -59,6 +68,7 @@ Use stable entity IDs between core state and rendered objects. Express player or
 - The game still starts and the existing playable flow still works.
 - Type checking and production build pass.
 - Relevant tests pass; new pure rules have focused tests.
+- If the task touches a flow the E2E suite covers (start, pause, selection/movement, persistence, combat, build/production), `npm run test:e2e` still passes.
 - No unrelated features, dependencies, or cleanup are included.
 - Any controls or visible behavior introduced by the task are briefly documented in the project README once it exists.
 

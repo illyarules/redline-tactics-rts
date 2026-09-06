@@ -14,8 +14,10 @@ A small, original browser RTS built with TypeScript, Babylon.js and Vite.
 | `npm run dev` | Start the Vite development server |
 | `npm run build` | Produce a production build in `dist/` |
 | `npm run preview` | Serve the production build locally |
-| `npm test` | Run the Vitest suite once |
+| `npm test` | Run the Vitest unit suite once (`tests/unit/`) |
 | `npm run test:watch` | Run Vitest in watch mode |
+| `npm run test:e2e` | Run the Playwright E2E suite once (headless Chromium, `tests/e2e/`) |
+| `npm run test:e2e:ui` | Run the Playwright E2E suite in the interactive UI runner |
 | `npm run typecheck` | Type-check the project with `tsc --noEmit` |
 
 ## Documentation

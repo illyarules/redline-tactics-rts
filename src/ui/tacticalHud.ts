@@ -15,6 +15,7 @@ export class TacticalHud {
   private readonly powerLine: HTMLElement;
   public constructor(container: HTMLElement) {
     this.root.className = 'tactical-hud';
+    this.root.dataset.testid = 'tactical-hud';
     this.root.innerHTML = `<div class="credits"><span>CREDITS</span><strong>${ECONOMY_CONFIG.startingCredits.toLocaleString()}</strong><small class="power"></small></div>
       <div class="commands" aria-label="Commands unavailable in this preview"><button disabled title="Right-click ground to move a selected unit">↗<small>MOVE</small></button><button disabled title="Combat is not available yet">◎<small>ATTACK</small></button><button disabled title="Select a Worker to build">⌂<small>BUILD</small></button></div>
       <div class="sector">OPEN FIELD <span>TACTICAL PREVIEW</span></div>`;
