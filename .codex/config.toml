@@ -1,0 +1,4 @@
+# Project-local Codex safety defaults.
+# Keep agent file writes within the project sandbox and deny sandbox network access.
+sandbox_mode = "workspace-write"
+sandbox_workspace_write.network_access = false

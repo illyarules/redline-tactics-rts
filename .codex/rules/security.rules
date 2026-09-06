@@ -1,0 +1,34 @@
+# Do not publish repository history or code from this project.
+prefix_rule(
+    pattern = ["git", "push"],
+    decision = "forbidden",
+    justification = "Remote publishing is disabled for this project. The user must run git push personally.",
+    match = ["git push", "git push origin master", "git push --force origin master"],
+)
+
+# Do not directly read common local environment files.
+# These rules are intentionally project-local and apply to commands run outside
+# the Codex sandbox. They do not replace proper secret management.
+prefix_rule(
+    pattern = ["cat", [".env", ".env.local", ".env.development", ".env.production", ".env.test"]],
+    decision = "forbidden",
+    justification = "Do not read environment files. Ask the user for non-secret values if needed.",
+)
+
+prefix_rule(
+    pattern = ["less", [".env", ".env.local", ".env.development", ".env.production", ".env.test"]],
+    decision = "forbidden",
+    justification = "Do not read environment files. Ask the user for non-secret values if needed.",
+)
+
+prefix_rule(
+    pattern = ["head", [".env", ".env.local", ".env.development", ".env.production", ".env.test"]],
+    decision = "forbidden",
+    justification = "Do not read environment files. Ask the user for non-secret values if needed.",
+)
+
+prefix_rule(
+    pattern = ["tail", [".env", ".env.local", ".env.development", ".env.production", ".env.test"]],
+    decision = "forbidden",
+    justification = "Do not read environment files. Ask the user for non-secret values if needed.",
+)
