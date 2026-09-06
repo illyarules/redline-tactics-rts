@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAP_CONFIG } from '../src/config/map';
 import { createEconomy } from '../src/core/economy';
+import { createFogState } from '../src/core/fog';
 import { createMapGrid } from '../src/core/map';
 import { issueMoveOrders, stepMovement } from '../src/core/movement';
 import { attackMoveOrder, attackOrder } from '../src/core/orders';
@@ -19,12 +20,13 @@ function setup() {
   const world = createWorld({ tileSizePixels: grid.tileSizePixels });
   const economy = createEconomy();
   const resourceFieldState = createResourceFieldState(grid);
-  return { grid, world, economy, resourceFieldState };
+  const fog = createFogState(grid);
+  return { grid, world, economy, resourceFieldState, fog };
 }
 
 describe('serializeWorld / restoreWorld round trip (AC-001)', () => {
   it('round-trips every persisted field exactly', () => {
-    const { grid, world, economy, resourceFieldState } = setup();
+    const { grid, world, economy, resourceFieldState, fog } = setup();
     economy.spend('player', 250);
     economy.earn('ai', 40);
     const field = grid.resourceFields[0]!;
@@ -73,7 +75,7 @@ describe('serializeWorld / restoreWorld round trip (AC-001)', () => {
     });
 
     const selection = [moving.id, hq.id];
-    const snapshot = serializeWorld(world, selection, economy, resourceFieldState, grid);
+    const snapshot = serializeWorld(world, selection, economy, resourceFieldState, fog, grid);
     expect(snapshot.schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
     expect(snapshot.entities).toHaveLength(4);
     expect(snapshot.credits).toEqual({ player: 650, ai: 940 });
@@ -86,12 +88,14 @@ describe('serializeWorld / restoreWorld round trip (AC-001)', () => {
       selection: restoredSelection,
       economy: restoredEconomy,
       resourceFieldState: restoredFieldState,
+      fog: restoredFog,
     } = restoreWorld(snapshot, grid);
 
     expect(restoredWorld.size()).toBe(4);
     expect(restoredEconomy.balance('player')).toBe(650);
     expect(restoredEconomy.balance('ai')).toBe(940);
     expect(restoredFieldState.remaining(field.id)).toBe(field.credits - 300);
+    expect(restoredFog).toBeDefined();
     const restoredSite = restoredWorld.buildings().find((building) => building.type === 'barracks');
     expect(restoredSite?.status).toBe('constructing');
     expect(restoredSite?.constructionProgress).toBeCloseTo(0.4);
@@ -133,7 +137,7 @@ describe('serializeWorld / restoreWorld round trip (AC-001)', () => {
 
 describe('automatic and Attack-Move order persistence', () => {
   it('round-trips acquired source and an Attack-Move route with its temporary engagement', () => {
-    const { grid, world, economy, resourceFieldState } = setup();
+    const { grid, world, economy, resourceFieldState, fog } = setup();
     const acquired = world.createUnit({
       type: 'infantry', owner: 'player', faction: 'meridian', position: grid.tileCenter(10, 10),
     });
@@ -152,7 +156,7 @@ describe('automatic and Attack-Move order persistence', () => {
     world.setOrder(moving.id, attackMoveOrder(grid.tileCenter(20, 10), route, attackOrder(target.id, null, 'attackMove')));
 
     const { world: restored } = restoreWorld(
-      serializeWorld(world, [], economy, resourceFieldState, grid),
+      serializeWorld(world, [], economy, resourceFieldState, fog, grid),
       grid,
     );
     const restoredAcquired = restored.units('player').find((unit) => unit.type === 'infantry');
@@ -171,6 +175,13 @@ describe('automatic and Attack-Move order persistence', () => {
 });
 
 const EMPTY_CREDITS = { player: 0, ai: 0 };
+const EMPTY_FOG = {
+  gridId: 'open-field',
+  widthTiles: 64,
+  heightTiles: 64,
+  updateElapsedSeconds: 0,
+  players: [],
+};
 
 describe('isValidSnapshotShape (AC-002)', () => {
   it('accepts a well-formed snapshot shell', () => {
@@ -180,6 +191,7 @@ describe('isValidSnapshotShape (AC-002)', () => {
       selection: [],
       credits: EMPTY_CREDITS,
       resourceFields: [],
+      fog: EMPTY_FOG,
     };
     expect(isValidSnapshotShape(snapshot)).toBe(true);
   });
@@ -192,6 +204,7 @@ describe('isValidSnapshotShape (AC-002)', () => {
         selection: [],
         credits: EMPTY_CREDITS,
         resourceFields: [],
+        fog: EMPTY_FOG,
       }),
     ).toBe(false);
     expect(isValidSnapshotShape({ entities: [], selection: [] })).toBe(false);
@@ -205,6 +218,7 @@ describe('isValidSnapshotShape (AC-002)', () => {
         selection: [],
         credits: EMPTY_CREDITS,
         resourceFields: [],
+        fog: EMPTY_FOG,
       }),
     ).toBe(false);
     expect(
@@ -229,6 +243,29 @@ describe('isValidSnapshotShape (AC-002)', () => {
         selection: [],
         credits: EMPTY_CREDITS,
         resourceFields: 'nope',
+        fog: EMPTY_FOG,
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects a missing or malformed fog section', () => {
+    expect(
+      isValidSnapshotShape({
+        schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+        entities: [],
+        selection: [],
+        credits: EMPTY_CREDITS,
+        resourceFields: [],
+      }),
+    ).toBe(false);
+    expect(
+      isValidSnapshotShape({
+        schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+        entities: [],
+        selection: [],
+        credits: EMPTY_CREDITS,
+        resourceFields: [],
+        fog: { gridId: 'open-field', widthTiles: 64, heightTiles: 64, updateElapsedSeconds: 0, players: [{}] },
       }),
     ).toBe(false);
   });
@@ -268,6 +305,7 @@ describe('restoreWorld failure handling (AC-003)', () => {
       selection: [],
       credits: EMPTY_CREDITS,
       resourceFields: [],
+      fog: EMPTY_FOG,
     };
   }
 
@@ -330,7 +368,7 @@ describe('restoreWorld failure handling (AC-003)', () => {
 
 describe('id remapping correctness (AC-005)', () => {
   it('remaps order targets and selection through freshly assigned ids, not stale ones', () => {
-    const { grid, world, economy, resourceFieldState } = setup();
+    const { grid, world, economy, resourceFieldState, fog } = setup();
 
     const gapFiller = world.createUnit({
       type: 'worker',
@@ -366,6 +404,7 @@ describe('id remapping correctness (AC-005)', () => {
       [gapFiller.id, attacker.id, target.id],
       economy,
       resourceFieldState,
+      fog,
       grid,
     );
     expect(snapshot.entities).toHaveLength(2);
@@ -391,7 +430,7 @@ describe('id remapping correctness (AC-005)', () => {
   });
 
   it('restores an order referencing an entity that was not persisted as null, not a throw', () => {
-    const { grid, world, economy, resourceFieldState } = setup();
+    const { grid, world, economy, resourceFieldState, fog } = setup();
     const attacker = world.createUnit({
       type: 'infantry',
       owner: 'player',
@@ -401,7 +440,7 @@ describe('id remapping correctness (AC-005)', () => {
     // References an id that never existed in this world at all.
     world.setOrder(attacker.id, attackOrder('does-not-exist'));
 
-    const snapshot = serializeWorld(world, [], economy, resourceFieldState, grid);
+    const snapshot = serializeWorld(world, [], economy, resourceFieldState, fog, grid);
     const { world: restoredWorld } = restoreWorld(snapshot, grid);
     const restoredAttacker = restoredWorld.units()[0];
     expect(restoredAttacker).toBeDefined();

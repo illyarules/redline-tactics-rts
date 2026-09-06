@@ -19,6 +19,8 @@ import { createAutoTargetingState, issueRetaliationOrders, stepAutomaticTargetin
 import { startConstruction, stepConstruction } from '../core/construction';
 import { stepAttackCooldowns } from '../core/combat';
 import { createEconomy, type Economy } from '../core/economy';
+import { isEntityVisibleToPlayer, createFogState, stepFogVisibility, updateFogVisibility, type FogState } from '../core/fog';
+import type { ReadonlyEntity, ReadonlyUnit } from '../core/entities';
 import { issueGroupMoveOrders } from '../core/formation';
 import { issueGatherOrder, stepGather } from '../core/gather';
 import { stepMovement } from '../core/movement';
@@ -29,6 +31,7 @@ import { pruneSelection } from '../core/selection';
 import { restoreWorld, serializeWorld, type WorldSnapshot } from '../core/snapshot';
 import { stepSeparation } from '../core/separation';
 import { createWorld, type World } from '../core/world';
+import { attackMoveOrder } from '../core/orders';
 import { BuildMenu } from '../ui/buildMenu';
 import { ControlsOverlay } from '../ui/controlsOverlay';
 import { PauseMenu } from '../ui/pauseMenu';
@@ -41,6 +44,7 @@ import { CombatEffectsView } from './CombatEffectsView';
 import { deathEffectAt, mapAttackHitToCombatEffect } from './combatEffectEvents';
 import { DebugLabelsView } from './DebugLabelsView';
 import { EntitiesView } from './EntitiesView';
+import { FogView } from './FogView';
 import { clearSnapshot, loadSnapshot, saveSnapshot } from './matchPersistence';
 import { MapView } from './MapView';
 import { OrderMarkerView } from './OrderMarkerView';
@@ -92,10 +96,12 @@ export class MatchScene {
   private readonly world: World;
   private readonly economy: Economy;
   private readonly resourceFieldState: ResourceFieldState;
+  private readonly fog: FogState;
   private readonly space: SceneSpace;
   private readonly materials: MaterialLibrary;
   private readonly models: ModelLibrary;
   private readonly mapView: MapView;
+  private readonly fogView: FogView;
   private readonly entitiesView: EntitiesView;
   private readonly combatEffects: CombatEffectsView;
   private readonly selectionMarker: SelectionMarker;
@@ -118,6 +124,10 @@ export class MatchScene {
   private readonly onKeyDown: (event: KeyboardEvent) => void;
   private readonly onPageHide: () => void;
   private readonly autoTargeting = createAutoTargetingState();
+  private readonly isVisibleToHuman = (entity: ReadonlyEntity): boolean =>
+    isEntityVisibleToPlayer(this.fog, PLAYER_ID, entity);
+  private readonly canHumanTarget = (observer: ReadonlyUnit, candidate: ReadonlyEntity): boolean =>
+    observer.owner !== PLAYER_ID || this.isVisibleToHuman(candidate);
   private hudElapsedSeconds = Number.POSITIVE_INFINITY;
   private saveElapsedSeconds = 0;
   private paused = false;
@@ -143,12 +153,16 @@ export class MatchScene {
       this.world = restored.world;
       this.economy = restored.economy;
       this.resourceFieldState = restored.resourceFieldState;
+      this.fog = restored.fog;
     } else {
       clearSnapshot();
       this.world = createWorld({ tileSizePixels: this.grid.tileSizePixels });
       populateStartingEntities(this.world, this.grid);
       this.economy = createEconomy();
       this.resourceFieldState = createResourceFieldState(this.grid);
+      this.fog = createFogState(this.grid);
+      // Fresh matches have authoritative opening vision before the first rendered frame.
+      updateFogVisibility(this.fog, this.world, this.grid);
     }
 
     this.camera = new TargetCamera('camera', Vector3.Zero(), this.scene);
@@ -161,6 +175,9 @@ export class MatchScene {
     this.materials = createMaterialLibrary(this.scene);
     this.models = createModelLibrary(this.scene, this.materials);
     this.mapView = new MapView(this.scene, this.grid, this.space, this.materials);
+    this.fogView = new FogView(this.scene, this.grid, this.space);
+    this.fogView.update(this.fog, PLAYER_ID);
+    this.mapView.updateFog(this.fog, PLAYER_ID);
     for (const mesh of this.mapView.shadowCasters()) {
       this.shadows.addShadowCaster(mesh);
     }
@@ -172,7 +189,7 @@ export class MatchScene {
       this.materials,
       (mesh: Mesh) => this.shadows.addShadowCaster(mesh),
     );
-    this.entitiesView.sync(this.world);
+    this.entitiesView.sync(this.world, [], 0, this.isVisibleToHuman);
     this.combatEffects = new CombatEffectsView(this.scene, this.space, this.materials);
 
     this.selectionMarker = new SelectionMarker(this.scene, this.materials, this.space);
@@ -186,6 +203,7 @@ export class MatchScene {
       this.space,
       this.world,
       PLAYER_ID,
+      this.isVisibleToHuman,
       (mesh) => this.entitiesView.entityIdOfMesh(mesh),
       () => this.showSelection(),
       (ids, target) => {
@@ -193,7 +211,10 @@ export class MatchScene {
         this.showSelection();
       },
       (ids, targetId) => {
-        issueAttackOrders(this.world, PLAYER_ID, ids, targetId);
+        const target = this.world.get(targetId);
+        if (target !== undefined && this.isVisibleToHuman(target)) {
+          issueAttackOrders(this.world, PLAYER_ID, ids, targetId);
+        }
         this.showSelection();
       },
       (ids, target) => {
@@ -297,6 +318,7 @@ export class MatchScene {
     selection: readonly EntityId[];
     economy: Economy;
     resourceFieldState: ResourceFieldState;
+    fog: FogState;
   } | null {
     if (snapshot === null) {
       return null;
@@ -321,12 +343,17 @@ export class MatchScene {
     stepConstruction(this.world, deltaSeconds);
     stepProduction(this.world, this.grid, deltaSeconds);
     stepAttackCooldowns(this.world, deltaSeconds);
-    stepAutomaticTargeting(this.world, this.autoTargeting, deltaSeconds);
+    if (stepFogVisibility(this.fog, this.world, this.grid, deltaSeconds)) {
+      this.fogView.update(this.fog, PLAYER_ID);
+      this.mapView.updateFog(this.fog, PLAYER_ID);
+    }
+    this.clearHiddenHumanTargets();
+    stepAutomaticTargeting(this.world, this.autoTargeting, deltaSeconds, undefined, this.canHumanTarget);
     const hits = [
       ...stepAttackOrders(this.world, this.grid, deltaSeconds),
       ...stepAttackMoveOrders(this.world, this.grid, deltaSeconds),
     ];
-    issueRetaliationOrders(this.world, hits);
+    issueRetaliationOrders(this.world, hits, this.canHumanTarget);
     this.showAttackFeedback(hits);
     this.combatEffects.update(deltaSeconds);
     for (const field of this.grid.resourceFields) {
@@ -335,14 +362,21 @@ export class MatchScene {
     stepSeparation(this.world, this.grid, deltaSeconds);
     // The selected entity keeps moving and taking damage, so the markers and the readout follow it.
     this.selection.refresh();
-    this.entitiesView.sync(this.world, this.selection.selectedIds(), deltaSeconds);
+    this.entitiesView.sync(this.world, this.selection.selectedIds(), deltaSeconds, this.isVisibleToHuman);
     this.showSelection();
     this.placement.update();
-    this.debugLabels.update(this.world, (id) => this.entitiesView.modelHeightOf(id));
+    this.debugLabels.update(this.world, (id) => this.entitiesView.modelHeightOf(id), this.isVisibleToHuman);
 
     this.hudElapsedSeconds += deltaSeconds;
     if (this.hudElapsedSeconds >= RENDER_CONFIG.hudUpdateIntervalSeconds) {
-      this.hud.update(this.world, this.grid, this.cameraController.visibleBounds(), this.economy, PLAYER_ID);
+      this.hud.update(
+        this.world,
+        this.grid,
+        this.cameraController.visibleBounds(),
+        this.economy,
+        this.fog,
+        PLAYER_ID,
+      );
       this.hudElapsedSeconds = 0;
     }
 
@@ -364,6 +398,7 @@ export class MatchScene {
     this.routeDebug.dispose();
     this.combatEffects.dispose();
     this.entitiesView.dispose();
+    this.fogView.dispose();
     this.mapView.dispose();
     this.models.dispose();
     this.materials.dispose();
@@ -403,6 +438,7 @@ export class MatchScene {
         this.selection.selectedIds(),
         this.economy,
         this.resourceFieldState,
+        this.fog,
         this.grid,
       ),
     );
@@ -449,12 +485,40 @@ export class MatchScene {
     return shadows;
   }
 
+  /**
+   * Information is authoritative even between visual updates: human-issued attacks and temporary
+   * Attack-Move engagements end the instant their target's current tile is no longer visible.
+   */
+  private clearHiddenHumanTargets(): void {
+    for (const unit of this.world.units(PLAYER_ID)) {
+      const order = unit.order;
+      if (order?.kind === 'Attack') {
+        const target = this.world.get(order.targetId);
+        if (target === undefined || !this.isVisibleToHuman(target)) {
+          this.world.setOrder(unit.id, null);
+          this.world.setStatus(unit.id, 'idle');
+        }
+        continue;
+      }
+      if (order?.kind === 'AttackMove' && order.engagement !== null) {
+        const target = this.world.get(order.engagement.targetId);
+        if (target === undefined || !this.isVisibleToHuman(target)) {
+          this.world.setOrder(unit.id, attackMoveOrder(order.target, order.route));
+          this.world.setStatus(unit.id, 'moving');
+        }
+      }
+    }
+  }
+
   /** Points the marker and the readout at whatever is selected right now. */
   private showSelection(): void {
     const entities = this.selection.selectedIds()
       .flatMap((id) => { const entity = this.world.get(id); return entity === undefined ? [] : [entity]; });
     this.selectionMarker.update(entities);
-    this.orderMarker.update(entities, (targetId) => this.world.get(targetId)?.position ?? null);
+    this.orderMarker.update(entities, (targetId) => {
+      const target = this.world.get(targetId);
+      return target !== undefined && this.isVisibleToHuman(target) ? target.position : null;
+    });
     this.slotMarker.update(entities);
     this.routeDebug.update(entities);
     this.selectionPanel.update(entities);

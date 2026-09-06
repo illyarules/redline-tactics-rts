@@ -5,6 +5,8 @@ import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder';
 import type { Scene } from '@babylonjs/core/scene';
 import { CRYSTAL_FIELD_CONFIG } from '../config/crystalField';
+import { cellVisibility, type FogState } from '../core/fog';
+import type { PlayerId } from '../core/ids';
 import type { MapGrid, ResourceField } from '../core/map';
 import { createGroundTexture } from './groundTexture';
 import type { MaterialLibrary } from './materials';
@@ -96,6 +98,28 @@ export class MapView {
       return;
     }
     mesh.scaling.y = Math.max(fraction, MIN_FIELD_SCALE);
+  }
+
+  /** Applies fog to resource deposits, which stand above the terrain veil. */
+  public updateFog(fog: FogState, player: PlayerId): void {
+    for (const field of this.grid.resourceFields) {
+      const crystals = this.crystalsByField.get(field.id);
+      if (crystals === undefined) continue;
+      // A field is one merged mesh, so choose its least-visible tile. This is conservative at a
+      // boundary (a partly uncovered field may wait for full vision), but never leaks a crystal
+      // through a hidden cell.
+      let visibility: 'hidden' | 'explored' | 'visible' = 'visible';
+      for (const tile of field.tiles) {
+        const tileVisibility = cellVisibility(fog, player, tile.tx, tile.ty);
+        if (tileVisibility === 'hidden') {
+          visibility = 'hidden';
+          break;
+        }
+        if (tileVisibility === 'explored') visibility = 'explored';
+      }
+      crystals.setEnabled(visibility !== 'hidden');
+      crystals.visibility = visibility === 'explored' ? 0.25 : 1;
+    }
   }
 
   /** Meshes that should cast a shadow. The ground itself only receives them. */

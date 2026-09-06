@@ -7,6 +7,7 @@ import { ECONOMY_CONFIG } from '../src/config/economy';
 import { RENDER_CONFIG } from '../src/config/render';
 import { FORMATION_CONFIG } from '../src/config/formation';
 import { PERSISTENCE_CONFIG } from '../src/config/persistence';
+import { FOG_CONFIG } from '../src/config/fog';
 import { SEPARATION_CONFIG } from '../src/config/separation';
 import { PRODUCTION_CONFIG } from '../src/config/production';
 import type { ArmorCategory } from '../src/config/types';
@@ -209,6 +210,13 @@ describe('persistence config', () => {
   it('uses a positive, finite save interval and a non-empty storage key', () => {
     expect(isPositiveFinite(PERSISTENCE_CONFIG.saveIntervalSeconds)).toBe(true);
     expect(PERSISTENCE_CONFIG.storageKey.trim().length).toBeGreaterThan(0);
+  });
+});
+
+describe('fog config', () => {
+  it('uses a positive visibility cadence and the supported circular tile policy', () => {
+    expect(isPositiveFinite(FOG_CONFIG.updateIntervalSeconds)).toBe(true);
+    expect(FOG_CONFIG.radiusShape).toBe('circle');
   });
 });
 

@@ -5,6 +5,7 @@ import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Scene } from '@babylonjs/core/scene';
 import type { Vec2 } from '../core/geometry';
 import type { EntityId, PlayerId } from '../core/ids';
+import type { ReadonlyEntity } from '../core/entities';
 import { pruneSelection, updateSelection } from '../core/selection';
 import type { World } from '../core/world';
 import type { SceneSpace } from './sceneSpace';
@@ -35,6 +36,8 @@ export class SelectionController {
     private readonly space: SceneSpace,
     private readonly world: World,
     private readonly player: PlayerId,
+    /** Renderer-independent information gate for enemy attack targets. */
+    private readonly isVisibleToPlayer: (entity: ReadonlyEntity) => boolean,
     private readonly entityIdOfMesh: (mesh: AbstractMesh) => EntityId | null,
     private readonly onChange: (selected: readonly EntityId[]) => void,
     private readonly onMove: (selected: readonly EntityId[], target: Vec2) => void,
@@ -72,7 +75,12 @@ export class SelectionController {
         ? null
         : this.entityIdOfMesh(hit.pickedMesh);
       if (targetId !== null) {
-        if (this.world.get(targetId)?.owner !== this.player) {
+        const target = this.world.get(targetId);
+        if (
+          target !== undefined &&
+          target.owner !== this.player &&
+          this.isVisibleToPlayer(target)
+        ) {
           this.onAttack(this.selected, targetId);
         }
         return;

@@ -115,6 +115,14 @@ export interface CombatBehaviorConfig {
   readonly acquisitionRangeTiles: number;
 }
 
+/** The grid geometry and cadence used by the authoritative fog-of-war rules. */
+export interface FogConfig {
+  /** Visibility is recomputed at this simulation cadence, never once per rendered frame. */
+  readonly updateIntervalSeconds: number;
+  /** Circular tile-centre radius; terrain line-of-sight blocking is intentionally not modelled yet. */
+  readonly radiusShape: 'circle';
+}
+
 /**
  * Camera limits and speeds. Distances are screen pixels so panning feels the same at every zoom.
  *

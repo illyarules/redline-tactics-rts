@@ -2,6 +2,7 @@ import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Viewport } from '@babylonjs/core/Maths/math.viewport';
 import type { Scene } from '@babylonjs/core/scene';
 import type { EntityId } from '../core/ids';
+import type { ReadonlyEntity } from '../core/entities';
 import type { World } from '../core/world';
 import type { SceneSpace } from './sceneSpace';
 
@@ -51,7 +52,11 @@ export class DebugLabelsView {
   }
 
   /** Moves every label onto its entity. `heightOf` reports how tall an entity's model stands. */
-  public update(world: World, heightOf: (id: EntityId) => number): void {
+  public update(
+    world: World,
+    heightOf: (id: EntityId) => number,
+    isVisible: (entity: ReadonlyEntity) => boolean = () => true,
+  ): void {
     if (!this.enabled) {
       return;
     }
@@ -62,6 +67,7 @@ export class DebugLabelsView {
     const present = new Set<EntityId>();
 
     for (const entity of world.entities()) {
+      if (!isVisible(entity)) continue;
       present.add(entity.id);
       const label = this.labelFor(entity.id, `${entity.type} ${entity.id}`);
       Vector3.ProjectToRef(

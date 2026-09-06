@@ -44,6 +44,25 @@ describe('automatic combat targeting', () => {
     }));
   });
 
+  it('respects an injected information boundary for acquisition and retaliation', () => {
+    const world = setup();
+    const defender = world.createUnit({
+      type: 'tank', owner: 'player', faction: 'meridian', position: { x: 300, y: 300 },
+    });
+    const attacker = world.createUnit({
+      type: 'infantry', owner: 'ai', faction: 'ember', position: { x: 330, y: 300 },
+    });
+    const state = createAutoTargetingState();
+    const config = { targetScanIntervalSeconds: 0.25, acquisitionRangeTiles: 7 };
+    const hidden = () => false;
+    const hit = { kind: 'hit' as const, attackerId: attacker.id, targetId: defender.id, damage: 1, destroyed: false };
+
+    expect(nearestValidEnemy(world, defender, 7, hidden)).toBeNull();
+    expect(stepAutomaticTargeting(world, state, 0.25, config, hidden)).toEqual([]);
+    expect(issueRetaliationOrders(world, [hit], hidden)).toEqual([]);
+    expect(defender.order).toBeNull();
+  });
+
   it('retaliates against a known attacker but preserves an explicit player attack', () => {
     const world = setup();
     const defender = world.createUnit({

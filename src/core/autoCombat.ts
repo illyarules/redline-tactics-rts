@@ -17,6 +17,11 @@ export interface AutoTargetingState {
   scanElapsedSeconds: number;
 }
 
+/** Lets a caller apply information boundaries without putting renderer knowledge into combat rules. */
+export type CanTargetEntity = (observer: ReadonlyUnit, candidate: ReadonlyEntity) => boolean;
+
+const MAY_TARGET_ANY_ENTITY: CanTargetEntity = () => true;
+
 export function createAutoTargetingState(): AutoTargetingState {
   return { scanElapsedSeconds: 0 };
 }
@@ -30,6 +35,7 @@ export function stepAutomaticTargeting(
   state: AutoTargetingState,
   deltaSeconds: number,
   config: CombatBehaviorConfig = COMBAT_BEHAVIOR_CONFIG,
+  canTarget: CanTargetEntity = MAY_TARGET_ANY_ENTITY,
 ): readonly EntityId[] {
   if (
     !Number.isFinite(deltaSeconds) || deltaSeconds < 0 ||
@@ -49,7 +55,12 @@ export function stepAutomaticTargeting(
     const canAcquire = (unit.order === null && unit.status === 'idle') ||
       (unit.order?.kind === 'AttackMove' && unit.order.engagement === null);
     if (!canAcquire) continue;
-    const target = nearestValidEnemy(world, unit, Math.min(config.acquisitionRangeTiles, unit.stats.visionRangeTiles));
+    const target = nearestValidEnemy(
+      world,
+      unit,
+      Math.min(config.acquisitionRangeTiles, unit.stats.visionRangeTiles),
+      canTarget,
+    );
     if (target === null) continue;
 
     if (unit.order === null && unit.status === 'idle') {
@@ -75,11 +86,17 @@ export function stepAutomaticTargeting(
  * A known attacker from a confirmed hit needs no broad scan: the damaged unit answers immediately
  * if it can pursue and is not following an explicit player order.
  */
-export function issueRetaliationOrders(world: World, hits: readonly AttackHitEvent[]): readonly EntityId[] {
+export function issueRetaliationOrders(
+  world: World,
+  hits: readonly AttackHitEvent[],
+  canTarget: CanTargetEntity = MAY_TARGET_ANY_ENTITY,
+): readonly EntityId[] {
   const changed: EntityId[] = [];
   for (const hit of hits) {
     const defender = world.unit(hit.targetId);
     if (!isCombatUnit(defender) || !mayRetaliate(defender)) continue;
+    const attacker = world.get(hit.attackerId);
+    if (attacker === undefined || !canTarget(defender, attacker)) continue;
     const eligibility = checkAttackEligibility(world, defender.id, hit.attackerId);
     if (!canPursue(eligibility)) continue;
     world.setOrder(defender.id, attackOrder(hit.attackerId, null, 'retaliation'));
@@ -94,6 +111,7 @@ export function nearestValidEnemy(
   world: World,
   attacker: ReadonlyUnit,
   rangeTiles: number,
+  canTarget: CanTargetEntity = MAY_TARGET_ANY_ENTITY,
 ): ReadonlyEntity | null {
   if (!isCombatUnit(attacker) || !Number.isFinite(rangeTiles) || rangeTiles <= 0) return null;
   const maximumDistanceSquared = (rangeTiles * world.tileSizePixels) ** 2;
@@ -104,6 +122,7 @@ export function nearestValidEnemy(
     if (
       !isAlive(candidate) ||
       candidate.owner === attacker.owner ||
+      !canTarget(attacker, candidate) ||
       !attacker.stats.attack!.targetCategories.includes(attackTargetCategory(candidate))
     ) continue;
     const candidateDistanceSquared = distanceSquared(attacker.position, candidate.position);

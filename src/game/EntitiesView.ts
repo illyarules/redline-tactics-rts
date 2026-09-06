@@ -82,6 +82,9 @@ interface SquadDisplay extends DisplayBase {
 }
 
 type EntityDisplay = ModelDisplay | SquadDisplay;
+type EntityVisibility = (entity: ReadonlyEntity) => boolean;
+
+const ALWAYS_VISIBLE: EntityVisibility = () => true;
 
 function isInfantry(entity: ReadonlyEntity): entity is ReadonlyUnit & { type: 'infantry' } {
   return entity.kind === 'unit' && entity.type === 'infantry';
@@ -110,7 +113,12 @@ export class EntitiesView {
    * bar, and nothing else. The selection itself lives in `core/selection.ts`. `deltaSeconds` drives
    * nothing but the Infantry walk cycle, which is likewise display state.
    */
-  public sync(world: World, selectedIds: readonly EntityId[] = [], deltaSeconds = 0): void {
+  public sync(
+    world: World,
+    selectedIds: readonly EntityId[] = [],
+    deltaSeconds = 0,
+    isVisible: EntityVisibility = ALWAYS_VISIBLE,
+  ): void {
     const selected = new Set(selectedIds);
     const present = new Set<EntityId>();
 
@@ -121,7 +129,7 @@ export class EntitiesView {
         display = this.create(entity);
         this.displays.set(entity.id, display);
       }
-      this.update(display, entity, selected.has(entity.id), deltaSeconds);
+      this.update(display, entity, selected.has(entity.id), deltaSeconds, isVisible(entity));
     }
 
     for (const [id, display] of this.displays) {
@@ -232,7 +240,13 @@ export class EntitiesView {
     return quad;
   }
 
-  private update(display: EntityDisplay, entity: ReadonlyEntity, selected: boolean, deltaSeconds: number): void {
+  private update(
+    display: EntityDisplay,
+    entity: ReadonlyEntity,
+    selected: boolean,
+    deltaSeconds: number,
+    visible: boolean,
+  ): void {
     // Written in place rather than reassigned: this runs for every entity, every frame.
     display.root.position.set(
       this.space.sceneX(entity.position.x),
@@ -242,6 +256,14 @@ export class EntitiesView {
     if (entity.kind === 'unit') {
       // Unit model local +Z is core north, so this yaw directly maps the core heading to Babylon.
       display.root.rotation.y = entity.facingRadians;
+    }
+
+    // Disabled roots are neither drawn nor picked, but stay allocated so an enemy can reappear
+    // without recreating model geometry or changing its stable mesh-to-entity mapping.
+    display.root.setEnabled(visible);
+    if (!visible) {
+      display.bar.setEnabled(false);
+      return;
     }
 
     const alive = isAlive(entity);

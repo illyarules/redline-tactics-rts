@@ -4,6 +4,7 @@ import type { Rect } from '../core/geometry';
 import { ECONOMY_CONFIG } from '../config/economy';
 import type { Economy } from '../core/economy';
 import type { PlayerId } from '../core/ids';
+import { cellVisibility, isEntityVisibleToPlayer, type FogState } from '../core/fog';
 import { isPowerAvailable } from '../core/power';
 
 /** Read-only tactical overview; command simulation lives in `BuildMenu` and `PlacementController`. */
@@ -24,26 +25,43 @@ export class TacticalHud {
     this.map.className = 'minimap';
     this.root.append(this.map); container.append(this.root);
   }
-  public update(world: World, grid: MapGrid, view: Rect, economy: Economy, player: PlayerId): void {
+  public update(
+    world: World,
+    grid: MapGrid,
+    view: Rect,
+    economy: Economy,
+    fog: FogState,
+    player: PlayerId,
+  ): void {
     this.creditsValue.textContent = Math.floor(economy.balance(player)).toLocaleString();
     const powered = isPowerAvailable(world, player);
     this.powerLine.textContent = powered ? 'POWER ONLINE' : 'NO POWER';
     this.powerLine.style.color = powered ? '#9fb0c9' : '#e2874f';
     const ctx = this.map.getContext('2d');
     if (!ctx) return;
-    const sx = 180 / grid.bounds.width, sy = 180 / grid.bounds.height;
-    ctx.fillStyle = '#26382f'; ctx.fillRect(0, 0, 180, 180);
-    ctx.strokeStyle = '#34483d'; ctx.lineWidth = 1;
-    for (let n = 0; n <= 180; n += 22.5) {
-      ctx.beginPath(); ctx.moveTo(n, 0); ctx.lineTo(n, 180);
-      ctx.moveTo(0, n); ctx.lineTo(180, n); ctx.stroke();
+    const sx = 180 / grid.bounds.width;
+    const sy = 180 / grid.bounds.height;
+    const tileWidth = 180 / grid.widthTiles;
+    const tileHeight = 180 / grid.heightTiles;
+    ctx.fillStyle = '#080d0d';
+    ctx.fillRect(0, 0, 180, 180);
+    for (let ty = 0; ty < grid.heightTiles; ty++) {
+      for (let tx = 0; tx < grid.widthTiles; tx++) {
+        const visibility = cellVisibility(fog, player, tx, ty);
+        if (visibility === 'hidden') continue;
+        ctx.fillStyle = visibility === 'visible' ? '#26382f' : '#16221f';
+        ctx.fillRect(tx * tileWidth, ty * tileHeight, tileWidth, tileHeight);
+      }
     }
-    ctx.fillStyle = '#65d5df';
     for (const field of grid.resourceFields) for (const tile of field.tiles) {
+      const visibility = cellVisibility(fog, player, tile.tx, tile.ty);
+      if (visibility === 'hidden') continue;
       const p = grid.tileCenter(tile.tx, tile.ty);
+      ctx.fillStyle = visibility === 'visible' ? '#65d5df' : '#2e696b';
       ctx.fillRect(p.x * sx, p.y * sy, 2, 2);
     }
     for (const entity of world.entities()) {
+      if (!isEntityVisibleToPlayer(fog, player, entity)) continue;
       ctx.fillStyle = entity.owner === 'player' ? '#73b5fa' : '#eb9953';
       const size = entity.kind === 'building' ? 7 : 3;
       ctx.fillRect(entity.position.x * sx - size / 2, entity.position.y * sy - size / 2, size, size);

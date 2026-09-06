@@ -10,6 +10,13 @@
 import { createEconomy, serializeEconomy, type Economy, type EconomySnapshot } from './economy';
 import { isAlive, isUnit } from './entities';
 import type { EntityStatus, ProductionQueueItem } from './entities';
+import {
+  isFogSnapshotShape,
+  restoreFogState,
+  serializeFogState,
+  type FogSnapshot,
+  type FogState,
+} from './fog';
 import type { TileCoord, Vec2 } from './geometry';
 import type { BuildingTypeId, EntityId, FactionId, PlayerId, UnitTypeId } from './ids';
 import type { MapGrid } from './map';
@@ -35,7 +42,7 @@ import { createWorld, type World } from './world';
  * Bumped whenever a saved shape stops matching what `restoreWorld` expects, so an old save from a
  * prior version is discarded instead of misread.
  */
-export const SNAPSHOT_SCHEMA_VERSION = 5;
+export const SNAPSHOT_SCHEMA_VERSION = 6;
 
 /**
  * The persisted shape of an `Order`. Structurally identical to `core/orders.ts`'s `Order` union —
@@ -79,6 +86,8 @@ export interface WorldSnapshot {
   readonly selection: readonly EntityId[];
   readonly credits: EconomySnapshot;
   readonly resourceFields: ResourceFieldStateSnapshot;
+  /** Per-player hidden/explored/visible cells, including the fog cadence remainder. */
+  readonly fog: FogSnapshot;
 }
 
 /**
@@ -91,6 +100,7 @@ export function serializeWorld(
   selection: readonly EntityId[],
   economy: Economy,
   resourceFieldState: ResourceFieldState,
+  fog: FogState,
   grid: MapGrid,
 ): WorldSnapshot {
   const entities: EntitySnapshot[] = [];
@@ -137,6 +147,7 @@ export function serializeWorld(
     selection: [...selection],
     credits: serializeEconomy(economy),
     resourceFields: serializeResourceFieldState(resourceFieldState, grid),
+    fog: serializeFogState(fog),
   };
 }
 
@@ -156,7 +167,8 @@ export function isValidSnapshotShape(raw: unknown): raw is WorldSnapshot {
     Array.isArray(candidate.selection) &&
     typeof candidate.credits === 'object' &&
     candidate.credits !== null &&
-    Array.isArray(candidate.resourceFields)
+    Array.isArray(candidate.resourceFields) &&
+    isFogSnapshotShape(candidate.fog)
   );
 }
 
@@ -178,6 +190,7 @@ export function restoreWorld(
   selection: readonly EntityId[];
   economy: Economy;
   resourceFieldState: ResourceFieldState;
+  fog: FogState;
 } {
   const world = createWorld({ tileSizePixels: grid.tileSizePixels });
   const idMap = new Map<EntityId, EntityId>();
@@ -242,6 +255,7 @@ export function restoreWorld(
     selection,
     economy: createEconomy(undefined, snapshot.credits),
     resourceFieldState: createResourceFieldState(grid, snapshot.resourceFields),
+    fog: restoreFogState(snapshot.fog, grid),
   };
 }
 
