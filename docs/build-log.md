@@ -1,5 +1,20 @@
 # Build log
 
+## AI state-machine shell (Task 25)
+
+`src/core/ai.ts` adds a pure, deterministic six-state AI shell: `develop`, `produce`, `scout`,
+`attack`, `defend`, and `recover`. Its configurable one-second cadence is advanced solely from game
+delta time, and a long frame walks every elapsed decision boundary in order. The observation derives
+only simple core facts — completed production, combat-unit count, AI-visible player HQ, nearby
+visible attackers, and required structures — while recovery overrides every other state and defense
+overrides an ongoing attack. It emits only typed no-op decision hooks in this task; no credits, units,
+orders, or player behavior are changed until the later AI economy/production/action tasks.
+
+The snapshot schema is now version 7 and includes AI state, timer remainder, and last transition.
+`MatchScene` restores or creates that state, steps it from the simulation loop, and shows a compact
+read-only status panel only in Vite development builds. Pure tests cover cadence, ordered long-delta
+steps, all main state paths and priorities, and snapshot restoration.
+
 ## Direct movement and group selection (Tasks 09–10)
 
 `src/core/movement.ts` validates Move requests and advances core positions at faction-resolved unit speed. Arrival within `src/config/movement.ts`'s 0.08-tile tolerance clears the order and returns the unit to idle without overshooting. A new valid right-click replaces the current destination; clearing selection does not stop movement. The cyan destination ring remains visible while any selected unit carries the group order, then disappears when the group arrives.

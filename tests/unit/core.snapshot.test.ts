@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAP_CONFIG } from '../../src/config/map';
 import { createEconomy } from '../../src/core/economy';
+import { createAiState, stepAi } from '../../src/core/ai';
 import { createFogState } from '../../src/core/fog';
 import { createMapGrid } from '../../src/core/map';
 import { issueMoveOrders, stepMovement } from '../../src/core/movement';
@@ -135,6 +136,22 @@ describe('serializeWorld / restoreWorld round trip (AC-001)', () => {
   });
 });
 
+describe('AI snapshot persistence', () => {
+  it('restores the AI state and decision timer remainder without resetting it', () => {
+    const { grid, world, economy, resourceFieldState, fog } = setup();
+    const ai = createAiState();
+    stepAi(ai, {
+      hasOperationalProduction: false, combatUnitCount: 0, playerBaseKnown: false,
+      baseUnderThreat: false, essentialInfrastructureIntact: true, minimumViableBase: true,
+    }, 0.25);
+    ai.state = 'scout';
+
+    const snapshot = serializeWorld(world, [], economy, resourceFieldState, fog, grid, ai);
+    const restored = restoreWorld(snapshot, grid);
+    expect(restored.ai).toEqual(ai);
+  });
+});
+
 describe('automatic and Attack-Move order persistence', () => {
   it('round-trips acquired source and an Attack-Move route with its temporary engagement', () => {
     const { grid, world, economy, resourceFieldState, fog } = setup();
@@ -182,6 +199,7 @@ const EMPTY_FOG = {
   updateElapsedSeconds: 0,
   players: [],
 };
+const EMPTY_AI = { state: 'develop' as const, decisionRemainingSeconds: 1, lastTransition: null };
 
 describe('isValidSnapshotShape (AC-002)', () => {
   it('accepts a well-formed snapshot shell', () => {
@@ -192,6 +210,7 @@ describe('isValidSnapshotShape (AC-002)', () => {
       credits: EMPTY_CREDITS,
       resourceFields: [],
       fog: EMPTY_FOG,
+      ai: EMPTY_AI,
     };
     expect(isValidSnapshotShape(snapshot)).toBe(true);
   });
@@ -270,6 +289,32 @@ describe('isValidSnapshotShape (AC-002)', () => {
     ).toBe(false);
   });
 
+  it('rejects a missing or malformed AI section', () => {
+    expect(isValidSnapshotShape({
+      schemaVersion: SNAPSHOT_SCHEMA_VERSION, entities: [], selection: [], credits: EMPTY_CREDITS,
+      resourceFields: [], fog: EMPTY_FOG,
+    })).toBe(false);
+    expect(isValidSnapshotShape({
+      schemaVersion: SNAPSHOT_SCHEMA_VERSION, entities: [], selection: [], credits: EMPTY_CREDITS,
+      resourceFields: [], fog: EMPTY_FOG,
+      ai: { state: 'unknown', decisionRemainingSeconds: 1, lastTransition: null },
+    })).toBe(false);
+  });
+
+  it('rejects an AI timer remainder outside its configured range during restoration', () => {
+    const { grid } = setup();
+    const snapshot: WorldSnapshot = {
+      schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+      entities: [],
+      selection: [],
+      credits: EMPTY_CREDITS,
+      resourceFields: [],
+      fog: EMPTY_FOG,
+      ai: { state: 'develop', decisionRemainingSeconds: 0, lastTransition: null },
+    };
+    expect(() => restoreWorld(snapshot, grid)).toThrow('AI snapshot has an invalid decision remainder');
+  });
+
   it('rejects null, primitives and other non-object input', () => {
     expect(isValidSnapshotShape(null)).toBe(false);
     expect(isValidSnapshotShape(undefined)).toBe(false);
@@ -306,6 +351,7 @@ describe('restoreWorld failure handling (AC-003)', () => {
       credits: EMPTY_CREDITS,
       resourceFields: [],
       fog: EMPTY_FOG,
+      ai: EMPTY_AI,
     };
   }
 

@@ -227,6 +227,22 @@ export interface PersistenceConfig {
   readonly saveIntervalSeconds: number;
 }
 
+/** Low-frequency, deterministic decision thresholds for the single skirmish AI. */
+export interface AiConfig {
+  /** Simulation time between state evaluations; never tied to render frames or wall-clock time. */
+  readonly decisionIntervalSeconds: number;
+  /** Combat units required before a known player base can turn scouting into an attack state. */
+  readonly minimumAttackArmyUnits: number;
+  /** A force at or below this count is critically depleted while attacking. */
+  readonly criticalArmyUnits: number;
+  /** Player combat units this close to the AI HQ count as a threat to its base. */
+  readonly baseThreatRadiusTiles: number;
+  /** Completed structures that must remain standing for normal operation. */
+  readonly essentialBuildingTypes: readonly BuildingTypeId[];
+  /** Completed structures sufficient to leave the recovery state. */
+  readonly minimumViableBuildingTypes: readonly BuildingTypeId[];
+}
+
 /** Square/grid destination-slot geometry for a multi-unit group Move order. */
 export interface FormationConfig {
   /** Added to the widest selected unit's `bodySizeTiles` to space slots apart. */

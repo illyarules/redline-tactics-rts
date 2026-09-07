@@ -8,6 +8,14 @@
  * Pure TypeScript: this module must not import Babylon, `game/` or `ui/`.
  */
 import { createEconomy, serializeEconomy, type Economy, type EconomySnapshot } from './economy';
+import {
+  createAiState,
+  isAiSnapshotShape,
+  restoreAiState,
+  serializeAiState,
+  type AiSnapshot,
+  type AiState,
+} from './ai';
 import { isAlive, isUnit } from './entities';
 import type { EntityStatus, ProductionQueueItem } from './entities';
 import {
@@ -42,7 +50,7 @@ import { createWorld, type World } from './world';
  * Bumped whenever a saved shape stops matching what `restoreWorld` expects, so an old save from a
  * prior version is discarded instead of misread.
  */
-export const SNAPSHOT_SCHEMA_VERSION = 6;
+export const SNAPSHOT_SCHEMA_VERSION = 7;
 
 /**
  * The persisted shape of an `Order`. Structurally identical to `core/orders.ts`'s `Order` union —
@@ -88,6 +96,8 @@ export interface WorldSnapshot {
   readonly resourceFields: ResourceFieldStateSnapshot;
   /** Per-player hidden/explored/visible cells, including the fog cadence remainder. */
   readonly fog: FogSnapshot;
+  /** AI strategy state and its time remaining until the next decision. */
+  readonly ai: AiSnapshot;
 }
 
 /**
@@ -102,6 +112,7 @@ export function serializeWorld(
   resourceFieldState: ResourceFieldState,
   fog: FogState,
   grid: MapGrid,
+  ai: AiState = createAiState(),
 ): WorldSnapshot {
   const entities: EntitySnapshot[] = [];
 
@@ -148,6 +159,7 @@ export function serializeWorld(
     credits: serializeEconomy(economy),
     resourceFields: serializeResourceFieldState(resourceFieldState, grid),
     fog: serializeFogState(fog),
+    ai: serializeAiState(ai),
   };
 }
 
@@ -168,7 +180,8 @@ export function isValidSnapshotShape(raw: unknown): raw is WorldSnapshot {
     typeof candidate.credits === 'object' &&
     candidate.credits !== null &&
     Array.isArray(candidate.resourceFields) &&
-    isFogSnapshotShape(candidate.fog)
+    isFogSnapshotShape(candidate.fog) &&
+    isAiSnapshotShape(candidate.ai)
   );
 }
 
@@ -191,6 +204,7 @@ export function restoreWorld(
   economy: Economy;
   resourceFieldState: ResourceFieldState;
   fog: FogState;
+  ai: AiState;
 } {
   const world = createWorld({ tileSizePixels: grid.tileSizePixels });
   const idMap = new Map<EntityId, EntityId>();
@@ -256,6 +270,7 @@ export function restoreWorld(
     economy: createEconomy(undefined, snapshot.credits),
     resourceFieldState: createResourceFieldState(grid, snapshot.resourceFields),
     fog: restoreFogState(snapshot.fog, grid),
+    ai: restoreAiState(snapshot.ai),
   };
 }
 

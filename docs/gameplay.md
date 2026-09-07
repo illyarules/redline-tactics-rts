@@ -8,7 +8,7 @@ controls card and the selection readout sit in an HTML layer above the canvas, s
 can scale them. Gameplay systems are added incrementally by the tasks in the implementation plan.
 
 Both bases stand on the map. Each player starts with an HQ and one of each mobile role — Worker,
-Infantry, Tank and Rocket — and the view opens on the player's own base. The starting units support selection and direct right-click movement. Combat and AI arrive in later tasks.
+Infantry, Tank and Rocket — and the view opens on the player's own base. The starting units support selection and direct right-click movement. Combat is active; the AI currently has a deterministic strategic state shell only, so it observes its base and the visible world but does not yet gather, build, produce, scout, or issue combat orders.
 
 Each player has a Credits balance, shown in the HUD, that starts from `src/config/economy.ts` and
 never goes negative. Right-clicking a resource field with a Worker selected sends it to gather
@@ -58,6 +58,13 @@ nothing about Babylon, so entity rules can be tested without starting the game.
 `src/game/EntitiesView.ts` mirrors the world into the scene: it creates a mesh when an entity
 appears, follows its position and health, and disposes the mesh when the entity is removed. It reads
 core state and decides nothing.
+
+`src/core/ai.ts` holds the renderer-independent AI state machine. It evaluates only at the configured
+cadence in `src/config/ai.ts`, choosing among Develop, Produce, Scout, Attack, Defend, and Recover
+from a small observation of completed infrastructure, combat-unit count, AI visibility, and nearby
+threats. The shell emits a typed no-op decision hook for now; later AI tasks will execute real
+economy, construction, production, and order APIs through that boundary. Its state and exact
+remaining decision time live in the local `WorldSnapshot`, so reloads do not restart the AI timer.
 
 Picking happens in two passes, in the order a player expects. A click is first resolved against the
 models themselves, so a click on a roof selects the building and a unit in front of another cannot be

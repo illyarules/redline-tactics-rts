@@ -32,6 +32,7 @@ import { restoreWorld, serializeWorld, type WorldSnapshot } from '../core/snapsh
 import { stepSeparation } from '../core/separation';
 import { createWorld, type World } from '../core/world';
 import { attackMoveOrder } from '../core/orders';
+import { createAiState, observeAiWorld, stepAi, type AiState } from '../core/ai';
 import { BuildMenu } from '../ui/buildMenu';
 import { ControlsOverlay } from '../ui/controlsOverlay';
 import { PauseMenu } from '../ui/pauseMenu';
@@ -40,6 +41,7 @@ import { ProductionMenu } from '../ui/productionMenu';
 import { TacticalHud } from '../ui/tacticalHud';
 import { TitleBanner } from '../ui/titleBanner';
 import { CameraController } from './CameraController';
+import { AiDebugReadout } from './AiDebugReadout';
 import { CombatEffectsView } from './CombatEffectsView';
 import { deathEffectAt, mapAttackHitToCombatEffect } from './combatEffectEvents';
 import { DebugLabelsView } from './DebugLabelsView';
@@ -97,6 +99,7 @@ export class MatchScene {
   private readonly economy: Economy;
   private readonly resourceFieldState: ResourceFieldState;
   private readonly fog: FogState;
+  private readonly ai: AiState;
   private readonly space: SceneSpace;
   private readonly materials: MaterialLibrary;
   private readonly models: ModelLibrary;
@@ -113,6 +116,7 @@ export class MatchScene {
   private readonly camera: TargetCamera;
   private readonly shadows: ShadowGenerator;
   private readonly debugLabels: DebugLabelsView;
+  private readonly aiDebug: AiDebugReadout | null;
   private readonly hud: TacticalHud;
   private readonly titleBanner: TitleBanner;
   private readonly controlsOverlay: ControlsOverlay;
@@ -154,6 +158,7 @@ export class MatchScene {
       this.economy = restored.economy;
       this.resourceFieldState = restored.resourceFieldState;
       this.fog = restored.fog;
+      this.ai = restored.ai;
     } else {
       clearSnapshot();
       this.world = createWorld({ tileSizePixels: this.grid.tileSizePixels });
@@ -161,6 +166,7 @@ export class MatchScene {
       this.economy = createEconomy();
       this.resourceFieldState = createResourceFieldState(this.grid);
       this.fog = createFogState(this.grid);
+      this.ai = createAiState();
       // Fresh matches have authoritative opening vision before the first rendered frame.
       updateFogVisibility(this.fog, this.world, this.grid);
     }
@@ -268,6 +274,8 @@ export class MatchScene {
       },
     );
     this.debugLabels = new DebugLabelsView(overlayContainer, this.scene, canvas, this.space);
+    this.aiDebug = import.meta.env.DEV ? new AiDebugReadout(overlayContainer) : null;
+    this.aiDebug?.update(this.ai);
 
     this.onKeyDown = (event) => {
       if (event.code === 'Escape') {
@@ -319,6 +327,7 @@ export class MatchScene {
     economy: Economy;
     resourceFieldState: ResourceFieldState;
     fog: FogState;
+    ai: AiState;
   } | null {
     if (snapshot === null) {
       return null;
@@ -347,6 +356,7 @@ export class MatchScene {
       this.fogView.update(this.fog, PLAYER_ID);
       this.mapView.updateFog(this.fog, PLAYER_ID);
     }
+    stepAi(this.ai, observeAiWorld(this.world, this.grid, this.fog), deltaSeconds);
     this.clearHiddenHumanTargets();
     stepAutomaticTargeting(this.world, this.autoTargeting, deltaSeconds, undefined, this.canHumanTarget);
     const hits = [
@@ -377,6 +387,7 @@ export class MatchScene {
         this.fog,
         PLAYER_ID,
       );
+      this.aiDebug?.update(this.ai);
       this.hudElapsedSeconds = 0;
     }
 
@@ -403,6 +414,7 @@ export class MatchScene {
     this.models.dispose();
     this.materials.dispose();
     this.debugLabels.dispose();
+    this.aiDebug?.dispose();
     this.hud.destroy();
     this.titleBanner.destroy();
     this.controlsOverlay.destroy();
@@ -440,6 +452,7 @@ export class MatchScene {
         this.resourceFieldState,
         this.fog,
         this.grid,
+        this.ai,
       ),
     );
     this.saveElapsedSeconds = 0;
