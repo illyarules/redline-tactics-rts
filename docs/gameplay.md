@@ -8,7 +8,7 @@ controls card and the selection readout sit in an HTML layer above the canvas, s
 can scale them. Gameplay systems are added incrementally by the tasks in the implementation plan.
 
 Both bases stand on the map. Each player starts with an HQ and one of each mobile role — Worker,
-Infantry, Tank and Rocket — and the view opens on the player's own base. The starting units support selection and direct right-click movement. Combat is active; the AI gathers Credits and builds its opening base, but does not yet queue units, scout, or issue combat orders.
+Infantry, Tank and Rocket — and the view opens on the player's own base. The starting units support selection and direct right-click movement. Combat is active; the AI gathers Credits, builds its opening base, trains a deterministic army, scouts and launches attacks.
 
 Each player has a Credits balance, shown in the HUD, that starts from `src/config/economy.ts` and
 never goes negative. Right-clicking a resource field with a Worker selected sends it to gather
@@ -68,8 +68,25 @@ each must finish before the next starts. The opening Worker alternates gathering
 waiting for real income when necessary. Placement stays within a configured base radius, excludes
 resource tiles, and prefers a field-adjacent Depot. The existing HQ production predicate can advance
 the strategic state before the foundation finishes, so this economic plan continues alongside later
-states; recovery actions remain deferred. State, completed build-order index and exact remaining
-decision time live in schema-8 `WorldSnapshot`, so reloads preserve progress and cadence.
+states; recovery actions remain deferred.
+
+Military planning in `core/aiMilitary.ts` shares the strategic cadence. After the opening is complete,
+it pays for Infantry → Tank → Rocket in a strict repeating cycle, up to nine living plus queued units.
+Barracks must be completed; Factories must also be powered. Blocked requests wait without cancelling
+paid queues or advancing the cycle. This spending policy protects construction and keeps gathering active.
+
+The first living AI combat unit scouts the map's published player-start tile using Attack-Move.
+Only currently AI-visible HQ information updates remembered coordinates. Scout stays active while the
+base is unknown; a remembered base and three combat units permit Attack. The army and reinforcements
+use Attack-Move toward the remembered location, which can be stale after fog loss. Matching routes
+and existing engagements continue; idle units within the configured arrival radius need no new route.
+Acquisition, retaliation, explicit target commands and pursuit apply the same fog predicate to both
+players. Dedicated defense and recovery execution remain Task 28.
+
+Schema-9 `WorldSnapshot` persists state, completed build-order index, exact decision remainder,
+production-cycle index and last-known base coordinates. Old or invalid saves start fresh. Queues,
+positions, orders and Credits remain solely in world/economy data. The development-only AI readout
+shows strategy, cycle, army threshold, discovery status and the latest military action.
 
 Picking happens in two passes, in the order a player expects. A click is first resolved against the
 models themselves, so a click on a roof selects the building and a unit in front of another cannot be
@@ -105,3 +122,26 @@ later tasks add controls. Attack-move is introduced by a later task.
 
 The match opens zoomed in close, between the player's HQ and the resource field it will work first,
 so the base, its opening squad and the Credits are all on screen from the first frame.
+
+### AI base defense and recovery (Task 28)
+
+A visible enemy combat unit within eight tiles of the AI HQ triggers defense in any normal
+strategic state. The AI selects up to four living combat units within 32 tiles of HQ, nearest
+first with stable entity-ID ties. Workers are excluded. Threats use the same distance/ID ordering.
+Defenders issue normal explicit Attack orders; unchanged orders retain their routes. Without a
+visible target, selected units outside the two-tile arrival tolerance can rally via Attack-Move
+(the normal route planner resolves the HQ footprint to reachable ground). Old explicit defense
+assignments are released when selection changes or defense ends. Every acquisition, retaliation,
+Attack and Attack-Move engagement uses the acting owner's fog visibility, including during pursuit.
+
+Lost completed opening infrastructure takes priority over normal strategy and defense. Recovery
+keeps the existing gathering planner active, pauses new military queues and offensive commands,
+and rebuilds Barracks → Power Plant → Factory → Resource Depot. Only missing types are built;
+prerequisites, Credits, placement, Worker travel and construction time all apply. One construction
+job at a time is pursued. With the starting single Worker, gathering alternates with construction;
+with an idle second Worker, gathering can continue during a build. Existing queues and valid builds
+continue normally. Recovery waits for HQ and all four configured infrastructure types to be complete.
+
+HQ loss stops new AI economy, military and defense actions. HQ is never a rebuild candidate. No
+victory/defeat result or end-match UI is introduced; that remains Task 29. Insufficient Credits,
+no available Worker or no valid site simply causes a later retry on the one-second decision cadence.

@@ -228,7 +228,12 @@ export interface PersistenceConfig {
 }
 
 /** Low-frequency, deterministic decision thresholds for the single skirmish AI. */
+export type AiMilitaryUnitType = Extract<UnitTypeId, 'infantry' | 'tank' | 'rocket'>;
+
 export interface AiConfig {
+  readonly productionCycle: readonly AiMilitaryUnitType[];
+  readonly targetArmyUnits: number;
+  readonly commandArrivalRadiusTiles: number;
   readonly buildOrder: readonly BuildingTypeId[];
   readonly placementRadiusTiles: number;
   /** Simulation time between state evaluations; never tied to render frames or wall-clock time. */
@@ -239,6 +244,13 @@ export interface AiConfig {
   readonly criticalArmyUnits: number;
   /** Player combat units this close to the AI HQ count as a threat to its base. */
   readonly baseThreatRadiusTiles: number;
+  /** Maximum combat units redirected per defense decision. */
+  readonly maximumDefenders: number;
+  /** Eligible defenders must be within this distance of HQ; nearest first, then stable ID. */
+  readonly defenderSelectionRadiusTiles: number;
+  readonly defenderPriority: 'distanceThenId';
+  /** Buildable infrastructure, in prerequisite-safe recovery priority order (never HQ). */
+  readonly recoveryBuildOrder: readonly Exclude<BuildingTypeId, 'hq'>[];
   /** Completed structures that must remain standing for normal operation. */
   readonly essentialBuildingTypes: readonly BuildingTypeId[];
   /** Completed structures sufficient to leave the recovery state. */

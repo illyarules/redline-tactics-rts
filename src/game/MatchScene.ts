@@ -19,7 +19,7 @@ import { createAutoTargetingState, issueRetaliationOrders, stepAutomaticTargetin
 import { startConstruction, stepConstruction } from '../core/construction';
 import { stepAttackCooldowns } from '../core/combat';
 import { createEconomy, type Economy } from '../core/economy';
-import { isEntityVisibleToPlayer, createFogState, stepFogVisibility, updateFogVisibility, type FogState } from '../core/fog';
+import { fogTargetPredicate, isEntityVisibleToPlayer, createFogState, stepFogVisibility, updateFogVisibility, type FogState } from '../core/fog';
 import type { ReadonlyEntity, ReadonlyUnit } from '../core/entities';
 import { issueGroupMoveOrders } from '../core/formation';
 import { issueGatherOrder, stepGather } from '../core/gather';
@@ -31,8 +31,9 @@ import { pruneSelection } from '../core/selection';
 import { restoreWorld, serializeWorld, type WorldSnapshot } from '../core/snapshot';
 import { stepSeparation } from '../core/separation';
 import { createWorld, type World } from '../core/world';
-import { attackMoveOrder } from '../core/orders';
-import { createAiState, observeAiWorld, stepAi, type AiState } from '../core/ai';
+import { executeAiMilitaryDecisions, type AiMilitaryReadout } from '../core/aiMilitary';
+import { createAiState, observeAiStrategy, stepAi, type AiState } from '../core/ai';
+import { executeAiDefenseDecisions } from '../core/aiDefense';
 import { executeAiEconomyDecisions } from '../core/aiEconomy';
 import { BuildMenu } from '../ui/buildMenu';
 import { ControlsOverlay } from '../ui/controlsOverlay';
@@ -117,6 +118,8 @@ export class MatchScene {
   private readonly camera: TargetCamera;
   private readonly shadows: ShadowGenerator;
   private readonly debugLabels: DebugLabelsView;
+  private readonly defenseRecoveryReadout = { latestAction: '—' };
+  private readonly militaryReadout: AiMilitaryReadout = { latestAction: '—' };
   private readonly aiDebug: AiDebugReadout | null;
   private readonly hud: TacticalHud;
   private readonly titleBanner: TitleBanner;
@@ -131,8 +134,8 @@ export class MatchScene {
   private readonly autoTargeting = createAutoTargetingState();
   private readonly isVisibleToHuman = (entity: ReadonlyEntity): boolean =>
     isEntityVisibleToPlayer(this.fog, PLAYER_ID, entity);
-  private readonly canHumanTarget = (observer: ReadonlyUnit, candidate: ReadonlyEntity): boolean =>
-    observer.owner !== PLAYER_ID || this.isVisibleToHuman(candidate);
+  private readonly canTarget = (observer: ReadonlyUnit, candidate: ReadonlyEntity): boolean =>
+    fogTargetPredicate(this.fog)(observer, candidate);
   private hudElapsedSeconds = Number.POSITIVE_INFINITY;
   private saveElapsedSeconds = 0;
   private paused = false;
@@ -220,7 +223,7 @@ export class MatchScene {
       (ids, targetId) => {
         const target = this.world.get(targetId);
         if (target !== undefined && this.isVisibleToHuman(target)) {
-          issueAttackOrders(this.world, PLAYER_ID, ids, targetId);
+          issueAttackOrders(this.world, PLAYER_ID, ids, targetId, this.canTarget);
         }
         this.showSelection();
       },
@@ -276,7 +279,7 @@ export class MatchScene {
     );
     this.debugLabels = new DebugLabelsView(overlayContainer, this.scene, canvas, this.space);
     this.aiDebug = import.meta.env.DEV ? new AiDebugReadout(overlayContainer) : null;
-    this.aiDebug?.update(this.ai);
+    this.aiDebug?.update(this.ai, this.world, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
 
     this.onKeyDown = (event) => {
       if (event.code === 'Escape') {
@@ -357,17 +360,20 @@ export class MatchScene {
       this.fogView.update(this.fog, PLAYER_ID);
       this.mapView.updateFog(this.fog, PLAYER_ID);
     }
-    const aiStep = stepAi(this.ai, observeAiWorld(this.world, this.grid, this.fog), deltaSeconds);
+    const aiStep = stepAi(this.ai, observeAiStrategy(this.ai, this.world, this.grid, this.fog), deltaSeconds);
     executeAiEconomyDecisions(this.ai, aiStep, {
       world: this.world, grid: this.grid, economy: this.economy, resourceFieldState: this.resourceFieldState,
-    });
-    this.clearHiddenHumanTargets();
-    stepAutomaticTargeting(this.world, this.autoTargeting, deltaSeconds, undefined, this.canHumanTarget);
+    }, this.defenseRecoveryReadout);
+    executeAiMilitaryDecisions(this.ai, aiStep, {
+      world: this.world, grid: this.grid, economy: this.economy,
+    }, this.militaryReadout);
+    executeAiDefenseDecisions(this.ai, aiStep, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout);
+    stepAutomaticTargeting(this.world, this.autoTargeting, deltaSeconds, undefined, this.canTarget);
     const hits = [
-      ...stepAttackOrders(this.world, this.grid, deltaSeconds),
-      ...stepAttackMoveOrders(this.world, this.grid, deltaSeconds),
+      ...stepAttackOrders(this.world, this.grid, deltaSeconds, this.canTarget),
+      ...stepAttackMoveOrders(this.world, this.grid, deltaSeconds, this.canTarget),
     ];
-    issueRetaliationOrders(this.world, hits, this.canHumanTarget);
+    issueRetaliationOrders(this.world, hits, this.canTarget);
     this.showAttackFeedback(hits);
     this.combatEffects.update(deltaSeconds);
     for (const field of this.grid.resourceFields) {
@@ -391,7 +397,7 @@ export class MatchScene {
         this.fog,
         PLAYER_ID,
       );
-      this.aiDebug?.update(this.ai);
+      this.aiDebug?.update(this.ai, this.world, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
       this.hudElapsedSeconds = 0;
     }
 
@@ -500,31 +506,6 @@ export class MatchScene {
     shadows.filteringQuality = ShadowGenerator.QUALITY_MEDIUM;
     shadows.darkness = 0.4;
     return shadows;
-  }
-
-  /**
-   * Information is authoritative even between visual updates: human-issued attacks and temporary
-   * Attack-Move engagements end the instant their target's current tile is no longer visible.
-   */
-  private clearHiddenHumanTargets(): void {
-    for (const unit of this.world.units(PLAYER_ID)) {
-      const order = unit.order;
-      if (order?.kind === 'Attack') {
-        const target = this.world.get(order.targetId);
-        if (target === undefined || !this.isVisibleToHuman(target)) {
-          this.world.setOrder(unit.id, null);
-          this.world.setStatus(unit.id, 'idle');
-        }
-        continue;
-      }
-      if (order?.kind === 'AttackMove' && order.engagement !== null) {
-        const target = this.world.get(order.engagement.targetId);
-        if (target === undefined || !this.isVisibleToHuman(target)) {
-          this.world.setOrder(unit.id, attackMoveOrder(order.target, order.route));
-          this.world.setStatus(unit.id, 'moving');
-        }
-      }
-    }
   }
 
   /** Points the marker and the readout at whatever is selected right now. */

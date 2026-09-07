@@ -199,7 +199,7 @@ const EMPTY_FOG = {
   updateElapsedSeconds: 0,
   players: [],
 };
-const EMPTY_AI = { state: 'develop' as const, buildOrderIndex: 0, decisionRemainingSeconds: 1, lastTransition: null };
+const EMPTY_AI = { productionCycleIndex: 0, lastKnownPlayerBasePosition: null, state: 'develop' as const, buildOrderIndex: 0, decisionRemainingSeconds: 1, lastTransition: null };
 
 describe('isValidSnapshotShape (AC-002)', () => {
   it('accepts a well-formed snapshot shell', () => {
@@ -310,9 +310,9 @@ describe('isValidSnapshotShape (AC-002)', () => {
       credits: EMPTY_CREDITS,
       resourceFields: [],
       fog: EMPTY_FOG,
-      ai: { state: 'develop', buildOrderIndex: 0, decisionRemainingSeconds: 0, lastTransition: null },
+      ai: { productionCycleIndex: 0, lastKnownPlayerBasePosition: null, state: 'develop', buildOrderIndex: 0, decisionRemainingSeconds: 0, lastTransition: null },
     };
-    expect(() => restoreWorld(snapshot, grid)).toThrow('AI snapshot has an invalid decision remainder');
+    expect(() => restoreWorld(snapshot, grid)).toThrow('AI snapshot has an invalid shape');
   });
 
   it('rejects null, primitives and other non-object input', () => {

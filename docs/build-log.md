@@ -1,5 +1,30 @@
 # Build log
 
+## AI military production, scouting and attacks (Task 27)
+
+Added typed Infantry → Tank → Rocket production, a nine-unit living-plus-queued target and a
+configured arrival radius. The pure military planner and core executor share strategic ticks;
+successful normal queue requests alone advance the persisted cycle. Military spending waits for
+the Task 26 opening to finish, preserving its construction budget and ongoing gathering.
+
+The first living combat unit scouts the published map start through Attack-Move. AI memory records
+HQ coordinates only while its own fog reveals the HQ. Scout no longer bounces back to Produce.
+Discovery plus the configured three-unit threshold launches Attack-Move at remembered coordinates;
+matching routes and ongoing engagements survive later decisions. Defense/recovery execution remains
+deferred to Task 28.
+
+Moved hidden-target pursuit checks into core Attack and Attack-Move execution and supplied the same
+fog predicate for human and AI commands, acquisition and retaliation. MatchScene only orchestrates.
+Schema 9 adds validated cycle/coordinate memory; old snapshots use the existing fresh-match fallback.
+The development-only readout includes cycle, army, discovery and the latest military action.
+
+Deterministic renderer-free tests cover queue eligibility, costs/capacity, failed-request atomicity,
+scout selection, fog memory, both players' hidden-target restrictions, route preservation, malformed
+snapshots and a normal-income simulation from zero AI combat units through base completion and attack.
+Verification: typecheck, 428 unit tests, 6 Playwright E2E tests and production build pass. Vite retains
+its existing large-chunk warning.
+
+
 ## AI economy and deterministic build order (Task 26)
 
 The AI now uses normal Worker gathering and paid construction to complete Barracks → Power Plant
@@ -126,3 +151,30 @@ building that just happens to be doing nothing yet.
 
 Fog of war does not exist yet (it lands with the vision task), so `checkBuildingPlacement` does not
 check "explored" — every tile reads as valid ground on that front until then.
+
+## Task 28 — AI defense and recovery
+
+Implemented configurable base threat/selection radii, a four-unit defense cap and deterministic
+nearest-distance/entity-ID priority. The renderer-free defense planner issues normal, fog-validated
+Attack and rally orders, retains identical commands and releases obsolete explicit defense orders.
+Threats now interrupt develop/produce as well as scout/attack; infrastructure loss retains recovery
+priority. No hidden entity can trigger defense or pass the existing shared combat fog predicate.
+
+Recovery uses the existing gathering, placement and `startConstruction` APIs, rebuilding missing
+Barracks, Power Plant, Factory and Resource Depot in that order. Opening progress is normalized
+against completed structures; recovery exits only after configured infrastructure is complete.
+New production/offense pauses while existing world jobs continue. HQ loss gates new strategic
+actions, without an impossible rebuild or Task 29 defeat handling. No durable fields or schema bump
+were needed; ongoing recovery restores through the existing schema-9 AI/world snapshot.
+
+Added deterministic core tests for threat visibility/priority, capped living non-worker selection,
+Attack/rally execution, unchanged commands, clean defense exit, hidden acquisition/retaliation,
+HQ loss, blocked recovery and a full opening→destruction→rebuild simulation. The simulation checks
+normal costs, zero initial site progress, one active site, ongoing income, prerequisite-safe order,
+completion-gated recovery exit, resource conservation and mid-construction save/restore.
+
+Verification: `npm run typecheck` passed; `npm test` passed all 437 tests in 38 files;
+`npm run test:e2e` passed all 6 Chromium tests (local server required the approved sandbox
+exception); `npm run build` passed with Vite's large-chunk warning. Recovery also remains active
+if another threat appears before minimum infrastructure is complete. Defense restore and obsolete
+assignment release have direct regression coverage. No `.env` files were read and no push was run.

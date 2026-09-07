@@ -9,6 +9,7 @@ import type { AiConfig } from '../config/types';
 import { isAlive } from './entities';
 import { isEntityVisibleToPlayer, type FogState } from './fog';
 import type { BuildingTypeId, PlayerId } from './ids';
+import type { Vec2 } from './geometry';
 import type { MapGrid } from './map';
 import { isCompleted } from './prerequisites';
 import { isProductionActive } from './power';
@@ -27,6 +28,8 @@ export interface AiTransition {
 
 /** JSON-safe state saved with the rest of a local match. */
 export interface AiSnapshot {
+  readonly productionCycleIndex: number;
+  readonly lastKnownPlayerBasePosition: Vec2 | null;
   readonly buildOrderIndex: number;
   readonly state: AiStateId;
   /** Time left before the next strategic evaluation. Always in (0, decisionIntervalSeconds]. */
@@ -36,6 +39,8 @@ export interface AiSnapshot {
 
 /** Mutable match state; its shape remains serializable for persistence. */
 export interface AiState extends AiSnapshot {
+  productionCycleIndex: number;
+  lastKnownPlayerBasePosition: Vec2 | null;
   buildOrderIndex: number;
   state: AiStateId;
   decisionRemainingSeconds: number;
@@ -67,11 +72,13 @@ export interface AiStepResult {
 
 export function createAiState(config: AiConfig = AI_CONFIG): AiState {
   assertAiConfig(config);
-  return { state: 'develop', buildOrderIndex: 0, decisionRemainingSeconds: config.decisionIntervalSeconds, lastTransition: null };
+  return { productionCycleIndex: 0, lastKnownPlayerBasePosition: null, state: 'develop', buildOrderIndex: 0, decisionRemainingSeconds: config.decisionIntervalSeconds, lastTransition: null };
 }
 
 export function serializeAiState(ai: AiState): AiSnapshot {
   return {
+    productionCycleIndex: ai.productionCycleIndex,
+    lastKnownPlayerBasePosition: ai.lastKnownPlayerBasePosition === null ? null : { ...ai.lastKnownPlayerBasePosition },
     state: ai.state,
     buildOrderIndex: ai.buildOrderIndex,
     decisionRemainingSeconds: ai.decisionRemainingSeconds,
@@ -84,10 +91,14 @@ export function isAiSnapshotShape(raw: unknown): raw is AiSnapshot {
   if (typeof raw !== 'object' || raw === null) return false;
   const candidate = raw as Record<string, unknown>;
   return (
+    Number.isInteger(candidate.productionCycleIndex) && typeof candidate.productionCycleIndex === 'number' &&
+    candidate.productionCycleIndex >= 0 && candidate.productionCycleIndex < AI_CONFIG.productionCycle.length &&
+    isRememberedPosition(candidate.lastKnownPlayerBasePosition) &&
     isAiStateId(candidate.state) &&
     typeof candidate.buildOrderIndex === 'number' && Number.isInteger(candidate.buildOrderIndex) &&
     candidate.buildOrderIndex >= 0 && candidate.buildOrderIndex <= AI_CONFIG.buildOrder.length &&
-    typeof candidate.decisionRemainingSeconds === 'number' &&
+    typeof candidate.decisionRemainingSeconds === 'number' && Number.isFinite(candidate.decisionRemainingSeconds) &&
+    candidate.decisionRemainingSeconds > 0 && candidate.decisionRemainingSeconds <= AI_CONFIG.decisionIntervalSeconds &&
     (candidate.lastTransition === null || isAiTransitionShape(candidate.lastTransition))
   );
 }
@@ -103,6 +114,8 @@ export function restoreAiState(snapshot: AiSnapshot, config: AiConfig = AI_CONFI
     throw new Error('AI snapshot has an invalid decision remainder');
   }
   return {
+    productionCycleIndex: snapshot.productionCycleIndex,
+    lastKnownPlayerBasePosition: snapshot.lastKnownPlayerBasePosition === null ? null : { ...snapshot.lastKnownPlayerBasePosition },
     state: snapshot.state,
     buildOrderIndex: snapshot.buildOrderIndex,
     decisionRemainingSeconds: snapshot.decisionRemainingSeconds,
@@ -163,7 +176,9 @@ export function nextAiState(
   config: AiConfig = AI_CONFIG,
 ): AiStateId {
   // Essential infrastructure loss overrides every strategic state, including active defense.
-  if (!observation.essentialInfrastructureIntact) return 'recover';
+  if (!observation.essentialInfrastructureIntact || (state === 'recover' && !observation.minimumViableBase)) return 'recover';
+
+  if (observation.baseUnderThreat) return 'defend';
 
   switch (state) {
     case 'develop':
@@ -174,7 +189,7 @@ export function nextAiState(
       if (observation.baseUnderThreat) return 'defend';
       return observation.playerBaseKnown && observation.combatUnitCount >= config.minimumAttackArmyUnits
         ? 'attack'
-        : 'produce';
+        : 'scout';
     case 'attack':
       // Defense wins over continuing an attack whenever both predicates are true.
       if (observation.baseUnderThreat) return 'defend';
@@ -223,7 +238,9 @@ export function observeAiWorld(
     combatUnitCount,
     playerBaseKnown,
     baseUnderThreat,
-    essentialInfrastructureIntact: completedTypes(config.essentialBuildingTypes),
+    essentialInfrastructureIntact: completedTypes(config.essentialBuildingTypes) &&
+      !config.recoveryBuildOrder.some((type) => world.buildings(aiPlayer).some((b) =>
+        b.type === type && !isAlive(b) && b.constructionProgress >= 1) && !completedTypes([type])),
     minimumViableBase: completedTypes(config.minimumViableBuildingTypes),
   };
 }
@@ -239,6 +256,17 @@ function isAiTransitionShape(value: unknown): value is AiTransition {
 }
 
 function assertAiConfig(config: AiConfig): void {
+  if (!Number.isInteger(config.maximumDefenders) || config.maximumDefenders < 1 ||
+    !Number.isFinite(config.defenderSelectionRadiusTiles) || config.defenderSelectionRadiusTiles <= 0 ||
+    config.defenderPriority !== 'distanceThenId' || config.recoveryBuildOrder.length === 0 ||
+    config.recoveryBuildOrder.some((type) => !['barracks', 'powerPlant', 'factory', 'resourceDepot'].includes(type))) {
+    throw new Error('Invalid AI defense/recovery configuration');
+  }
+  if (!Number.isFinite(config.commandArrivalRadiusTiles) || config.commandArrivalRadiusTiles <= 0) throw new Error('Invalid AI arrival radius');
+  if (config.productionCycle.length === 0 || config.productionCycle.some((u) => !['infantry', 'tank', 'rocket'].includes(u)) ||
+    !Number.isInteger(config.targetArmyUnits) || config.targetArmyUnits < config.minimumAttackArmyUnits) {
+    throw new Error('AI military cycle and army target must be valid');
+  }
   if (!Number.isInteger(config.placementRadiusTiles) || config.placementRadiusTiles < 0) {
     throw new Error('AI placement radius must be a non-negative integer');
   }
@@ -263,4 +291,28 @@ function assertAiConfig(config: AiConfig): void {
   if (config.essentialBuildingTypes.length === 0 || config.minimumViableBuildingTypes.length === 0) {
     throw new Error('AI infrastructure thresholds need at least one building type');
   }
+}
+
+/** Read positions only after the AI's authoritative fog reveals the HQ. Memory remains stale under fog. */
+export function updateAiKnowledge(ai: AiState, world: World, fog: FogState): void {
+  const base = world.buildings('player').find((b) =>
+    b.type === 'hq' && isAlive(b) && isEntityVisibleToPlayer(fog, 'ai', b));
+  if (base !== undefined) ai.lastKnownPlayerBasePosition = { ...base.position };
+}
+
+export function observeAiStrategy(ai: AiState, world: World, grid: MapGrid, fog: FogState): AiObservation {
+  updateAiKnowledge(ai, world, fog);
+  const observation = observeAiWorld(world, grid, fog);
+  const lostOpening = AI_CONFIG.buildOrder.slice(0, ai.buildOrderIndex).some((type) =>
+    !world.buildings('ai').some((b) => b.type === type && isCompleted(b)));
+  return { ...observation, essentialInfrastructureIntact: observation.essentialInfrastructureIntact && !lostOpening,
+    playerBaseKnown: ai.lastKnownPlayerBasePosition !== null };
+}
+
+function isRememberedPosition(value: unknown): boolean {
+  if (value === null) return true;
+  if (typeof value !== 'object') return false;
+  const p = value as Record<string, unknown>;
+  return Object.keys(p).length === 2 && typeof p.x === 'number' && Number.isFinite(p.x) && p.x >= 0 &&
+    typeof p.y === 'number' && Number.isFinite(p.y) && p.y >= 0;
 }

@@ -28,12 +28,11 @@ export interface AiEconomyContext {
 export function planAiEconomy(ai: AiState, context: AiEconomyContext, config: AiConfig = AI_CONFIG, owner: PlayerId = 'ai'):
   { readonly buildOrderIndex: number; readonly intent: AiEconomyIntent | null } {
   const { world, grid, economy, resourceFieldState } = context;
-  let index = ai.buildOrderIndex;
+  let index = 0;
   while (index < config.buildOrder.length && world.buildings(owner).some((b) => b.type === config.buildOrder[index] && isCompleted(b))) index++;
   const result = (intent: AiEconomyIntent | null) => ({ buildOrderIndex: index, intent });
-  // Recovery actions belong to Task 28. Existing orders continue through normal simulation.
-  if (ai.state === 'recover') return result(null);
   const base = world.buildings(owner).find((b) => b.type === 'hq' && isCompleted(b));
+  if (base === undefined) return result(null);
   const dropoff = base ?? world.buildings(owner).find((b) => b.stats.acceptsDeliveries && isCompleted(b));
   if (dropoff === undefined) return result(null);
   const workers = world.units(owner).filter((w) => w.type === 'worker' && isAlive(w));
@@ -51,7 +50,9 @@ export function planAiEconomy(ai: AiState, context: AiEconomyContext, config: Ai
       if (field !== undefined) return result({ kind: 'gather', workerId: worker.id, fieldId: field.id });
     }
   }
-  const buildingType = config.buildOrder[index];
+  const buildingType = ai.state === 'recover'
+    ? config.recoveryBuildOrder.find((type) => !world.buildings(owner).some((b) => b.type === type && isCompleted(b)))
+    : config.buildOrder[index];
   if (buildingType === undefined || world.buildings(owner).some((b) => isAlive(b) && b.status === 'constructing') ||
     workers.some((w) => w.order?.kind === 'Build') || !economy.canAfford(owner, BUILDING_CONFIG[buildingType].cost) ||
     !checkPrerequisites(world, owner, buildingType).allowed) return result(null);
@@ -79,10 +80,12 @@ export function executeAiEconomyIntent(context: AiEconomyContext, intent: AiEcon
 }
 
 /** Consume strategic decision ticks without adding a second timer or renderer rules. */
-export function executeAiEconomyDecisions(ai: AiState, step: AiStepResult, context: AiEconomyContext): void {
+export function executeAiEconomyDecisions(ai: AiState, step: AiStepResult, context: AiEconomyContext, readout?: { latestAction: string }): void {
   for (let tick = 0; tick < step.evaluations; tick++) {
     const plan = planAiEconomy({ ...ai, state: step.intents[tick]?.state ?? ai.state }, context);
     ai.buildOrderIndex = plan.buildOrderIndex;
-    if (plan.intent !== null) executeAiEconomyIntent(context, plan.intent);
+    if (plan.intent !== null && executeAiEconomyIntent(context, plan.intent) && ai.state === 'recover' && readout) {
+      readout.latestAction = plan.intent.kind === 'construct' ? 'rebuild ' + plan.intent.buildingType : 'gather';
+    }
   }
 }

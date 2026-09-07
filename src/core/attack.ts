@@ -11,6 +11,7 @@ import { advanceAlongRoute, turnTowards } from './movement';
 import { attackOrder, type MoveRoute } from './orders';
 import { planRoute } from './pathfinding';
 import { MOVEMENT_CONFIG } from '../config/movement';
+import type { CanTargetEntity } from './autoCombat';
 import type { World } from './world';
 
 export interface AttackHitEvent {
@@ -27,9 +28,13 @@ export function issueAttackOrders(
   player: PlayerId,
   selectedIds: readonly EntityId[],
   targetId: EntityId,
+  canTarget: CanTargetEntity = () => true,
 ): readonly EntityId[] {
   const accepted: EntityId[] = [];
   for (const id of new Set(selectedIds)) {
+    const unit = world.unit(id);
+    const target = world.get(targetId);
+    if (unit === undefined || target === undefined || !canTarget(unit, target)) continue;
     const eligibility = checkAttackEligibility(world, id, targetId);
     if (!canPursue(eligibility)) continue;
     const attacker = world.unit(id);
@@ -45,13 +50,15 @@ export function issueAttackOrders(
  * Advances every explicit Attack order. Units only follow a route while outside their attack range;
  * an unreachable or invalid target clears the order instead of leaving a unit stuck in pursuit.
  */
-export function stepAttackOrders(world: World, grid: MapGrid, deltaSeconds: number): readonly AttackHitEvent[] {
+export function stepAttackOrders(world: World, grid: MapGrid, deltaSeconds: number, canTarget: CanTargetEntity = () => true): readonly AttackHitEvent[] {
   if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) return [];
   const events: AttackHitEvent[] = [];
 
   for (const attacker of world.units()) {
     if (!isAlive(attacker) || attacker.order?.kind !== 'Attack') continue;
     const order = attacker.order;
+    const target = world.get(order.targetId);
+    if (target === undefined || !canTarget(attacker, target)) { stopAttacking(world, attacker.id); continue; }
     const eligibility = checkAttackEligibility(world, attacker.id, order.targetId);
 
     if (eligibility.allowed) {
@@ -112,7 +119,8 @@ function canPursue(eligibility: ReturnType<typeof checkAttackEligibility>): bool
   return eligibility.allowed || eligibility.reason === 'out-of-range' || eligibility.reason === 'cooling-down';
 }
 
-function stopAttacking(world: World, attackerId: EntityId): void {
+/** Cancels pursuit through the normal order/status API. */
+export function stopAttacking(world: World, attackerId: EntityId): void {
   world.setOrder(attackerId, null);
   world.setStatus(attackerId, 'idle');
 }

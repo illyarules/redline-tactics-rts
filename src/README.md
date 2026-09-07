@@ -29,5 +29,22 @@ ground to issue Attack-Move. Those units pause for acquired enemies and resume t
 AI strategy and cadence live in `core/ai.ts`. `core/aiEconomy.ts` reads world facts to create typed
 gather/construction intents and executes them through public core APIs. `core/aiPlacement.ts` owns
 bounded deterministic placement search. `MatchScene` only orchestrates these modules after normal
-simulation steps; economic rules do not live in the renderer. Only the completed build-order index
-is added to AI persistence; construction progress and Worker orders stay in the world snapshot.
+simulation steps; economic rules do not live in the renderer. `core/aiMilitary.ts` plans typed production
+and scouting/attack intents, then validates them before using normal queue and Attack-Move APIs.
+Opening construction has spending priority; military commands share strategic cadence and retain
+matching routes. `ai.ts` records HQ coordinates only under current AI fog visibility. Schema 9 saves
+that memory and the production-cycle index alongside existing strategy timing and build progress.
+Orders, queues and positions stay in the world snapshot. Core attack execution, automatic targeting
+and retaliation accept the shared renderer-free fog predicate for both players.
+
+Task 28 adds `core/aiDefense.ts`: pure threat/defender observation, typed Attack/rally/release intents,
+and a revalidating executor. `MatchScene` runs it on the existing AI cadence and continues supplying
+`fogTargetPredicate` to all combat paths. Explicit AI Attack orders identify defense assignments;
+AI offense uses Attack-Move. Releasing obsolete assignments prevents a changing nearest-unit
+selection from accumulating more than the defender cap. No separate assignment snapshot is needed.
+`aiEconomy` now recalculates opening progress from completed live buildings and shares its normal
+paid construction path with recovery. Observation checks lost opening progress before normalization;
+recover remains active until the configured minimum infrastructure is complete. HQ loss is derived
+from the world and gates planners. Task 28 leaves schema 9 unchanged: existing AI state/timer/index
+and world orders, Credits, queues and construction progress already represent recovery and defense.
+The dev-only readout adds threats, defender cap, recovery target and the latest response action.

@@ -46,10 +46,11 @@ describe('AI state-machine shell', () => {
     expect(evaluateAiState(ai, READY)?.to).toBe('attack');
   });
 
-  it('returns scout to produce when its attack threshold is not met', () => {
+  it('keeps scouting when its attack threshold is not met', () => {
     const ai = createAiState();
     ai.state = 'scout';
-    expect(evaluateAiState(ai, { ...READY, combatUnitCount: AI_CONFIG.minimumAttackArmyUnits - 1 })?.to).toBe('produce');
+    expect(evaluateAiState(ai, { ...READY, combatUnitCount: AI_CONFIG.minimumAttackArmyUnits - 1 })).toBeNull();
+    expect(ai.state).toBe('scout');
   });
 
   it('prioritizes defend over attack and recover over every state', () => {
@@ -70,6 +71,12 @@ describe('AI state-machine shell', () => {
     expect(evaluateAiState(ai, { ...READY, combatUnitCount: 0 })?.to).toBe('produce');
     ai.state = 'recover';
     expect(evaluateAiState(ai, READY)?.to).toBe('develop');
+  });
+
+  it('keeps incomplete recovery active even when another threat appears', () => {
+    const ai = createAiState(); ai.state = 'recover';
+    expect(evaluateAiState(ai, { ...READY, minimumViableBase: false, baseUnderThreat: true })).toBeNull();
+    expect(ai.state).toBe('recover');
   });
 
   it('serializes and restores the state and exact timer remainder', () => {

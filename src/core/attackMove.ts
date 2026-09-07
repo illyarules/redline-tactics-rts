@@ -9,6 +9,7 @@ import { advanceAlongRoute, turnTowards } from './movement';
 import { attackMoveOrder, attackOrder, type AttackMoveOrder, type MoveRoute } from './orders';
 import { planRoute } from './pathfinding';
 import { MOVEMENT_CONFIG } from '../config/movement';
+import type { CanTargetEntity } from './autoCombat';
 import type { World } from './world';
 import type { AttackHitEvent } from './attack';
 
@@ -52,7 +53,7 @@ export function issueAttackMoveOrders(
 }
 
 /** Advances Attack-Move travel or its temporary target engagement and returns confirmed hit events. */
-export function stepAttackMoveOrders(world: World, grid: MapGrid, deltaSeconds: number): readonly AttackHitEvent[] {
+export function stepAttackMoveOrders(world: World, grid: MapGrid, deltaSeconds: number, canTarget: CanTargetEntity = () => true): readonly AttackHitEvent[] {
   if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) return [];
   const events: AttackHitEvent[] = [];
   for (const unit of world.units()) {
@@ -62,6 +63,8 @@ export function stepAttackMoveOrders(world: World, grid: MapGrid, deltaSeconds: 
       advanceDestination(world, unit.id, order, deltaSeconds);
       continue;
     }
+    const target = world.get(order.engagement.targetId);
+    if (target === undefined || !canTarget(unit, target)) { resumeDestination(world, unit.id, order); continue; }
     stepEngagement(world, grid, unit.id, order, deltaSeconds, events);
   }
   return events;

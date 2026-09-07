@@ -270,3 +270,8 @@ function isFogPlayerSnapshotShell(value: unknown): boolean {
   const candidate = value as Record<string, unknown>;
   return typeof candidate.player === 'string' && Array.isArray(candidate.cells);
 }
+
+/** Shared information boundary for both players' acquisition, retaliation and pursuit. */
+export function fogTargetPredicate(fog: FogState): import('./autoCombat').CanTargetEntity {
+  return (observer, candidate) => isEntityVisibleToPlayer(fog, observer.owner, candidate);
+}
