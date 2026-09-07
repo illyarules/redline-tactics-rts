@@ -33,6 +33,7 @@ import { stepSeparation } from '../core/separation';
 import { createWorld, type World } from '../core/world';
 import { attackMoveOrder } from '../core/orders';
 import { createAiState, observeAiWorld, stepAi, type AiState } from '../core/ai';
+import { executeAiEconomyDecisions } from '../core/aiEconomy';
 import { BuildMenu } from '../ui/buildMenu';
 import { ControlsOverlay } from '../ui/controlsOverlay';
 import { PauseMenu } from '../ui/pauseMenu';
@@ -356,7 +357,10 @@ export class MatchScene {
       this.fogView.update(this.fog, PLAYER_ID);
       this.mapView.updateFog(this.fog, PLAYER_ID);
     }
-    stepAi(this.ai, observeAiWorld(this.world, this.grid, this.fog), deltaSeconds);
+    const aiStep = stepAi(this.ai, observeAiWorld(this.world, this.grid, this.fog), deltaSeconds);
+    executeAiEconomyDecisions(this.ai, aiStep, {
+      world: this.world, grid: this.grid, economy: this.economy, resourceFieldState: this.resourceFieldState,
+    });
     this.clearHiddenHumanTargets();
     stepAutomaticTargeting(this.world, this.autoTargeting, deltaSeconds, undefined, this.canHumanTarget);
     const hits = [

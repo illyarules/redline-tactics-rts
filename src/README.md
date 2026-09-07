@@ -25,3 +25,9 @@ Rules that keep the boundaries useful:
 
 Current combat controls: idle combat units defend themselves; press `A`, then left-click passable
 ground to issue Attack-Move. Those units pause for acquired enemies and resume toward the destination.
+
+AI strategy and cadence live in `core/ai.ts`. `core/aiEconomy.ts` reads world facts to create typed
+gather/construction intents and executes them through public core APIs. `core/aiPlacement.ts` owns
+bounded deterministic placement search. `MatchScene` only orchestrates these modules after normal
+simulation steps; economic rules do not live in the renderer. Only the completed build-order index
+is added to AI persistence; construction progress and Worker orders stay in the world snapshot.

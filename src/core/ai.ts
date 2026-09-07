@@ -1,9 +1,8 @@
 /**
  * Deterministic, renderer-independent AI state machine.
  *
- * This module deliberately decides strategy but performs no gameplay mutation yet. Future tasks
- * can consume its typed decision hook through the same economy, construction, production and order
- * APIs the human uses; this shell never creates resources, units or orders on its own.
+ * This module owns strategy and timing. aiEconomy consumes decision ticks and applies typed plans
+ * through the same gather and construction APIs the human uses.
  */
 import { AI_CONFIG } from '../config/ai';
 import type { AiConfig } from '../config/types';
@@ -28,6 +27,7 @@ export interface AiTransition {
 
 /** JSON-safe state saved with the rest of a local match. */
 export interface AiSnapshot {
+  readonly buildOrderIndex: number;
   readonly state: AiStateId;
   /** Time left before the next strategic evaluation. Always in (0, decisionIntervalSeconds]. */
   readonly decisionRemainingSeconds: number;
@@ -36,6 +36,7 @@ export interface AiSnapshot {
 
 /** Mutable match state; its shape remains serializable for persistence. */
 export interface AiState extends AiSnapshot {
+  buildOrderIndex: number;
   state: AiStateId;
   decisionRemainingSeconds: number;
   lastTransition: AiTransition | null;
@@ -51,7 +52,7 @@ export interface AiObservation {
   readonly minimumViableBase: boolean;
 }
 
-/** A deliberately inert extension point until Tasks 26–28 execute actual normal-gameplay actions. */
+/** A strategic decision hook; economy planning consumes its cadence separately. */
 export interface AiNoopIntent {
   readonly kind: 'none';
   readonly state: AiStateId;
@@ -66,12 +67,13 @@ export interface AiStepResult {
 
 export function createAiState(config: AiConfig = AI_CONFIG): AiState {
   assertAiConfig(config);
-  return { state: 'develop', decisionRemainingSeconds: config.decisionIntervalSeconds, lastTransition: null };
+  return { state: 'develop', buildOrderIndex: 0, decisionRemainingSeconds: config.decisionIntervalSeconds, lastTransition: null };
 }
 
 export function serializeAiState(ai: AiState): AiSnapshot {
   return {
     state: ai.state,
+    buildOrderIndex: ai.buildOrderIndex,
     decisionRemainingSeconds: ai.decisionRemainingSeconds,
     lastTransition: ai.lastTransition === null ? null : { ...ai.lastTransition },
   };
@@ -83,6 +85,8 @@ export function isAiSnapshotShape(raw: unknown): raw is AiSnapshot {
   const candidate = raw as Record<string, unknown>;
   return (
     isAiStateId(candidate.state) &&
+    typeof candidate.buildOrderIndex === 'number' && Number.isInteger(candidate.buildOrderIndex) &&
+    candidate.buildOrderIndex >= 0 && candidate.buildOrderIndex <= AI_CONFIG.buildOrder.length &&
     typeof candidate.decisionRemainingSeconds === 'number' &&
     (candidate.lastTransition === null || isAiTransitionShape(candidate.lastTransition))
   );
@@ -100,6 +104,7 @@ export function restoreAiState(snapshot: AiSnapshot, config: AiConfig = AI_CONFI
   }
   return {
     state: snapshot.state,
+    buildOrderIndex: snapshot.buildOrderIndex,
     decisionRemainingSeconds: snapshot.decisionRemainingSeconds,
     lastTransition: snapshot.lastTransition === null ? null : { ...snapshot.lastTransition },
   };
@@ -234,6 +239,12 @@ function isAiTransitionShape(value: unknown): value is AiTransition {
 }
 
 function assertAiConfig(config: AiConfig): void {
+  if (!Number.isInteger(config.placementRadiusTiles) || config.placementRadiusTiles < 0) {
+    throw new Error('AI placement radius must be a non-negative integer');
+  }
+  if (config.buildOrder.length === 0 || config.buildOrder.some((type) => !['barracks', 'powerPlant', 'factory', 'resourceDepot'].includes(type))) {
+    throw new Error('AI build order must contain buildable building types');
+  }
   if (!Number.isFinite(config.decisionIntervalSeconds) || config.decisionIntervalSeconds <= 0) {
     throw new Error(`AI decision interval must be positive and finite, got ${config.decisionIntervalSeconds}`);
   }

@@ -1,4 +1,6 @@
 import type { AiState } from '../core/ai';
+import { AI_CONFIG } from '../config/ai';
+import { BUILDING_CONFIG } from '../config/buildings';
 
 /** Small development-only status readout; it has no controls and never mutates match state. */
 export class AiDebugReadout {
@@ -16,7 +18,9 @@ export class AiDebugReadout {
 
   public update(ai: AiState): void {
     const transition = ai.lastTransition === null ? '—' : `${ai.lastTransition.from} → ${ai.lastTransition.to}`;
-    this.root.textContent = `AI ${ai.state.toUpperCase()}\nNEXT ${ai.decisionRemainingSeconds.toFixed(1)}s\nLAST ${transition}`;
+    const next = AI_CONFIG.buildOrder[ai.buildOrderIndex];
+    this.root.style.whiteSpace = 'pre-line';
+    this.root.textContent = `AI ${ai.state.toUpperCase()}\nNEXT ${ai.decisionRemainingSeconds.toFixed(1)}s\nBUILD ${next === undefined ? 'base complete' : BUILDING_CONFIG[next].name}\nLAST ${transition}`;
   }
 
   public dispose(): void { this.root.remove(); }

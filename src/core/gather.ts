@@ -240,6 +240,14 @@ function nearestDropoff(world: World, player: PlayerId, from: Vec2): ReadonlyBui
   return best;
 }
 
+/** Read-only feasibility check using the same field and drop-off routes as the gather loop. */
+export function canGatherField(world: World, grid: MapGrid, player: PlayerId, from: Vec2, field: ResourceField): boolean {
+  const outbound = routeToField(world, grid, from, field);
+  if (outbound === null) return false;
+  const dropoff = nearestDropoff(world, player, outbound.resolvedTarget);
+  return dropoff !== undefined && routeToDropoff(world, grid, outbound.resolvedTarget, dropoff) !== null;
+}
+
 function routeToField(world: World, grid: MapGrid, from: Vec2, field: ResourceField): MoveRoute | null {
   const startTile = grid.worldToTile(from);
   const targetTile = nearestFieldTile(startTile, field);

@@ -1,5 +1,26 @@
 # Build log
 
+## AI economy and deterministic build order (Task 26)
+
+The AI now uses normal Worker gathering and paid construction to complete Barracks → Power Plant
+→ Factory → Resource Depot. `core/aiEconomy.ts` separates read-only typed planning from execution
+through `issueGatherOrder` and `startConstruction`. Each item waits for the previous completion;
+only one construction site is pursued. The single opening Worker alternates income and building,
+never interrupting a carried load. Missing funds or placement cause retries on later decision ticks.
+
+`core/aiPlacement.ts` searches deterministic bounded square rings using normal placement validation,
+excludes resource footprints, and ranks Depot candidates near an available reachable field. Search
+radius and build order are typed config. Existing strategic transitions remain intact (HQ worker
+production already satisfies the Task 25 production predicate), so the foundation plan continues
+alongside subsequent strategic states; recovery actions remain deferred. No military orders or
+unit queues are issued.
+
+Snapshot schema 8 adds only the completed build-order index to persisted AI state; world orders,
+sites, balances and resource reserves remain authoritative. Invalid indices are rejected and old
+schemas use the existing fresh-match fallback. The development-only readout shows the next building.
+Pure deterministic tests cover normal API execution, failure atomicity, placement, order, full-base
+completion with Credit conservation, and snapshot restoration.
+
 ## AI state-machine shell (Task 25)
 
 `src/core/ai.ts` adds a pure, deterministic six-state AI shell: `develop`, `produce`, `scout`,

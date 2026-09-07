@@ -8,7 +8,7 @@ controls card and the selection readout sit in an HTML layer above the canvas, s
 can scale them. Gameplay systems are added incrementally by the tasks in the implementation plan.
 
 Both bases stand on the map. Each player starts with an HQ and one of each mobile role — Worker,
-Infantry, Tank and Rocket — and the view opens on the player's own base. The starting units support selection and direct right-click movement. Combat is active; the AI currently has a deterministic strategic state shell only, so it observes its base and the visible world but does not yet gather, build, produce, scout, or issue combat orders.
+Infantry, Tank and Rocket — and the view opens on the player's own base. The starting units support selection and direct right-click movement. Combat is active; the AI gathers Credits and builds its opening base, but does not yet queue units, scout, or issue combat orders.
 
 Each player has a Credits balance, shown in the HUD, that starts from `src/config/economy.ts` and
 never goes negative. Right-clicking a resource field with a Worker selected sends it to gather
@@ -62,9 +62,14 @@ core state and decides nothing.
 `src/core/ai.ts` holds the renderer-independent AI state machine. It evaluates only at the configured
 cadence in `src/config/ai.ts`, choosing among Develop, Produce, Scout, Attack, Defend, and Recover
 from a small observation of completed infrastructure, combat-unit count, AI visibility, and nearby
-threats. The shell emits a typed no-op decision hook for now; later AI tasks will execute real
-economy, construction, production, and order APIs through that boundary. Its state and exact
-remaining decision time live in the local `WorldSnapshot`, so reloads do not restart the AI timer.
+threats. Each decision tick also runs a pure economy plan and a core executor using normal gathering
+and construction APIs. The opening order is Barracks, Power Plant, Factory, then Resource Depot;
+each must finish before the next starts. The opening Worker alternates gathering and building,
+waiting for real income when necessary. Placement stays within a configured base radius, excludes
+resource tiles, and prefers a field-adjacent Depot. The existing HQ production predicate can advance
+the strategic state before the foundation finishes, so this economic plan continues alongside later
+states; recovery actions remain deferred. State, completed build-order index and exact remaining
+decision time live in schema-8 `WorldSnapshot`, so reloads preserve progress and cadence.
 
 Picking happens in two passes, in the order a player expects. A click is first resolved against the
 models themselves, so a click on a roof selects the building and a unit in front of another cannot be

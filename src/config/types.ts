@@ -229,6 +229,8 @@ export interface PersistenceConfig {
 
 /** Low-frequency, deterministic decision thresholds for the single skirmish AI. */
 export interface AiConfig {
+  readonly buildOrder: readonly BuildingTypeId[];
+  readonly placementRadiusTiles: number;
   /** Simulation time between state evaluations; never tied to render frames or wall-clock time. */
   readonly decisionIntervalSeconds: number;
   /** Combat units required before a known player base can turn scouting into an attack state. */
