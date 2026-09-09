@@ -1,3 +1,4 @@
+import { inject } from '@vercel/analytics';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { RENDER_CONFIG } from './config/render';
 import { FramePacer } from './game/framePacer';
@@ -5,6 +6,9 @@ import { clearSnapshot } from './game/matchPersistence';
 import { MatchScene } from './game/MatchScene';
 import { GAME_TITLE } from './game/title';
 import { TitleScreen } from './ui/titleScreen';
+
+// Initialize Vercel Analytics
+inject();
 
 /**
  * Entry point: puts a Babylon canvas in the page, starts the match scene on it, and keeps both in

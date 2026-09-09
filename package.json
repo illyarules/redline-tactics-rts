@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@babylonjs/core": "9.25.0"
+    "@babylonjs/core": "9.25.0",
+    "@vercel/analytics": "^2.0.1"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
