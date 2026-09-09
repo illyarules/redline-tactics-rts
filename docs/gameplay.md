@@ -36,10 +36,12 @@ panel shows queue progress and capacity, explains full queues or insufficient Cr
 player cancel any paid entry for the normal 75% refund. Factory production pauses without a completed
 Power Plant and resumes from the same progress when power returns.
 
-An unfinished match survives a browser reload on the same device: units mid-route resume their
-route, and the selection is restored too. The `New Match` button in the top-right corner clears the
-local save and reloads into the normal fresh opening. Local saves are not synchronized, transferable,
-or backed by any server — see `implementation-plan.md`'s Task 12.5 for scope.
+An active or completed match survives a browser reload on the same device: units mid-route resume
+their route, the selection is restored, and a completed match reopens on its frozen battlefield with
+the same battle report. `New Match` from Pause and `Play Again` from the report both clear that save
+and create the normal fresh opening without reloading the browser. `Quit to Title` clears a completed
+match so it cannot be resumed. Local saves are not synchronized, transferable, or backed by any
+server — see `implementation-plan.md`'s Task 12.5 for scope.
 
 Left-click selects one friendly unit or building. Dragging on ground selects every friendly unit in
 the rectangle; buildings are excluded from box selection. Hold Shift to toggle one clicked unit or
@@ -83,10 +85,24 @@ and existing engagements continue; idle units within the configured arrival radi
 Acquisition, retaliation, explicit target commands and pursuit apply the same fog predicate to both
 players. Dedicated defense and recovery execution remain Task 28.
 
-Schema-9 `WorldSnapshot` persists state, completed build-order index, exact decision remainder,
-production-cycle index and last-known base coordinates. Old or invalid saves start fresh. Queues,
-positions, orders and Credits remain solely in world/economy data. The development-only AI readout
-shows strategy, cycle, army threshold, discovery status and the latest military action.
+Schema-11 `WorldSnapshot` persists state, completed build-order index, exact decision remainder,
+production-cycle index, last-known base coordinates and the match lifecycle clock/statistics/result.
+Old or invalid saves start fresh. Queues, positions, orders and Credits remain solely in
+world/economy data. The development-only AI readout shows strategy, cycle, army threshold, discovery
+status and the latest military action.
+
+Eliminating every AI-owned building ends the match in Victory; losing every player-owned building
+ends it in Defeat. An HQ loss alone is not terminal while another owned structure remains, incomplete
+sites count as surviving buildings, and units alone cannot keep a side alive. If both sides lose their
+final building in one simulation frame, Defeat wins deterministically.
+
+The HUD counts down ten minutes of active simulation time from 10:00. Pause and terminal rendering do
+not advance it. Confirmed deaths and the resulting surviving-building counts are processed before the
+deadline, so eliminating the final enemy building exactly at 00:00 still wins; otherwise the match is
+a Draw. The battlefield then freezes: simulation, AI decisions, camera, selection, placement, map
+commands and Escape/Pause input all stop. The report shows the final active time and produced/lost unit
+totals. Opening units are not production, and losses count only units removed by a confirmed killing
+combat hit (never buildings, canceled sites or ordinary removals).
 
 Picking happens in two passes, in the order a player expects. A click is first resolved against the
 models themselves, so a click on a roof selects the building and a unit in front of another cannot be
@@ -116,6 +132,9 @@ can click. A health bar appears above an entity while it is selected and wheneve
 | Left-click a valid (green) placement | Confirm it: spend Credits, send the Worker to build |
 | Right-click, or `Escape`, during placement | Cancel placement; nothing is spent |
 | `` ` `` (backtick) | Toggle entity debug labels (type and id) |
+| `Escape` | Open or close Pause during a live match |
+| `Play Again` (battle report) | Clear the completed save and start a fresh match |
+| `Quit to Title` (battle report) | Clear the completed save and return to the title screen |
 
 A compact one-line version of this list sits in the bottom-left corner in game, and it grows as
 later tasks add controls. Attack-move is introduced by a later task.
@@ -142,6 +161,8 @@ job at a time is pursued. With the starting single Worker, gathering alternates 
 with an idle second Worker, gathering can continue during a build. Existing queues and valid builds
 continue normally. Recovery waits for HQ and all four configured infrastructure types to be complete.
 
-HQ loss stops new AI economy, military and defense actions. HQ is never a rebuild candidate. No
-victory/defeat result or end-match UI is introduced; that remains Task 29. Insufficient Credits,
-no available Worker or no valid site simply causes a later retry on the one-second decision cadence.
+HQ is never a rebuild candidate. Its loss stops HQ-dependent AI actions, but the match continues while
+another AI building survives; eliminating the final structure triggers the terminal freeze and
+prevents any later AI economy, military or defense action.
+Insufficient Credits, no available Worker or no valid site simply causes a later retry on the
+one-second decision cadence while the match remains active.

@@ -25,3 +25,11 @@ A small, original browser RTS built with TypeScript, Babylon.js and Vite.
 Design and scope live in [`game-design.md`](./game-design.md); the task-by-task build order lives in
 [`implementation-plan.md`](./implementation-plan.md). Gameplay, world, camera and per-task build
 notes live in [`docs/`](./docs/README.md).
+
+## Match flow
+
+Start from the title screen and eliminate every enemy building before your own structures fall or the
+ten-minute active-time limit expires. The battle report then offers a clean rematch or return to the
+title. Escape opens Pause only while a match is live; Pause also offers New Match and Return to Title.
+Active and terminal matches are restored from local browser storage, while every fresh-match path
+clears the prior save first.

@@ -15,8 +15,9 @@
  * one already selected restores that from the snapshot's own `selection` instead (see `PLAYER_START`
  * usages below).
  */
-import { FACTION_OF, PLAYER_START, buildSnapshot, placeHomeHq } from './snapshots';
+import { FACTION_OF, PLAYER_START, buildSnapshot, placeHomeHq, placeOpponentHq } from './snapshots';
 import type { WorldSnapshot } from '../../../src/core/snapshot';
+import { issueMoveOrders } from '../../../src/core/movement';
 
 export interface ScreenPoint {
   readonly x: number;
@@ -34,6 +35,8 @@ export const SCREEN = {
   clearDestination: { x: 1150, y: 300 } satisfies ScreenPoint,
   /** Open ground clear of the HQ's footprint, valid for placing any buildable structure. */
   clearBuildSite: { x: 700, y: 250 } satisfies ScreenPoint,
+  /** Centre of the low-health enemy HQ in `victoryScenario`. */
+  victoryEnemyHq: { x: 923, y: 456 } satisfies ScreenPoint,
 } as const;
 
 /** Tile at the player's real rally point, offset by `(dx, dy)` tiles. */
@@ -48,6 +51,7 @@ function rallyTile(dx: number, dy: number): { readonly tx: number; readonly ty: 
 export function movementScenario(): WorldSnapshot {
   return buildSnapshot((world, _economy, grid) => {
     placeHomeHq(world);
+    placeOpponentHq(world);
     for (let i = 0; i < 3; i++) {
       const tile = rallyTile(i, 0);
       world.createUnit({
@@ -68,6 +72,7 @@ export function movementScenario(): WorldSnapshot {
 export function persistenceScenario(): WorldSnapshot {
   return buildSnapshot((world, _economy, grid) => {
     placeHomeHq(world);
+    placeOpponentHq(world);
     const tile = rallyTile(0, 0);
     const unit = world.createUnit({
       type: 'infantry',
@@ -89,6 +94,7 @@ export function persistenceScenario(): WorldSnapshot {
 export function combatScenario(): WorldSnapshot {
   return buildSnapshot((world, _economy, grid) => {
     placeHomeHq(world);
+    placeOpponentHq(world);
     const friendlyTile = rallyTile(0, 0);
     const enemyTile = rallyTile(3, 0);
     const friendly = world.createUnit({
@@ -115,6 +121,7 @@ export function combatScenario(): WorldSnapshot {
 export function buildProductionScenario(): WorldSnapshot {
   return buildSnapshot((world, _economy, grid) => {
     placeHomeHq(world);
+    placeOpponentHq(world);
     const tile = rallyTile(0, 0);
     const worker = world.createUnit({
       type: 'worker',
@@ -124,4 +131,51 @@ export function buildProductionScenario(): WorldSnapshot {
     });
     return [worker.id];
   });
+}
+
+/**
+ * A selected Rocket and a visible, one-hit enemy HQ. The Rocket begins on a real Move order so
+ * automatic targeting cannot win before the test issues its explicit right-click Attack command.
+ */
+export function victoryScenario(): WorldSnapshot {
+  return buildSnapshot((world, _economy, grid) => {
+    placeHomeHq(world);
+    const rocketTile = rallyTile(0, 0);
+    const rocket = world.createUnit({
+      type: 'rocket',
+      owner: 'player',
+      faction: FACTION_OF.player,
+      position: grid.tileCenter(rocketTile.tx, rocketTile.ty),
+    });
+    // Keeps the HQ visible even if a heavily loaded parallel test run lets the Rocket advance along
+    // its anti-auto-acquisition Move order before Playwright can issue the real Attack click.
+    world.createUnit({
+      type: 'worker',
+      owner: 'player',
+      faction: FACTION_OF.player,
+      position: grid.tileCenter(rallyTile(7, 0).tx, rallyTile(7, 0).ty),
+    });
+    issueMoveOrders(world, grid, 'player', [rocket.id], grid.tileCenter(rocketTile.tx - 8, rocketTile.ty));
+    world.createBuilding({
+      type: 'hq',
+      owner: 'ai',
+      faction: FACTION_OF.ai,
+      topLeft: rallyTile(3, -2),
+      health: 1,
+    });
+    return [rocket.id];
+  });
+}
+
+/** A normal two-base save just before the active-time deadline, for the real Draw flow. */
+export function timeoutScenario(): WorldSnapshot {
+  const snapshot = buildSnapshot((world) => {
+    placeHomeHq(world);
+    placeOpponentHq(world);
+    return [];
+  });
+  return {
+    ...snapshot,
+    lifecycle: { ...snapshot.lifecycle, elapsedActiveSeconds: 599.95 },
+  };
 }

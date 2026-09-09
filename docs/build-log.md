@@ -178,3 +178,42 @@ Verification: `npm run typecheck` passed; `npm test` passed all 437 tests in 38 
 exception); `npm run build` passed with Vite's large-chunk warning. Recovery also remains active
 if another threat appears before minimum infrastructure is complete. Defense restore and obsolete
 assignment release have direct regression coverage. No `.env` files were read and no push was run.
+
+## Task 29 — victory, defeat and clean match restart
+
+Added renderer-independent lifecycle state for the active clock, per-owner successful production and
+confirmed combat unit losses, plus the terminal result. Production now returns typed spawn events;
+the scene batches confirmed killing hits before removal, counts unit deaths, and resolves HQ loss.
+Player-HQ loss has explicit precedence if both HQs fall in one simulation frame. Once resolved, the
+result cannot be changed or counted again.
+
+Schema 10 persists and validates lifecycle state alongside the world, economy, fog and AI. Terminal
+saves restore directly into a frozen battlefield and battle report. The terminal snapshot is written
+once after killed entities are removed, then protected from autosave/pagehide rewrites. Play Again
+and terminal Quit clear it before entering a fresh match or title; existing Pause and active-match
+return-to-title behavior remains intact.
+
+Added the HTML `MatchResultOverlay` with Victory/Defeat, active time, player and opponent unit totals,
+Play Again and Quit to Title. Terminal entry disables simulation, all AI executors, camera, selection,
+placement, map commands and Escape/Pause while Babylon continues rendering the final scene. Pure
+lifecycle/snapshot/production tests and a real-control Playwright victory → terminal restore → clean
+Play Again flow cover the new boundaries.
+
+Final verification: `npm run typecheck` passed; `npm test` passed all 449 tests in 39 files;
+`npm run test:e2e` passed all 7 Chromium tests in 25.3 seconds (the lifecycle flow took 24.0
+seconds while sharing workers); `npm run build` passed with Vite's existing large-chunk warning.
+
+### Task 29 follow-up — building elimination and ten-minute limit
+
+Replaced HQ-only outcomes with post-destruction counts of all owned buildings. Completed and
+incomplete structures both keep their owner alive; units do not. Player elimination is evaluated
+before AI elimination, preserving Defeat precedence when both final buildings fall together.
+
+Added typed `MATCH_CONFIG.matchDurationSeconds = 600`, a HUD countdown, Draw lifecycle/UI support and
+deadline-capped simulation deltas. Each frame records/removes confirmed deaths, resolves elimination,
+then resolves Draw only if the active clock reached 600 seconds without a winner. Schema 11 persists
+the elapsed clock and Draw while rejecting saves produced under the former HQ-only semantics.
+
+Follow-up verification: `npm run typecheck` passed; `npm test` passed all 455 tests in 39 files;
+`npm run test:e2e` passed all 8 Chromium tests in 25.7 seconds; `npm run build` passed with Vite's
+existing large-chunk warning. The complete browser suite remains well below three minutes.

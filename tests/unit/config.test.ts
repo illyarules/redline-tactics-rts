@@ -19,6 +19,7 @@ import {
   type UnitTypeId,
 } from '../../src/core/ids';
 import { resolveBuildingStats, resolveUnitStats } from '../../src/core/factionStats';
+import { MATCH_CONFIG } from '../../src/config/match';
 
 const ARMOR_CATEGORIES: readonly ArmorCategory[] = ['light', 'armored', 'structure'];
 
@@ -27,6 +28,9 @@ function isPositiveFinite(value: number): boolean {
 }
 
 describe('config completeness', () => {
+  it('defines the ten-minute match duration', () => {
+    expect(MATCH_CONFIG.matchDurationSeconds).toBe(600);
+  });
   it('defines every unit role exactly once', () => {
     expect(Object.keys(UNIT_CONFIG).sort()).toEqual([...UNIT_TYPE_IDS].sort());
   });

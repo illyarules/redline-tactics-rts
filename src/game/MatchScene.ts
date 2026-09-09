@@ -41,6 +41,7 @@ import { PauseMenu } from '../ui/pauseMenu';
 import { SelectionPanel } from '../ui/selectionPanel';
 import { ProductionMenu } from '../ui/productionMenu';
 import { TacticalHud } from '../ui/tacticalHud';
+import { MatchResultOverlay } from '../ui/matchResultOverlay';
 import { TitleBanner } from '../ui/titleBanner';
 import { CameraController } from './CameraController';
 import { AiDebugReadout } from './AiDebugReadout';
@@ -62,6 +63,16 @@ import { createModelLibrary, type ModelLibrary } from './models/library';
 import { color3, FIELD_TONES } from './palette';
 import { createSceneSpace, type SceneSpace } from './sceneSpace';
 import { GAME_TITLE } from './title';
+import {
+  createMatchLifecycle,
+  countAliveBuildings,
+  recordCombatDestructions,
+  recordProducedUnits,
+  resolveMatchOutcome,
+  stepMatchElapsedTime,
+  type CombatDestructionEvent,
+  type MatchLifecycleState,
+} from '../core/matchLifecycle';
 
 /**
  * The single gameplay scene. It builds the map grid and the world from typed config, renders both in
@@ -102,6 +113,7 @@ export class MatchScene {
   private readonly resourceFieldState: ResourceFieldState;
   private readonly fog: FogState;
   private readonly ai: AiState;
+  private readonly lifecycle: MatchLifecycleState;
   private readonly space: SceneSpace;
   private readonly materials: MaterialLibrary;
   private readonly models: ModelLibrary;
@@ -129,6 +141,7 @@ export class MatchScene {
   private readonly productionMenu: ProductionMenu;
   private readonly placement: PlacementController;
   private readonly pauseMenu: PauseMenu;
+  private readonly resultOverlay: MatchResultOverlay;
   private readonly onKeyDown: (event: KeyboardEvent) => void;
   private readonly onPageHide: () => void;
   private readonly autoTargeting = createAutoTargetingState();
@@ -139,6 +152,7 @@ export class MatchScene {
   private hudElapsedSeconds = Number.POSITIVE_INFINITY;
   private saveElapsedSeconds = 0;
   private paused = false;
+  private terminalSnapshotSaved = false;
 
   public constructor(
     engine: Engine,
@@ -163,6 +177,8 @@ export class MatchScene {
       this.resourceFieldState = restored.resourceFieldState;
       this.fog = restored.fog;
       this.ai = restored.ai;
+      this.lifecycle = restored.lifecycle;
+      this.terminalSnapshotSaved = this.lifecycle.result !== null;
     } else {
       clearSnapshot();
       this.world = createWorld({ tileSizePixels: this.grid.tileSizePixels });
@@ -171,6 +187,7 @@ export class MatchScene {
       this.resourceFieldState = createResourceFieldState(this.grid);
       this.fog = createFogState(this.grid);
       this.ai = createAiState();
+      this.lifecycle = createMatchLifecycle();
       // Fresh matches have authoritative opening vision before the first rendered frame.
       updateFogVisibility(this.fog, this.world, this.grid);
     }
@@ -244,6 +261,7 @@ export class MatchScene {
     // The title, the controls card and the selection readout sit in the HTML layer above the canvas,
     // so no camera movement can scale them and they stay crisp at any zoom.
     this.hud = new TacticalHud(overlayContainer);
+    this.hud.updateTimer(this.lifecycle.elapsedActiveSeconds);
     this.titleBanner = new TitleBanner(overlayContainer, GAME_TITLE);
     this.controlsOverlay = new ControlsOverlay(overlayContainer);
     this.selectionPanel = new SelectionPanel(overlayContainer);
@@ -277,11 +295,20 @@ export class MatchScene {
         this.onReturnToTitle();
       },
     );
+    this.resultOverlay = new MatchResultOverlay(
+      overlayContainer,
+      this.onNewMatch,
+      () => {
+        clearSnapshot();
+        this.onReturnToTitle();
+      },
+    );
     this.debugLabels = new DebugLabelsView(overlayContainer, this.scene, canvas, this.space);
     this.aiDebug = import.meta.env.DEV ? new AiDebugReadout(overlayContainer) : null;
     this.aiDebug?.update(this.ai, this.world, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
 
     this.onKeyDown = (event) => {
+      if (this.lifecycle.result !== null) return;
       if (event.code === 'Escape') {
         if (this.selection.isAttackMoveArmed()) {
           this.selection.setAttackMoveArmed(false);
@@ -315,6 +342,9 @@ export class MatchScene {
       this.selection.select(this.world.buildings(PLAYER_ID)[0]?.id ?? null);
     }
     this.showSelection();
+    if (this.lifecycle.result !== null) {
+      this.enterTerminalState();
+    }
   }
 
   /**
@@ -332,6 +362,7 @@ export class MatchScene {
     resourceFieldState: ResourceFieldState;
     fog: FogState;
     ai: AiState;
+    lifecycle: MatchLifecycleState;
   } | null {
     if (snapshot === null) {
       return null;
@@ -346,21 +377,23 @@ export class MatchScene {
 
   /** Advances and draws one budgeted frame. Called by the capped engine render loop. */
   public render(deltaSeconds: number): void {
-    if (this.paused) {
+    if (this.paused || this.lifecycle.result !== null) {
       this.scene.render();
       return;
     }
-    this.cameraController.update(deltaSeconds);
-    stepMovement(this.world, deltaSeconds);
-    stepGather(this.world, this.grid, this.resourceFieldState, this.economy, deltaSeconds);
-    stepConstruction(this.world, deltaSeconds);
-    stepProduction(this.world, this.grid, deltaSeconds);
-    stepAttackCooldowns(this.world, deltaSeconds);
-    if (stepFogVisibility(this.fog, this.world, this.grid, deltaSeconds)) {
+    const activeDeltaSeconds = stepMatchElapsedTime(this.lifecycle, deltaSeconds);
+    this.hud.updateTimer(this.lifecycle.elapsedActiveSeconds);
+    this.cameraController.update(activeDeltaSeconds);
+    stepMovement(this.world, activeDeltaSeconds);
+    stepGather(this.world, this.grid, this.resourceFieldState, this.economy, activeDeltaSeconds);
+    stepConstruction(this.world, activeDeltaSeconds);
+    recordProducedUnits(this.lifecycle, stepProduction(this.world, this.grid, activeDeltaSeconds));
+    stepAttackCooldowns(this.world, activeDeltaSeconds);
+    if (stepFogVisibility(this.fog, this.world, this.grid, activeDeltaSeconds)) {
       this.fogView.update(this.fog, PLAYER_ID);
       this.mapView.updateFog(this.fog, PLAYER_ID);
     }
-    const aiStep = stepAi(this.ai, observeAiStrategy(this.ai, this.world, this.grid, this.fog), deltaSeconds);
+    const aiStep = stepAi(this.ai, observeAiStrategy(this.ai, this.world, this.grid, this.fog), activeDeltaSeconds);
     executeAiEconomyDecisions(this.ai, aiStep, {
       world: this.world, grid: this.grid, economy: this.economy, resourceFieldState: this.resourceFieldState,
     }, this.defenseRecoveryReadout);
@@ -368,26 +401,32 @@ export class MatchScene {
       world: this.world, grid: this.grid, economy: this.economy,
     }, this.militaryReadout);
     executeAiDefenseDecisions(this.ai, aiStep, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout);
-    stepAutomaticTargeting(this.world, this.autoTargeting, deltaSeconds, undefined, this.canTarget);
+    stepAutomaticTargeting(this.world, this.autoTargeting, activeDeltaSeconds, undefined, this.canTarget);
     const hits = [
-      ...stepAttackOrders(this.world, this.grid, deltaSeconds, this.canTarget),
-      ...stepAttackMoveOrders(this.world, this.grid, deltaSeconds, this.canTarget),
+      ...stepAttackOrders(this.world, this.grid, activeDeltaSeconds, this.canTarget),
+      ...stepAttackMoveOrders(this.world, this.grid, activeDeltaSeconds, this.canTarget),
     ];
-    issueRetaliationOrders(this.world, hits, this.canTarget);
+    recordCombatDestructions(this.lifecycle, this.combatDestructions(hits));
     this.showAttackFeedback(hits);
-    this.combatEffects.update(deltaSeconds);
+    resolveMatchOutcome(this.lifecycle, countAliveBuildings(this.world.entities()));
+    if (this.lifecycle.result !== null) {
+      this.finishTerminalFrame(activeDeltaSeconds);
+      return;
+    }
+    issueRetaliationOrders(this.world, hits, this.canTarget);
+    this.combatEffects.update(activeDeltaSeconds);
     for (const field of this.grid.resourceFields) {
       this.mapView.setFieldFraction(field.id, this.resourceFieldState.remaining(field.id) / field.credits);
     }
-    stepSeparation(this.world, this.grid, deltaSeconds);
+    stepSeparation(this.world, this.grid, activeDeltaSeconds);
     // The selected entity keeps moving and taking damage, so the markers and the readout follow it.
     this.selection.refresh();
-    this.entitiesView.sync(this.world, this.selection.selectedIds(), deltaSeconds, this.isVisibleToHuman);
+    this.entitiesView.sync(this.world, this.selection.selectedIds(), activeDeltaSeconds, this.isVisibleToHuman);
     this.showSelection();
     this.placement.update();
     this.debugLabels.update(this.world, (id) => this.entitiesView.modelHeightOf(id), this.isVisibleToHuman);
 
-    this.hudElapsedSeconds += deltaSeconds;
+    this.hudElapsedSeconds += activeDeltaSeconds;
     if (this.hudElapsedSeconds >= RENDER_CONFIG.hudUpdateIntervalSeconds) {
       this.hud.update(
         this.world,
@@ -401,7 +440,7 @@ export class MatchScene {
       this.hudElapsedSeconds = 0;
     }
 
-    this.saveElapsedSeconds += deltaSeconds;
+    this.saveElapsedSeconds += activeDeltaSeconds;
     if (this.saveElapsedSeconds >= PERSISTENCE_CONFIG.saveIntervalSeconds) {
       this.saveNow();
     }
@@ -433,11 +472,13 @@ export class MatchScene {
     this.productionMenu.destroy();
     this.placement.dispose();
     this.pauseMenu.destroy();
+    this.resultOverlay.destroy();
     this.scene.dispose();
   }
 
   /** Freezes simulation and all map input while the pause menu owns the screen. */
   private setPaused(paused: boolean): void {
+    if (this.lifecycle.result !== null) return;
     if (this.paused === paused) return;
     this.paused = paused;
     if (paused) {
@@ -454,6 +495,7 @@ export class MatchScene {
 
   /** Saves the current world and selection to local storage now, and resets the autosave timer. */
   private saveNow(): void {
+    if (this.lifecycle.result !== null && this.terminalSnapshotSaved) return;
     saveSnapshot(
       serializeWorld(
         this.world,
@@ -463,8 +505,10 @@ export class MatchScene {
         this.fog,
         this.grid,
         this.ai,
+        this.lifecycle,
       ),
     );
+    if (this.lifecycle.result !== null) this.terminalSnapshotSaved = true;
     this.saveElapsedSeconds = 0;
   }
 
@@ -530,14 +574,53 @@ export class MatchScene {
       const attacker = this.world.get(event.attackerId);
       const target = this.world.get(event.targetId);
       const effect = mapAttackHitToCombatEffect(event, attacker, target);
-      if (effect === null || target === undefined) continue;
-      this.combatEffects.play(effect);
+      if (target === undefined) continue;
+      if (effect !== null) this.combatEffects.play(effect);
       if (event.destroyed) {
-        const death = deathEffectAt(effect.to, effect.targetToken);
+        const death = effect === null ? null : deathEffectAt(effect.to, effect.targetToken);
         if (death !== null) this.combatEffects.play(death);
         this.world.remove(target.id);
       }
     }
+  }
+
+  /** Captures lifecycle facts before `showAttackFeedback` removes destroyed targets. */
+  private combatDestructions(events: readonly AttackHitEvent[]): readonly CombatDestructionEvent[] {
+    return events.flatMap((event) => {
+      if (!event.destroyed) return [];
+      const target = this.world.get(event.targetId);
+      return target === undefined
+        ? []
+        : [{
+            targetId: target.id,
+            owner: target.owner,
+            entityKind: target.kind,
+            entityType: target.type,
+          }];
+    });
+  }
+
+  /** Performs the final renderer sync, freezes every gameplay input, and persists exactly once. */
+  private finishTerminalFrame(deltaSeconds: number): void {
+    this.combatEffects.update(deltaSeconds);
+    this.selection.refresh();
+    this.entitiesView.sync(this.world, this.selection.selectedIds(), deltaSeconds, this.isVisibleToHuman);
+    this.showSelection();
+    this.debugLabels.update(this.world, (id) => this.entitiesView.modelHeightOf(id), this.isVisibleToHuman);
+    this.enterTerminalState();
+    this.saveNow();
+    this.scene.render();
+  }
+
+  private enterTerminalState(): void {
+    if (this.lifecycle.result === null) return;
+    this.paused = false;
+    this.placement.cancel();
+    this.cameraController.setEnabled(false);
+    this.selection.setEnabled(false);
+    this.placement.setEnabled(false);
+    this.pauseMenu.setVisible(false);
+    this.resultOverlay.show(this.lifecycle);
   }
 
   /** The single selected friendly Worker's id, or `null` when the selection is not exactly that. */

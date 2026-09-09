@@ -23,6 +23,7 @@ export const GRID: MapGrid = createMapGrid(MAP_CONFIG);
 /** The player's real starting location, so a fixture's HQ sits exactly where a normal match's does
  * — that is what makes the ordinary opening camera frame a fixture's entities without any override. */
 export const PLAYER_START = GRID.starts.find((start) => start.player === 'player')!;
+export const AI_START = GRID.starts.find((start) => start.player === 'ai')!;
 
 export const FACTION_OF: Readonly<Record<PlayerId, FactionId>> = { player: 'meridian', ai: 'ember' };
 
@@ -54,5 +55,15 @@ export function placeHomeHq(world: World): EntityId {
     owner: 'player',
     faction: FACTION_OF.player,
     topLeft: PLAYER_START.hqTopLeft,
+  }).id;
+}
+
+/** Places the opposing HQ at its normal distant start so non-combat fixtures remain live. */
+export function placeOpponentHq(world: World): EntityId {
+  return world.createBuilding({
+    type: 'hq',
+    owner: 'ai',
+    faction: FACTION_OF.ai,
+    topLeft: AI_START.hqTopLeft,
   }).id;
 }

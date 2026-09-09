@@ -373,7 +373,9 @@ Give Claude Code exactly one numbered task at a time. Each task must leave the p
 
 **Acceptance criteria:**
 
-- Destroying the AI HQ produces victory; losing the player HQ produces defeat exactly once.
+- Eliminating the AI's final building produces victory; losing the player's final building produces
+  defeat exactly once. Simultaneous elimination is defeat, and a ten-minute active-time limit produces
+  a draw only when neither elimination result applies.
 - End overlay shows result, elapsed time, units produced, and units lost.
 - Play Again/restart creates a fresh deterministic match without duplicated handlers, timers, entities, or stale selection.
 - Quit returns to the title screen.

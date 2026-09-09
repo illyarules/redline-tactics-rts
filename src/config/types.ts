@@ -90,6 +90,11 @@ export interface MatchSetupConfig {
   readonly factions: Readonly<Record<PlayerId, FactionId>>;
 }
 
+/** Rules that bound one live match independently of its opening setup. */
+export interface MatchRulesConfig {
+  readonly matchDurationSeconds: number;
+}
+
 export interface EconomyConfig {
   readonly startingCredits: number;
   /** Share of the paid cost returned when construction or production is cancelled. */

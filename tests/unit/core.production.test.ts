@@ -50,15 +50,19 @@ describe('production queues', () => {
     queueProduction(world, economy, 'player', barracks.id, 'infantry');
     const time = resolveUnitStats('infantry', 'meridian').buildTimeSeconds;
 
-    stepProduction(world, grid, time / 2);
+    expect(stepProduction(world, grid, time / 2)).toEqual([]);
     expect(barracks.productionQueue.map((item) => item.elapsedSeconds)).toEqual([time / 2, 0]);
-    stepProduction(world, grid, time / 2);
+    const events = stepProduction(world, grid, time / 2);
 
     expect(barracks.productionQueue).toHaveLength(1);
     expect(barracks.productionQueue[0]?.elapsedSeconds).toBe(0);
     const produced = world.units().find((unit) => unit.type === 'infantry');
     expect(produced).toBeDefined();
     if (produced === undefined) return;
+    expect(events).toEqual([{
+      kind: 'unit-produced', unitId: produced.id, producerId: barracks.id,
+      owner: 'player', unitType: 'infantry',
+    }]);
     const tile = grid.worldToTile(produced.position);
     expect(grid.isPassable(tile.tx, tile.ty)).toBe(true);
     expect(isUnderBuilding(world, tile)).toBe(false);

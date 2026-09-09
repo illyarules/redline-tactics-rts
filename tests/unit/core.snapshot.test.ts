@@ -15,6 +15,7 @@ import {
   type WorldSnapshot,
 } from '../../src/core/snapshot';
 import { createWorld } from '../../src/core/world';
+import { createMatchLifecycle, resolveMatchOutcome, stepMatchElapsedTime } from '../../src/core/matchLifecycle';
 
 function setup() {
   const grid = createMapGrid(MAP_CONFIG);
@@ -152,6 +153,23 @@ describe('AI snapshot persistence', () => {
   });
 });
 
+describe('match lifecycle snapshot persistence', () => {
+  it('restores elapsed time, statistics and Draw through the top-level snapshot', () => {
+    const { grid, world, economy, resourceFieldState, fog } = setup();
+    const lifecycle = createMatchLifecycle();
+    stepMatchElapsedTime(lifecycle, 600);
+    lifecycle.unitsProduced.player = 2;
+    lifecycle.unitsLost.ai = 1;
+    resolveMatchOutcome(lifecycle, { player: 1, ai: 1 });
+
+    const snapshot = serializeWorld(
+      world, [], economy, resourceFieldState, fog, grid, undefined, lifecycle,
+    );
+    expect(restoreWorld(snapshot, grid).lifecycle).toEqual(lifecycle);
+    expect(restoreWorld(snapshot, grid).lifecycle.result).toBe('draw');
+  });
+});
+
 describe('automatic and Attack-Move order persistence', () => {
   it('round-trips acquired source and an Attack-Move route with its temporary engagement', () => {
     const { grid, world, economy, resourceFieldState, fog } = setup();
@@ -200,6 +218,12 @@ const EMPTY_FOG = {
   players: [],
 };
 const EMPTY_AI = { productionCycleIndex: 0, lastKnownPlayerBasePosition: null, state: 'develop' as const, buildOrderIndex: 0, decisionRemainingSeconds: 1, lastTransition: null };
+const EMPTY_LIFECYCLE = {
+  result: null,
+  elapsedActiveSeconds: 0,
+  unitsProduced: { player: 0, ai: 0 },
+  unitsLost: { player: 0, ai: 0 },
+} as const;
 
 describe('isValidSnapshotShape (AC-002)', () => {
   it('accepts a well-formed snapshot shell', () => {
@@ -211,6 +235,7 @@ describe('isValidSnapshotShape (AC-002)', () => {
       resourceFields: [],
       fog: EMPTY_FOG,
       ai: EMPTY_AI,
+      lifecycle: EMPTY_LIFECYCLE,
     };
     expect(isValidSnapshotShape(snapshot)).toBe(true);
   });
@@ -301,6 +326,18 @@ describe('isValidSnapshotShape (AC-002)', () => {
     })).toBe(false);
   });
 
+  it('rejects a missing or malformed lifecycle section', () => {
+    expect(isValidSnapshotShape({
+      schemaVersion: SNAPSHOT_SCHEMA_VERSION, entities: [], selection: [], credits: EMPTY_CREDITS,
+      resourceFields: [], fog: EMPTY_FOG, ai: EMPTY_AI,
+    })).toBe(false);
+    expect(isValidSnapshotShape({
+      schemaVersion: SNAPSHOT_SCHEMA_VERSION, entities: [], selection: [], credits: EMPTY_CREDITS,
+      resourceFields: [], fog: EMPTY_FOG, ai: EMPTY_AI,
+      lifecycle: { ...EMPTY_LIFECYCLE, unitsLost: { player: -1, ai: 0 } },
+    })).toBe(false);
+  });
+
   it('rejects an AI timer remainder outside its configured range during restoration', () => {
     const { grid } = setup();
     const snapshot: WorldSnapshot = {
@@ -311,6 +348,7 @@ describe('isValidSnapshotShape (AC-002)', () => {
       resourceFields: [],
       fog: EMPTY_FOG,
       ai: { productionCycleIndex: 0, lastKnownPlayerBasePosition: null, state: 'develop', buildOrderIndex: 0, decisionRemainingSeconds: 0, lastTransition: null },
+      lifecycle: EMPTY_LIFECYCLE,
     };
     expect(() => restoreWorld(snapshot, grid)).toThrow('AI snapshot has an invalid shape');
   });
@@ -352,6 +390,7 @@ describe('restoreWorld failure handling (AC-003)', () => {
       resourceFields: [],
       fog: EMPTY_FOG,
       ai: EMPTY_AI,
+      lifecycle: EMPTY_LIFECYCLE,
     };
   }
 

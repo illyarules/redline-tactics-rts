@@ -6,7 +6,11 @@
  * first frame. They are placed and drawn only — selection, orders, economy and combat arrive in
  * later tasks.
  */
-import type { MatchSetupConfig } from './types';
+import type { MatchRulesConfig, MatchSetupConfig } from './types';
+
+export const MATCH_CONFIG: MatchRulesConfig = {
+  matchDurationSeconds: 600,
+};
 
 export const MATCH_SETUP: MatchSetupConfig = {
   startingUnits: [

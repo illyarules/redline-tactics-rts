@@ -32,7 +32,7 @@ bounded deterministic placement search. `MatchScene` only orchestrates these mod
 simulation steps; economic rules do not live in the renderer. `core/aiMilitary.ts` plans typed production
 and scouting/attack intents, then validates them before using normal queue and Attack-Move APIs.
 Opening construction has spending priority; military commands share strategic cadence and retain
-matching routes. `ai.ts` records HQ coordinates only under current AI fog visibility. Schema 9 saves
+matching routes. `ai.ts` records HQ coordinates only under current AI fog visibility. Schema 11 saves
 that memory and the production-cycle index alongside existing strategy timing and build progress.
 Orders, queues and positions stay in the world snapshot. Core attack execution, automatic targeting
 and retaliation accept the shared renderer-free fog predicate for both players.

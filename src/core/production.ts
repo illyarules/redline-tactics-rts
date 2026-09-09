@@ -13,6 +13,7 @@ import type { MapGrid } from './map';
 import { isProductionActive } from './power';
 import { isCompleted } from './prerequisites';
 import type { World } from './world';
+import type { UnitProducedEvent } from './matchLifecycle';
 
 export type ProductionBlockedReason =
   | 'invalid-building'
@@ -111,8 +112,9 @@ export function stepProduction(
   grid: MapGrid,
   deltaSeconds: number,
   config: ProductionConfig = PRODUCTION_CONFIG,
-): void {
-  if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) return;
+): readonly UnitProducedEvent[] {
+  if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) return [];
+  const events: UnitProducedEvent[] = [];
 
   for (const building of world.buildings()) {
     if (!isAlive(building) || !isCompleted(building) || building.productionQueue.length === 0) continue;
@@ -135,16 +137,24 @@ export function stepProduction(
       continue;
     }
 
-    world.createUnit({
+    const unit = world.createUnit({
       type: front.unitType,
       owner: building.owner,
       faction: building.faction,
       position: grid.tileCenter(spawnTile.tx, spawnTile.ty),
     });
+    events.push({
+      kind: 'unit-produced',
+      unitId: unit.id,
+      producerId: building.id,
+      owner: building.owner,
+      unitType: front.unitType,
+    });
     const remaining = building.productionQueue.slice(1);
     world.setProductionQueue(building.id, remaining);
     world.setStatus(building.id, remaining.length === 0 ? 'idle' : 'producing');
   }
+  return events;
 }
 
 function replaceFront(world: World, building: ReadonlyBuilding, front: ProductionQueueItem): void {

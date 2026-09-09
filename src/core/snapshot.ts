@@ -45,12 +45,20 @@ import {
   type ResourceFieldStateSnapshot,
 } from './resourceFieldState';
 import { createWorld, type World } from './world';
+import {
+  createMatchLifecycle,
+  isMatchLifecycleSnapshot,
+  restoreMatchLifecycle,
+  serializeMatchLifecycle,
+  type MatchLifecycleSnapshot,
+  type MatchLifecycleState,
+} from './matchLifecycle';
 
 /**
  * Bumped whenever a saved shape stops matching what `restoreWorld` expects, so an old save from a
  * prior version is discarded instead of misread.
  */
-export const SNAPSHOT_SCHEMA_VERSION = 9;
+export const SNAPSHOT_SCHEMA_VERSION = 11;
 
 /**
  * The persisted shape of an `Order`. Structurally identical to `core/orders.ts`'s `Order` union —
@@ -98,6 +106,8 @@ export interface WorldSnapshot {
   readonly fog: FogSnapshot;
   /** AI strategy state and its time remaining until the next decision. */
   readonly ai: AiSnapshot;
+  /** Active clock, production/loss statistics and any terminal match result. */
+  readonly lifecycle: MatchLifecycleSnapshot;
 }
 
 /**
@@ -113,6 +123,7 @@ export function serializeWorld(
   fog: FogState,
   grid: MapGrid,
   ai: AiState = createAiState(),
+  lifecycle: MatchLifecycleState = createMatchLifecycle(),
 ): WorldSnapshot {
   const entities: EntitySnapshot[] = [];
 
@@ -160,6 +171,7 @@ export function serializeWorld(
     resourceFields: serializeResourceFieldState(resourceFieldState, grid),
     fog: serializeFogState(fog),
     ai: serializeAiState(ai),
+    lifecycle: serializeMatchLifecycle(lifecycle),
   };
 }
 
@@ -181,7 +193,8 @@ export function isValidSnapshotShape(raw: unknown): raw is WorldSnapshot {
     candidate.credits !== null &&
     Array.isArray(candidate.resourceFields) &&
     isFogSnapshotShape(candidate.fog) &&
-    isAiSnapshotShape(candidate.ai)
+    isAiSnapshotShape(candidate.ai) &&
+    isMatchLifecycleSnapshot(candidate.lifecycle)
   );
 }
 
@@ -205,6 +218,7 @@ export function restoreWorld(
   resourceFieldState: ResourceFieldState;
   fog: FogState;
   ai: AiState;
+  lifecycle: MatchLifecycleState;
 } {
   const world = createWorld({ tileSizePixels: grid.tileSizePixels });
   const idMap = new Map<EntityId, EntityId>();
@@ -275,6 +289,7 @@ export function restoreWorld(
     resourceFieldState: createResourceFieldState(grid, snapshot.resourceFields),
     fog: restoreFogState(snapshot.fog, grid),
     ai: restoreAiState(snapshot.ai),
+    lifecycle: restoreMatchLifecycle(snapshot.lifecycle),
   };
 }
 
