@@ -10,7 +10,7 @@ const PORT = 5183;
 
 export default defineConfig({
   testDir: './tests/e2e',
-  fullyParallel: true,
+  workers: 1,
   // Failures must be fixed, not retried away.
   retries: 0,
   reporter: 'list',

@@ -133,6 +133,15 @@ export function buildProductionScenario(): WorldSnapshot {
   });
 }
 
+/** A completed, selected HQ for focused production-menu interaction coverage. */
+export function productionMenuScenario(): WorldSnapshot {
+  return buildSnapshot((world) => {
+    const hq = placeHomeHq(world);
+    placeOpponentHq(world);
+    return [hq];
+  });
+}
+
 /**
  * A selected Rocket and a visible, one-hit enemy HQ. The Rocket begins on a real Move order so
  * automatic targeting cannot win before the test issues its explicit right-click Attack command.

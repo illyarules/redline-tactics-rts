@@ -14,7 +14,11 @@ export class ProductionMenu {
   private readonly heading: HTMLElement;
   private readonly actions: HTMLElement;
   private readonly queue: HTMLElement;
+  private readonly queueSummary: HTMLElement;
   private readonly message: HTMLElement;
+  private readonly actionButtons = new Map<UnitTypeId, HTMLButtonElement>();
+  private readonly queueRows: QueueRow[] = [];
+  private shownUnitTypes: readonly UnitTypeId[] = [];
   private lastMessage = '';
   private shownBuildingId: string | null = null;
 
@@ -32,6 +36,8 @@ export class ProductionMenu {
     Object.assign(this.actions.style, { display: 'flex', gap: '5px', flexWrap: 'wrap', marginTop: '6px' });
     this.queue = document.createElement('div');
     Object.assign(this.queue.style, { marginTop: '6px', color: '#bfcddd' });
+    this.queueSummary = document.createElement('div');
+    this.queue.append(this.queueSummary);
     this.message = document.createElement('div');
     Object.assign(this.message.style, { minHeight: '15px', marginTop: '4px', color: '#e2874f' });
     this.root.append(this.heading, this.actions, this.queue, this.message);
@@ -41,67 +47,67 @@ export class ProductionMenu {
   public update(entities: readonly ReadonlyEntity[], world: World, economy: Economy, player: PlayerId): void {
     const building = entities.length === 1 && entities[0]?.kind === 'building' ? entities[0] : undefined;
     if (building === undefined || building.owner !== player || !isCompleted(building) || building.stats.produces.length === 0) {
-      this.root.style.display = 'none';
-      this.shownBuildingId = null;
+      if (this.root.style.display !== 'none') this.root.style.display = 'none';
+      this.lastMessage = '';
+      setText(this.message, '');
       return;
     }
-    if (this.shownBuildingId !== building.id) {
+
+    const actionsChanged = this.shownBuildingId !== building.id
+      || !sameUnitTypes(this.shownUnitTypes, building.stats.produces);
+    if (actionsChanged) {
       this.shownBuildingId = building.id;
+      this.shownUnitTypes = [...building.stats.produces];
       this.lastMessage = '';
+      this.rebuildActions(building.stats.produces);
     }
-    this.root.style.display = 'block';
-    this.heading.textContent = `${building.stats.name} production`;
-    this.actions.replaceChildren();
+    if (this.root.style.display !== 'block') this.root.style.display = 'block';
+    setText(this.heading, `${building.stats.name} production`);
     for (const unitType of building.stats.produces) {
       const stats = resolveUnitStats(unitType, building.faction);
       const check = checkProductionRequest(world, economy, player, building.id, unitType);
-      const button = document.createElement('button');
-      button.textContent = `${stats.name} · ${stats.cost}`;
-      button.dataset.testid = `produce-${unitType}`;
-      Object.assign(button.style, buttonStyle);
-      button.disabled = !check.allowed;
-      button.title = check.allowed
+      const button = this.actionButtons.get(unitType);
+      if (button === undefined) continue;
+      const text = `${stats.name} · ${stats.cost}`;
+      setText(button, text);
+      const cost = String(stats.cost);
+      if (button.dataset.cost !== cost) button.dataset.cost = cost;
+      const disabled = !check.allowed;
+      if (button.disabled !== disabled) button.disabled = disabled;
+      const title = check.allowed
         ? `Queue ${stats.name} (${stats.buildTimeSeconds}s)`
         : requestMessage(check, stats.cost);
-      button.addEventListener('click', () => this.showRequestResult(this.onQueue(unitType), stats.cost));
-      this.actions.append(button);
+      if (button.title !== title) button.title = title;
     }
 
-    this.queue.replaceChildren();
     const count = building.productionQueue.length;
     const powerPaused = building.stats.requiresPower && !world.buildings(player).some(
       (candidate) => candidate.type === 'powerPlant' && isCompleted(candidate),
     );
-    const summary = document.createElement('div');
-    summary.textContent = powerPaused
+    setText(this.queueSummary, powerPaused
       ? `Paused — no power · ${count}/${PRODUCTION_CONFIG.queueCapacity}`
-      : `Queue ${count}/${PRODUCTION_CONFIG.queueCapacity}`;
-    summary.style.color = powerPaused ? '#e2874f' : '#9fb0c9';
-    this.queue.append(summary);
+      : `Queue ${count}/${PRODUCTION_CONFIG.queueCapacity}`);
+    const summaryColor = powerPaused ? '#e2874f' : '#9fb0c9';
+    if (this.queueSummary.style.color !== summaryColor) this.queueSummary.style.color = summaryColor;
+    this.resizeQueueRows(count);
     building.productionQueue.forEach((item, index) => {
       const stats = resolveUnitStats(item.unitType, building.faction);
-      const row = document.createElement('div');
-      Object.assign(row.style, { display: 'flex', gap: '6px', alignItems: 'center', marginTop: '3px' });
-      const label = document.createElement('span');
+      const row = this.queueRows[index]!;
       const progress = index === 0 ? Math.min(100, Math.floor((item.elapsedSeconds / stats.buildTimeSeconds) * 100)) : 0;
-      label.textContent = `${index + 1}. ${stats.name}${index === 0 ? ` ${progress}%` : ''}`;
-      const cancel = document.createElement('button');
-      cancel.textContent = 'Cancel';
-      Object.assign(cancel.style, { ...buttonStyle, padding: '2px 5px', fontSize: '10px' });
-      cancel.title = `Refund ${Math.round(item.paidCost * ECONOMY_CONFIG.cancelRefundFraction)} Credits`;
-      cancel.addEventListener('click', () => this.showCancelResult(this.onCancel(index)));
-      row.append(label, cancel);
-      this.queue.append(row);
+      setText(row.label, `${index + 1}. ${stats.name}${index === 0 ? ` ${progress}%` : ''}`);
+      const cancelTitle = `Refund ${Math.round(item.paidCost * ECONOMY_CONFIG.cancelRefundFraction)} Credits`;
+      if (row.cancel.title !== cancelTitle) row.cancel.title = cancelTitle;
     });
 
-    if (this.lastMessage.length > 0) this.message.textContent = this.lastMessage;
-    else if (count >= PRODUCTION_CONFIG.queueCapacity) this.message.textContent = 'Queue full';
-    else {
+    let message = this.lastMessage;
+    if (message.length === 0 && count >= PRODUCTION_CONFIG.queueCapacity) message = 'Queue full';
+    else if (message.length === 0) {
       const unaffordable = building.stats.produces
         .map((unitType) => resolveUnitStats(unitType, building.faction))
         .find((stats) => !economy.canAfford(player, stats.cost));
-      this.message.textContent = unaffordable === undefined ? '' : `Needs ${unaffordable.cost} Credits`;
+      message = unaffordable === undefined ? '' : `Needs ${unaffordable.cost} Credits`;
     }
+    setText(this.message, message);
   }
 
   public destroy(): void {
@@ -110,11 +116,68 @@ export class ProductionMenu {
 
   private showRequestResult(result: ProductionCheck, cost: number): void {
     this.lastMessage = result.allowed ? '' : requestMessage(result, cost);
+    setText(this.message, this.lastMessage);
   }
 
   private showCancelResult(result: CancelProductionResult): void {
     this.lastMessage = result.cancelled ? `Cancelled — refunded ${result.refunded} Credits` : 'Cannot cancel that queue item';
+    setText(this.message, this.lastMessage);
   }
+
+  private rebuildActions(unitTypes: readonly UnitTypeId[]): void {
+    this.actions.replaceChildren();
+    this.actionButtons.clear();
+    for (const unitType of unitTypes) {
+      const button = document.createElement('button');
+      button.dataset.testid = `produce-${unitType}`;
+      Object.assign(button.style, buttonStyle);
+      button.addEventListener('click', () => {
+        const cost = Number(button.dataset.cost ?? 0);
+        this.showRequestResult(this.onQueue(unitType), cost);
+      });
+      this.actionButtons.set(unitType, button);
+      this.actions.append(button);
+    }
+  }
+
+  private resizeQueueRows(count: number): void {
+    while (this.queueRows.length < count) {
+      const row = this.createQueueRow(this.queueRows.length);
+      this.queueRows.push(row);
+      this.queue.append(row.root);
+    }
+    while (this.queueRows.length > count) {
+      this.queueRows.pop()!.root.remove();
+    }
+  }
+
+  private createQueueRow(index: number): QueueRow {
+    const root = document.createElement('div');
+    Object.assign(root.style, { display: 'flex', gap: '6px', alignItems: 'center', marginTop: '3px' });
+    const label = document.createElement('span');
+    Object.assign(label.style, { flex: '0 0 100px', fontVariantNumeric: 'tabular-nums' });
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancel';
+    Object.assign(cancel.style, { ...buttonStyle, padding: '2px 5px', fontSize: '10px' });
+    const row: QueueRow = { root, label, cancel };
+    cancel.addEventListener('click', () => this.showCancelResult(this.onCancel(index)));
+    root.append(label, cancel);
+    return row;
+  }
+}
+
+interface QueueRow {
+  readonly root: HTMLElement;
+  readonly label: HTMLElement;
+  readonly cancel: HTMLButtonElement;
+}
+
+function setText(element: HTMLElement, text: string): void {
+  if (element.textContent !== text) element.textContent = text;
+}
+
+function sameUnitTypes(left: readonly UnitTypeId[], right: readonly UnitTypeId[]): boolean {
+  return left.length === right.length && left.every((unitType, index) => unitType === right[index]);
 }
 
 function requestMessage(check: ProductionCheck, cost: number): string {

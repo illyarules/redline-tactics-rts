@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { buildProductionScenario, combatScenario, SCREEN } from './fixtures/scenarios';
+import { buildProductionScenario, combatScenario, productionMenuScenario, SCREEN } from './fixtures/scenarios';
 import { pollSnapshot, startMatch } from './helpers/match';
 import { clearSnapshot, seedSnapshot } from './helpers/storage';
 
@@ -51,19 +51,63 @@ test('placing a building starts construction and queuing a unit shows in the que
 
   const productionMenu = page.getByTestId('production-menu');
   await expect(productionMenu).toBeVisible();
-  // `ProductionMenu` rebuilds its action buttons every simulation frame, so a normal locator click
-  // (which waits for the element to be stable across two frames first) never settles here. A direct
-  // DOM click dispatches the same click event a pointer click would, onto whichever button instance
-  // currently exists, and is retried by `expect.poll` until one is enabled.
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const button = document.querySelector<HTMLButtonElement>('[data-testid="produce-worker"]');
-        if (button === null || button.disabled) return false;
-        button.click();
-        return true;
-      }),
-    )
-    .toBe(true);
+  const produceWorker = page.getByTestId('produce-worker');
+  await expect(produceWorker).toBeEnabled();
+  await produceWorker.click();
   await expect(productionMenu).toContainText('Queue 1/3');
+  await expect(productionMenu).not.toContainText('Queue 2/3');
+});
+
+test('production controls retain identity while their state changes and cancel normally', async ({ page }) => {
+  await clearSnapshot(page);
+  await seedSnapshot(page, productionMenuScenario());
+  await startMatch(page);
+
+  const productionMenu = page.getByTestId('production-menu');
+  const produceWorker = page.getByTestId('produce-worker');
+  await expect(productionMenu).toBeVisible();
+  await expect(produceWorker).toBeEnabled();
+  const originalProduceWorker = await produceWorker.elementHandle();
+  if (originalProduceWorker === null) throw new Error('Worker production button was not attached.');
+  await produceWorker.evaluate(() => new Promise<void>((resolve) => {
+    let framesRemaining = 4;
+    const onFrame = (): void => {
+      framesRemaining -= 1;
+      if (framesRemaining === 0) resolve();
+      else requestAnimationFrame(onFrame);
+    };
+    requestAnimationFrame(onFrame);
+  }));
+  const currentProduceWorker = await produceWorker.elementHandle();
+  if (currentProduceWorker === null) throw new Error('Worker production button became detached.');
+  expect(await originalProduceWorker.evaluate(
+    (button, current) => button === current,
+    currentProduceWorker,
+  )).toBe(true);
+
+  await produceWorker.click();
+  const firstCancel = productionMenu.getByRole('button', { name: 'Cancel' }).first();
+  const originalFirstCancel = await firstCancel.elementHandle();
+  if (originalFirstCancel === null) throw new Error('Production cancel button was not attached.');
+
+  await produceWorker.click();
+  await produceWorker.click();
+  await expect(productionMenu).toContainText('Queue 3/3');
+  await expect(produceWorker).toBeDisabled();
+  await expect(produceWorker).toHaveAttribute('title', 'Queue full');
+  expect(await originalProduceWorker.evaluate((button) => button.isConnected)).toBe(true);
+  expect(await originalFirstCancel.evaluate((button) => button.isConnected)).toBe(true);
+
+  await firstCancel.click();
+  await expect(productionMenu).toContainText('Queue 2/3');
+  await expect(produceWorker).toBeEnabled();
+  await expect(produceWorker).toHaveAttribute('title', /Queue Worker/);
+  expect(await originalFirstCancel.evaluate((button) => button.isConnected)).toBe(true);
+  await expect(productionMenu).toContainText('Cancelled');
+
+  await page.mouse.click(SCREEN.clearDestination.x, SCREEN.clearDestination.y);
+  await expect(productionMenu).toBeHidden();
+  await page.mouse.click(SCREEN.hq.x, SCREEN.hq.y);
+  await expect(productionMenu).toBeVisible();
+  await expect(productionMenu).not.toContainText('Cancelled');
 });
