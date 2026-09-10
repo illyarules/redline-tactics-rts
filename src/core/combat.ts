@@ -1,6 +1,6 @@
 /**
  * Deterministic combat math. This module decides whether a shot is legal and applies one configured
- * hit; selecting targets, pursuing them and rendering shots remain later game-layer work.
+ * hit; neighboring core systems select and pursue targets, while the game layer renders shots.
  */
 import { DAMAGE_TABLE } from '../config/combat';
 import { isAlive, isUnit, type ReadonlyEntity, type ReadonlyUnit } from './entities';

@@ -149,8 +149,9 @@ straight from `checkPrerequisites`/`Economy.canAfford`. `EntitiesView` scales a 
 building's height by its progress and dims it, so an incomplete site reads as unfinished rather than a
 building that just happens to be doing nothing yet.
 
-Fog of war does not exist yet (it lands with the vision task), so `checkBuildingPlacement` does not
-check "explored" — every tile reads as valid ground on that front until then.
+At the time of Tasks 13–17 fog of war had not landed, so `checkBuildingPlacement` did not check
+"explored". Fog now exists, but placement still deliberately has no fog-state dependency and can be
+confirmed on unexplored ground; this remaining shortcut is tracked in `known-shortcuts.md`.
 
 ## Task 28 — AI defense and recovery
 

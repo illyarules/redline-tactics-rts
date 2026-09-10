@@ -3,7 +3,7 @@
  *
  * Deliberately unobtrusive — the battlefield should be the loudest thing on screen — so each
  * control is reduced to a short label and the whole thing sits low-contrast in a corner. The full
- * wording stays in the data for the contextual HUD that arrives in a later task.
+ * wording stays in the data so the concise presentation does not become the only description.
  *
  * This is plain HTML over the canvas, which keeps `ui/` free of Babylon. It is display only — it
  * never receives input, so `pointer-events` stays off and clicks reach the battlefield underneath.
@@ -17,7 +17,7 @@ export interface ControlHint {
   readonly short: string;
 }
 
-/** Grows as later tasks add controls. */
+/** Controls currently exposed by the playable match. */
 export const CONTROL_HINTS: readonly ControlHint[] = [
   { input: 'W A S D', action: 'Pan the camera', short: 'WASD pan' },
   { input: 'Pointer at screen edge', action: 'Pan the camera', short: 'edge pan' },

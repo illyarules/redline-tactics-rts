@@ -22,9 +22,9 @@ A small, original browser RTS built with TypeScript, Babylon.js and Vite.
 
 ## Documentation
 
-Design and scope live in [`game-design.md`](./game-design.md); the task-by-task build order lives in
-[`implementation-plan.md`](./implementation-plan.md). Gameplay, world, camera and per-task build
-notes live in [`docs/`](./docs/README.md).
+Current design and scope live in [`game-design.md`](./game-design.md); the historical task-by-task
+build order and remaining stabilization criteria live in [`implementation-plan.md`](./implementation-plan.md).
+Gameplay, world, camera and per-task build notes live in [`docs/`](./docs/README.md).
 
 ## Match flow
 
@@ -33,3 +33,6 @@ ten-minute active-time limit expires. The battle report then offers a clean rema
 title. Escape opens Pause only while a match is live; Pause also offers New Match and Return to Title.
 Active and terminal matches are restored from local browser storage, while every fresh-match path
 clears the prior save first.
+
+Gameplay and saves require no backend. The deployed client initializes Vercel Web Analytics; it does
+not synchronize match state or provide accounts, cloud saves, multiplayer, or other online gameplay.

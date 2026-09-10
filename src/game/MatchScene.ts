@@ -370,7 +370,7 @@ export class MatchScene {
     try {
       return restoreWorld(snapshot, grid);
     } catch (error) {
-      console.warn('Mini Command: discarding an unreadable local match snapshot.', error);
+      console.warn('Redline Tactics: discarding an unreadable local match snapshot.', error);
       return null;
     }
   }

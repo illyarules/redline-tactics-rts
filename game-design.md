@@ -1,31 +1,38 @@
-# Mini Command — MVP Game Design
+# Redline Tactics — Current Game Design
 
 ## High concept
 
-Mini Command is an original 2D browser RTS about establishing a forward base, securing Credits, producing a combined-arms force, and destroying the enemy HQ. A full match should take 8–15 minutes and be understandable without a tutorial.
+Redline Tactics is an original 3D browser RTS about establishing a forward base, securing Credits,
+producing a combined-arms force, and eliminating the enemy base. A match has a ten-minute active-time
+limit and should be understandable without a tutorial.
 
 This MVP borrows only genre-level ideas. Its factions, names, silhouettes, colors, map, numbers, interface, and audiovisual identity must be original.
 
 ## MVP promise
 
-The player can open the game, choose one of two factions, play one fixed skirmish against an AI, and reach a clear victory or defeat screen. There is no campaign or multiplayer.
+The player can open the game, play a fixed skirmish as the Meridian Directorate against the Ember
+Collective AI, and reach a clear victory, defeat, or draw report. There is no faction selection,
+campaign, or multiplayer.
 
 ## Match rules
 
 - One human player and one AI opponent.
-- Both begin with an HQ, one Worker, a small squad of Infantry, and starting Credits.
+- Both begin with an HQ, one Worker, one Infantry, one Tank, one Rocket, and starting Credits.
 - Workers construct buildings and gather Credits from neutral resource fields.
 - Buildings unlock and produce units.
-- Destroying the opposing HQ wins immediately. Losing the player's HQ causes defeat.
-- Match may be paused or restarted. No save/load is required.
+- Eliminating every opposing building wins; losing every player-owned building causes defeat.
+- Incomplete construction sites count as surviving buildings. Units alone cannot keep a side alive.
+- If both sides lose their final building in one simulation frame, Defeat takes precedence.
+- If neither side is eliminated within ten minutes of active simulation time, the match is a Draw.
+- The match may be paused or restarted and is automatically persisted in local browser storage.
 
 Suggested starting balance values are provisional and live in config, not game logic.
 
 ## Match continuity
 
-An unfinished single-player match automatically resumes after a browser page reload, using a
-versioned snapshot saved locally in the browser. The player can explicitly start a `New Match`,
-which clears the local snapshot and creates a fresh match instead of resuming.
+An active or completed single-player match resumes after a browser page reload, using a versioned
+snapshot saved locally in the browser. `New Match` and `Play Again` clear the local snapshot before
+creating a fresh match; quitting a completed report to the title also clears it.
 
 - The save exists only in the current browser profile/device: no login, cloud save, cross-device
   sync, multiplayer state, or server storage exists.
@@ -35,13 +42,12 @@ which clears the local snapshot and creates a fresh match instead of resuming.
 
 ## Battlefield
 
-One fixed, symmetric 64 × 64 tile map supports reliable testing and fair starts.
+The current build uses one fixed, 180-degree rotationally symmetric 64 × 64 tile map, Open Field.
 
-- A starting plateau/base area in opposite corners.
-- One nearby resource field per player.
-- Two contested resource fields near the center.
-- Central obstacles create two or three navigable attack lanes.
-- Ground terrain is passable; rocks, water, buildings, and map edges are blocked.
+- A starting base area sits at the west and east edges.
+- One finite home resource field sits near each base; there are no contested fields.
+- The center is a wide, empty approach with no configured terrain obstacles.
+- Every in-bounds terrain tile is currently passable; buildings and map edges block movement.
 - The full map is larger than the viewport and supports camera pan and zoom.
 
 Placeholder visuals should use original geometric silhouettes and a clear palette. The player uses cool cyan/blue; AI uses warm amber/red. Faction identity is communicated by shape and accent, not copied iconography.
@@ -66,19 +72,19 @@ Fast production and mobility, with lighter armor.
 - Mobile units move approximately 8% faster.
 - Units have approximately 8% less health.
 
-Exact values should be tuned only after the complete loop is playable.
+These values remain provisional until the dedicated balance pass is complete.
 
 ## Economy
 
 The only resource is **Credits**.
 
 - A Worker gathers from a resource field, carries a fixed load, returns it to an HQ or Resource Depot, deposits it, and repeats.
-- Resource fields contain a finite but generous amount. Contested fields matter in longer matches.
+- Each of the two resource fields contains 3,000 Credits.
 - Costs are paid when construction or production begins.
 - Cancelling before completion refunds 75% to discourage free scouting/queue manipulation.
 - No power grid, upkeep, supply cap, repairs, veterancy, or secondary resource in MVP.
 
-Suggested initial values:
+Current configured values:
 
 | Item | Cost | Build time |
 |---|---:|---:|
@@ -126,10 +132,10 @@ Armor/damage categories can remain minimal: `light`, `armored`, and `structure`,
 
 ### HQ
 
-- Starting structure and victory target.
+- Starting structure; losing it alone is not terminal while another owned building survives.
 - Produces Workers.
 - Accepts gathered Credits.
-- Destruction ends the match.
+- Satisfies the HQ prerequisite for new construction while it remains alive.
 
 ### Barracks
 
@@ -151,26 +157,30 @@ Armor/damage categories can remain minimal: `light`, `armored`, and `structure`,
 - Accepts Worker deliveries near remote fields.
 - Does not produce units or shoot.
 
-Buildings use a footprint grid. A placement preview is green when the footprint is passable, explored, inside the map, and does not overlap another object; otherwise it is red.
+Buildings use a footprint grid. A placement preview is green when the footprint is passable, inside
+the map, and does not overlap another building; otherwise it is red. The current placement rule does
+not require the footprint to be explored.
 
 ## Controls and orders
 
 - Left-click selects one friendly unit/building.
 - Left-drag box-selects friendly units.
 - Shift + click/drag adds to selection.
-- Number keys 1–9 assign/select control groups if time permits; this is a stretch feature, not required for MVP completion.
+- Control groups are not implemented.
 - Right-click ground issues Move.
 - Right-click enemy issues Attack.
 - Attack-move is activated with `A`, then left-clicked on the ground.
 - `Escape` cancels placement/order mode or opens the pause overlay.
 - Edge pan or WASD moves the camera; mouse wheel zooms within fixed limits.
 
-Selection markers, health bars for damaged/selected entities, destination feedback, invalid-order feedback, and attack range feedback should be readable with placeholder art.
+Selection markers, health bars for damaged/selected entities, destination markers, attack tracers,
+impact flashes, and destruction effects make issued orders and combat results readable.
 
 ## Movement and pathfinding
 
 - Use a tile/grid-based A* pathfinder over static terrain plus building footprints.
-- Recalculate when a path becomes invalid, not every frame.
+- Routes are calculated when an order is issued; pursuit routes are recalculated as moving targets
+  require it.
 - Nearby units use lightweight separation/steering; perfect formations and collision-free crowds are out of scope.
 - If a destination is blocked, select the nearest reachable tile within a small radius.
 - Units may briefly overlap in dense groups if necessary for a playable MVP.
@@ -181,7 +191,7 @@ Selection markers, health bars for damaged/selected entities, destination feedba
 - Attack orders pursue the chosen target until it is destroyed, lost in fog, or unreachable.
 - Attack-move travels toward a point, briefly engaging visible enemies along the route before continuing.
 - Basic focus-fire and automatic retaliation are supported.
-- Destroyed entities are removed after a short readable effect.
+- Destroyed entities are removed and leave a short readable effect.
 - No friendly fire, cover, elevation bonuses, accuracy simulation, status effects, garrisoning, crushing, or aircraft.
 
 ## Fog of war
@@ -192,7 +202,9 @@ Use three states per map cell:
 - **Explored:** terrain visible under a dark veil; current enemy entities concealed.
 - **Visible:** terrain and currently present entities visible.
 
-Friendly units and buildings reveal circular areas. Visibility may update several times per second instead of every frame. The AI may use its own visibility model; it must not target human entities it has not recently seen, though it may attack known locations.
+Friendly units and buildings reveal circular areas, recomputed four times per second. The AI has its
+own visibility state and cannot acquire or pursue currently hidden entities. It remembers the player
+HQ's last visible coordinates and may attack-move toward that stale location.
 
 ## AI
 
@@ -202,8 +214,10 @@ States:
 
 1. **Develop:** keep a Worker gathering; build missing prerequisites and a Resource Depot when affordable.
 2. **Produce:** maintain a configurable mix of Infantry, Tanks, and Rockets.
-3. **Scout:** send a small force toward contested fields or the last known player location.
-4. **Attack:** when army value exceeds a threshold, attack-move toward the player HQ/known base.
+3. **Scout:** send the first available combat unit toward the configured player start or last known
+   player-HQ location.
+4. **Attack:** once the player base is known and the combat-unit count reaches its threshold,
+   attack-move toward the remembered location.
 5. **Defend:** temporarily redirect nearby combat units when its base is attacked.
 6. **Recover:** rebuild essential production/economy structures when possible.
 
@@ -218,32 +232,35 @@ The HUD shows:
 - Contextual action buttons for Build and Produce.
 - Production queue and progress for the selected building.
 - Power prerequisite status.
-- Short control hints and transient status messages.
+- A compact always-visible control hint.
 
-The minimap shows terrain, explored/visible regions, friendly units/buildings, visible enemies, resource fields, and the current camera rectangle. Clicking the minimap moves the camera. Detailed minimap orders are not required.
+The read-only minimap shows explored/visible terrain, friendly entities, visible enemies, resource
+fields, and the current camera rectangle. Minimap navigation and orders are not implemented.
 
 ## Screens and flow
 
-1. Title screen with Play and faction choice.
-2. Loading/brief controls card.
-3. Match.
-4. Pause overlay with Resume, Restart, and Quit.
-5. Victory/defeat overlay with elapsed time, units produced/lost, and Play Again.
+1. Title screen with Start Match. The player's faction is currently fixed to Meridian.
+2. Match with an always-visible compact controls hint.
+3. Pause overlay with Resume, New Match, and Return to Title.
+4. Victory/defeat/draw report with active time, units produced/lost, Play Again, and Quit to Title.
 
 ## MVP completion checklist
 
 The MVP is complete when a new player can, without developer tools:
 
-- Start a match as either faction.
+- Start a match as the fixed Meridian faction against the Ember AI.
 - Select units individually and by box, move them, attack, and attack-move.
 - Gather Credits, place every building, and produce every unit.
-- Navigate around terrain/buildings with acceptable group movement.
+- Navigate around buildings with acceptable group movement; the current map has no blocking terrain.
 - Discover the map through fog of war.
 - Face an AI that gathers, builds, produces, defends, and attacks.
-- Win by destroying the enemy HQ or lose when their own HQ is destroyed.
-- Read essential state in the HUD/minimap and restart cleanly.
+- Win by eliminating every enemy building, lose when every owned building is eliminated, or draw at
+  the ten-minute active-time limit.
+- Read essential state in the HUD/read-only minimap and restart cleanly.
 
 ## Explicitly out of scope
 
-Multiplayer, backend, accounts, saves, campaign, story, cutscenes, map editor, procedural maps, mobile controls, gamepad, replay, multiple AI difficulties, advanced formations, naval/air units, superweapons, tech trees, upgrades, repairs, walls, capturing, audio voiceovers, localization, and polished commercial art.
-
+Multiplayer, backend, accounts, cloud saves, campaign, story, cutscenes, map editor, procedural maps,
+mobile controls, gamepad, replay, multiple AI difficulties, advanced formations, naval/air units,
+superweapons, tech trees, upgrades, repairs, walls, capturing, audio voiceovers, localization, and
+polished commercial art.

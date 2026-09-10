@@ -26,7 +26,7 @@ export function saveSnapshot(snapshot: WorldSnapshot): void {
   try {
     localStorage.setItem(PERSISTENCE_CONFIG.storageKey, JSON.stringify(snapshot));
   } catch (error) {
-    console.warn('Mini Command: failed to save the local match snapshot.', error);
+    console.warn('Redline Tactics: failed to save the local match snapshot.', error);
   }
 }
 
@@ -34,6 +34,6 @@ export function clearSnapshot(): void {
   try {
     localStorage.removeItem(PERSISTENCE_CONFIG.storageKey);
   } catch (error) {
-    console.warn('Mini Command: failed to clear the local match snapshot.', error);
+    console.warn('Redline Tactics: failed to clear the local match snapshot.', error);
   }
 }

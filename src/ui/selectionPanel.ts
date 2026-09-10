@@ -3,7 +3,7 @@
  *
  * Plain HTML over the canvas, like the controls card, so `ui/` stays free of Babylon and the text
  * stays crisp at every zoom. Display only — `pointer-events` stays off so clicks reach the map.
- * The full contextual HUD arrives in a later task.
+ * Build and production actions are rendered by their dedicated contextual panels.
  */
 import { healthFraction, type ReadonlyEntity } from '../core/entities';
 

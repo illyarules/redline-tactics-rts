@@ -136,8 +136,8 @@ can click. A health bar appears above an entity while it is selected and wheneve
 | `Play Again` (battle report) | Clear the completed save and start a fresh match |
 | `Quit to Title` (battle report) | Clear the completed save and return to the title screen |
 
-A compact one-line version of this list sits in the bottom-left corner in game, and it grows as
-later tasks add controls. Attack-move is introduced by a later task.
+A compact one-line version of this list sits in the bottom-left corner in game. Attack-Move is
+available by pressing `A` and then left-clicking passable ground.
 
 The match opens zoomed in close, between the player's HQ and the resource field it will work first,
 so the base, its opening squad and the Credits are all on screen from the first frame.

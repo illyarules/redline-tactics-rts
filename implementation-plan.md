@@ -1,4 +1,18 @@
-# Mini Command — Atomic Implementation Plan
+# Redline Tactics — Atomic Implementation Plan
+
+## Current status
+
+This is the original incremental build plan, not the authoritative description of the current game.
+The plan is considered implemented. Later decisions superseded some early acceptance wording: the
+current MVP has a fixed player faction and a read-only minimap, while faction/map selection and
+minimap navigation belong to the post-MVP backlog. The disabled Move/Attack buttons in the tactical
+HUD are visual shortcuts, not missing commands: Move and explicit Attack use right-click, Attack-Move
+uses `A` plus left-click, and the working Build/Produce actions live in contextual panels.
+
+For current behavior use [`docs/gameplay.md`](./docs/gameplay.md) and the source code. In particular,
+Open Field currently has two resource fields and no blocking terrain, building placement does not
+require explored fog state, the player faction is fixed, and victory requires eliminating every
+enemy building rather than only the HQ.
 
 ## How to use this plan
 
@@ -8,12 +22,12 @@ Give Claude Code exactly one numbered task at a time. Each task must leave the p
 
 ### 01. Scaffold the application
 
-**Goal:** Create the smallest TypeScript + Phaser 3 + Vite application.
+**Goal:** Create the smallest TypeScript + Babylon.js + Vite application.
 
 **Acceptance criteria:**
 
 - Package scripts exist for development, build, preview, test, and type checking.
-- A Phaser scene opens in the browser and displays a plain background plus the title “Mini Command.”
+- A Babylon.js scene opens in the browser and displays a plain background plus the title.
 - TypeScript strict mode is enabled.
 - Vitest is configured with one passing smoke test.
 - No React, backend, database, or multiplayer dependency is added.
@@ -25,8 +39,8 @@ Give Claude Code exactly one numbered task at a time. Each task must leave the p
 **Acceptance criteria:**
 
 - `config`, `core`, `game`, and `ui` areas exist with brief boundary documentation.
-- Core entity IDs, owner IDs, positions, and order types are defined without Phaser imports.
-- A dependency check by inspection confirms `core` does not import from `game` or Phaser.
+- Core entity IDs, owner IDs, positions, and order types are defined without Babylon.js imports.
+- A dependency check confirms `core` does not import from `game` or Babylon.js.
 - The app still renders and all checks pass.
 
 ### 03. Define typed faction and balance config
@@ -46,7 +60,8 @@ Give Claude Code exactly one numbered task at a time. Each task must leave the p
 
 **Acceptance criteria:**
 
-- The map defines passable ground, blocked terrain, two starts, and four resource fields.
+- The map defines passable ground, two starts, and two home resource fields. Open Field has no
+  blocking terrain.
 - Terrain and resource fields render with original placeholder graphics.
 - Map bounds and blocked cells come from typed map data, not scattered constants.
 - A pure test verifies starts/resources are on passable cells and paths between major lanes exist.
@@ -66,7 +81,7 @@ Give Claude Code exactly one numbered task at a time. Each task must leave the p
 
 ### 06. Create the core world and entity lifecycle
 
-**Goal:** Add a Phaser-independent source of truth for entities.
+**Goal:** Add a Babylon-independent source of truth for entities.
 
 **Acceptance criteria:**
 
@@ -77,11 +92,12 @@ Give Claude Code exactly one numbered task at a time. Each task must leave the p
 
 ### 07. Render units and buildings from core state
 
-**Goal:** Synchronize simple Phaser views with core entities.
+**Goal:** Synchronize simple Babylon views with core entities.
 
 **Acceptance criteria:**
 
-- Initial HQs, Workers, and Infantry for both players render in distinct owner colors and role shapes.
+- The initial HQ and one of every mobile role for both players render in distinct owner colors and
+  role shapes.
 - View objects follow core position/health and disappear when the core entity is removed.
 - Rendering code does not calculate damage, cost, or prerequisites.
 - A debug label can expose entity type/ID during development.
@@ -196,7 +212,8 @@ Give Claude Code exactly one numbered task at a time. Each task must leave the p
 
 - Selecting a Worker exposes build actions allowed by prerequisites.
 - A chosen building follows the pointer snapped to the grid.
-- Preview is green only when its full footprint is passable, explored, in bounds, and unoccupied; otherwise red.
+- Preview is green only when its full footprint is passable, in bounds, and does not overlap another
+  building; otherwise red. Placement currently does not require explored fog state.
 - Escape/right-click cancels placement without spending Credits.
 - Pure validation tests cover each invalid reason.
 - Extends the local match snapshot from Task 12.5 to cover any in-progress placement state worth resuming.
@@ -328,7 +345,7 @@ Give Claude Code exactly one numbered task at a time. Each task must leave the p
 - Decisions run on a low-frequency configured timer with seeded randomness where needed.
 - AI actions go through the same spend/build/produce/order APIs as the player.
 - A debug-only readout/log shows state changes.
-- Tests cover key state transitions without Phaser.
+- Tests cover key state transitions without Babylon.js.
 - Extends the local match snapshot from Task 12.5 to cover the AI's current state and timers.
 
 ### 26. Make AI economy and build order functional
@@ -396,23 +413,22 @@ Give Claude Code exactly one numbered task at a time. Each task must leave the p
 
 ### 31. Implement the minimap
 
-**Goal:** Provide strategic awareness and camera navigation.
+**Goal:** Provide strategic awareness.
 
 **Acceptance criteria:**
 
 - Minimap shows terrain, resources, fog, friendly entities, visible enemies, and camera rectangle.
 - Hidden enemies never appear.
-- Clicking a valid minimap position recenters the camera and clamps it to map bounds.
+- The MVP minimap is read-only; navigation is tracked as post-MVP work.
 - Updates are throttled enough to remain smooth.
 
-### 32. Add title, faction choice, pause, and controls
+### 32. Add title, pause, and controls
 
 **Goal:** Make the game approachable from first launch.
 
 **Acceptance criteria:**
 
-- Title screen offers Play and both original factions.
-- Starting a match applies the chosen faction config to the player.
+- Title screen offers Start Match; the player is Meridian and the AI is Ember.
 - Escape opens a pause overlay with Resume, Restart, and Quit; simulation stops while paused.
 - A concise controls card is accessible before/during play.
 

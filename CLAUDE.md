@@ -1,4 +1,4 @@
-# Mini Command — Claude Code Guide
+# Redline Tactics — Engineering Guide
 
 ## Product goal
 
@@ -19,8 +19,10 @@ The first milestone is a complete, playable single-player match. Prefer a modest
 ## Hard scope limits
 
 - Single-player skirmish against one AI opponent only.
-- No backend, server, accounts, database, cloud sync, lobby, multiplayer, networking, ranking, analytics, or map editor.
-- Local browser persistence through `localStorage` is allowed, limited to the current browser/device. No backend, server, accounts, database, cloud sync, analytics, multiplayer, lobby, or any other networked persistence is allowed.
+- No gameplay backend, server, accounts, database, cloud sync, lobby, multiplayer, ranking, or map
+  editor. Vercel Web Analytics is the only current networked integration.
+- Local browser persistence through `localStorage` is limited to the current browser/device. No
+  gameplay state or personal match data is persisted to a backend or synchronized between devices.
 - One fixed map, two original factions, one resource, four unit roles, five building roles.
 - Use original placeholder shapes, colors, icons, names, and sounds. Do not import or imitate assets from Command & Conquer or any other commercial game.
 - Do not add a feature unless the current implementation task explicitly asks for it.
@@ -86,4 +88,3 @@ When tradeoffs are necessary, prioritize in this order:
 ## Performance target
 
 Target a smooth match on a current desktop browser with roughly 50–100 active units total. Simple grid/path caching and periodic AI/fog updates are acceptable. Do not build large-scale optimization systems before profiling demonstrates a need.
-

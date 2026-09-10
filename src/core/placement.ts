@@ -1,9 +1,8 @@
 /**
  * Building placement validity: whether a building's full footprint could stand at a tile.
  *
- * Fog of war (`explored`) does not exist yet — that lands with the vision task — so a footprint is
- * judged only on bounds, terrain and occupancy for now; every hidden cell reads as valid ground
- * until then.
+ * Fog of war exists, but placement deliberately has no fog-state dependency yet. A footprint is
+ * judged only on bounds, terrain and occupancy, so unexplored cells are currently valid.
  * Pure TypeScript: this module must not import Babylon, `game/` or `ui/`.
  */
 import { BUILDING_CONFIG } from '../config/buildings';

@@ -2,9 +2,8 @@
  * How a match starts. Both players get the same opening, so neither side is favoured.
  * Provisional values, tuned in a later balance task.
  *
- * The opening squad holds one of each mobile role so all four silhouettes are on the field from the
- * first frame. They are placed and drawn only — selection, orders, economy and combat arrive in
- * later tasks.
+ * The opening squad holds one of each mobile role so all four silhouettes and gameplay roles are
+ * available from the first frame.
  */
 import type { MatchRulesConfig, MatchSetupConfig } from './types';
 

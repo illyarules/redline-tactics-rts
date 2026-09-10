@@ -8,7 +8,7 @@ import { cellVisibility, isEntityVisibleToPlayer, type FogState } from '../core/
 import { isPowerAvailable } from '../core/power';
 import { formatMatchCountdown } from '../core/matchLifecycle';
 
-/** Read-only tactical overview; command simulation lives in `BuildMenu` and `PlacementController`. */
+/** Tactical overview; command simulation lives in the dedicated controllers and core systems. */
 export class TacticalHud {
   private readonly root = document.createElement('div');
   private readonly map = document.createElement('canvas');
@@ -19,9 +19,9 @@ export class TacticalHud {
     this.root.className = 'tactical-hud';
     this.root.dataset.testid = 'tactical-hud';
     this.root.innerHTML = `<div class="credits"><span>CREDITS</span><strong>${ECONOMY_CONFIG.startingCredits.toLocaleString()}</strong><small class="power"></small></div>
-      <div class="commands" aria-label="Commands unavailable in this preview"><button disabled title="Right-click ground to move a selected unit">↗<small>MOVE</small></button><button disabled title="Combat is not available yet">◎<small>ATTACK</small></button><button disabled title="Select a Worker to build">⌂<small>BUILD</small></button></div>
+      <div class="commands" aria-label="Command shortcuts"><button disabled title="Right-click ground to move selected units">↗<small>MOVE</small></button><button disabled title="Right-click an enemy to attack, or press A for Attack-Move">◎<small>ATTACK</small></button><button disabled title="Select a Worker to open the build menu">⌂<small>BUILD</small></button></div>
       <div class="match-timer" data-testid="match-timer">${formatMatchCountdown(0)}</div>
-      <div class="sector">OPEN FIELD <span>TACTICAL PREVIEW</span></div>`;
+      <div class="sector">OPEN FIELD <span>TACTICAL MAP</span></div>`;
     this.creditsValue = this.root.querySelector('.credits strong') as HTMLElement;
     this.powerLine = this.root.querySelector('.credits .power') as HTMLElement;
     this.timer = this.root.querySelector('.match-timer') as HTMLElement;

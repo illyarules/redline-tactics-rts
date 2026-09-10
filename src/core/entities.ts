@@ -21,9 +21,9 @@ export interface ProductionQueueItem {
 }
 
 /**
- * What an entity is doing, in one word, for the HUD and for debugging. These are labels only — the
- * systems that drive them (movement, gathering, construction, production, combat) arrive in later
- * tasks. `destroyed` is set by the world when health reaches zero.
+ * What an entity is doing, in one word, for the HUD and for debugging. These are labels only; the
+ * movement, gathering, construction, production and combat systems drive them. `destroyed` is set
+ * by the world when health reaches zero.
  */
 export type EntityStatus =
   | 'idle'

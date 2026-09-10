@@ -63,7 +63,9 @@ tile reports as passable**. The field continues past the camera bounds without a
 
 A warm directional sun and cool hemispheric fill separate model faces with soft percentage-closer shadows. The opening camera uses a 58-degree pitch and fits roughly 26 tiles across on smaller desktop windows, up to the configured opening zoom. The HQ is selected on arrival.
 
-The compact HUD shows configured starting Credits (900), selection health and status, disabled command buttons, and a read-only minimap of entities, resources and the camera footprint. Credits remain static until the economy is implemented.
+The compact HUD shows the live Credits balance, power state, match countdown, selection health and
+status, contextual build/production panels, disabled decorative command buttons, and a read-only
+minimap of fog, entities, resources and the camera footprint.
 
 Feedback is kept minimal at this stage:
 
@@ -71,4 +73,4 @@ Feedback is kept minimal at this stage:
   above it. Anything damaged shows its bar whether or not it is selected.
 - A selected entity's current order is marked where it points: a calm ring for Move, a warmer ring
   for AttackMove and Attack. The rule lives in `src/game/orderMarker.ts` and is tested without
-  starting the renderer; Move orders drive it now; combat orders arrive with a later task.
+  starting the renderer.
