@@ -112,7 +112,6 @@ export function advanceAlongRoute(
       if (distance > 0 && remaining > 0) {
         current = { x: current.x + (dx / distance) * remaining, y: current.y + (dy / distance) * remaining };
       }
-      remaining = 0;
       break;
     }
     if (distance > 0) {

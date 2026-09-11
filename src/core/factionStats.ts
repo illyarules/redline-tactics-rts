@@ -52,6 +52,8 @@ export function resolveUnitStats(type: UnitTypeId, faction: FactionId): Resolved
  * Buildings are unaffected by faction modifiers in the MVP; this accessor exists so callers use one
  * consistent entry point for both entity kinds.
  */
+// The faction parameter is retained so this accessor matches resolveUnitStats while buildings have no modifiers.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function resolveBuildingStats(type: BuildingTypeId, _faction: FactionId): BuildingConfig {
   return BUILDING_CONFIG[type];
 }

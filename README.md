@@ -19,6 +19,11 @@ A small, original browser RTS built with TypeScript, Babylon.js and Vite.
 | `npm run test:e2e` | Run the Playwright E2E suite once (headless Chromium, `tests/e2e/`) |
 | `npm run test:e2e:ui` | Run the Playwright E2E suite in the interactive UI runner |
 | `npm run typecheck` | Type-check the project with `tsc --noEmit` |
+| `npm run lint` | Check TypeScript source and tests with ESLint |
+| `npm run lint:fix` | Apply ESLint's safe automatic fixes |
+
+ESLint keeps function complexity at 10 or below and nesting at three levels or below. It intentionally
+does not enforce formatting; use `npm run lint` to check changes and `npm run lint:fix` for automatic fixes.
 
 ## Documentation
 
