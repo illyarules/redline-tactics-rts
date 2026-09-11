@@ -19,13 +19,14 @@ export interface ControlHint {
 
 /** Controls currently exposed by the playable match. */
 export const CONTROL_HINTS: readonly ControlHint[] = [
-  { input: 'W A S D', action: 'Pan the camera', short: 'WASD pan' },
+  { input: 'W A S D / ↑ ← ↓ →', action: 'Pan the camera', short: 'W A S D / ↑ ← ↓ → pan' },
   { input: 'Pointer at screen edge', action: 'Pan the camera', short: 'edge pan' },
   { input: 'Mouse wheel', action: 'Zoom in and out', short: 'wheel zoom' },
+  { input: '+ / −', action: 'Zoom in and out', short: '+ / − zoom' },
   { input: 'Left-click', action: 'Select one of your units or buildings', short: 'click select' },
   { input: 'Right-click ground', action: 'Move the selected friendly unit', short: 'right-click move' },
   { input: 'Right-click enemy', action: 'Explicitly attack that enemy', short: 'right-click attack' },
-  { input: 'A, then left-click ground', action: 'Attack-Move selected combat units', short: 'A attack-move' },
+  { input: 'Q, then left-click ground', action: 'Attack-Move selected combat units', short: 'Q attack-move' },
   { input: 'Right-click a resource field', action: 'Send the selected Worker to gather it', short: 'right-click gather' },
   { input: 'Build menu button', action: 'Start placing that building (select a Worker)', short: 'build menu' },
   { input: 'Left-click ground', action: 'Clear the selection, or confirm a placement', short: 'click ground clears' },
@@ -40,6 +41,7 @@ export class ControlsOverlay {
 
   public constructor(container: HTMLElement, hints: readonly ControlHint[] = CONTROL_HINTS) {
     this.root = document.createElement('div');
+    this.root.dataset.testid = 'controls-hint';
     this.root.textContent = hints.map((hint) => hint.short).join(SEPARATOR);
     Object.assign(this.root.style, {
       position: 'fixed',

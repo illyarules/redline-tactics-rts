@@ -24,12 +24,30 @@ import type { SceneSpace } from './sceneSpace';
  */
 
 /** The keys that pan, by `KeyboardEvent.code` so the layout of the keyboard does not matter. */
-const PAN_KEY_CODES: Readonly<Record<string, keyof PanKeys>> = {
+export const PAN_KEY_CODES: Readonly<Record<string, keyof PanKeys>> = {
   KeyW: 'up',
   KeyA: 'left',
   KeyS: 'down',
   KeyD: 'right',
+  ArrowUp: 'up',
+  ArrowLeft: 'left',
+  ArrowDown: 'down',
+  ArrowRight: 'right',
 };
+
+/** One keyboard zoom step expressed as the equivalent wheel delta. */
+export function keyboardZoomDelta(code: string, config: CameraConfig = CAMERA_CONFIG): number | null {
+  switch (code) {
+    case 'Equal':
+    case 'NumpadAdd':
+      return -config.wheelNotchDelta;
+    case 'Minus':
+    case 'NumpadSubtract':
+      return config.wheelNotchDelta;
+    default:
+      return null;
+  }
+}
 
 const NO_KEYS: PanKeys = { up: false, down: false, left: false, right: false };
 
@@ -66,7 +84,22 @@ export class CameraController {
       if (!this.enabled || event.defaultPrevented) return;
       const key = PAN_KEY_CODES[event.code];
       if (key !== undefined) {
+        event.preventDefault();
         this.held.add(key);
+        return;
+      }
+      const zoomDelta = keyboardZoomDelta(event.code, this.config);
+      if (zoomDelta !== null) {
+        event.preventDefault();
+        if (event.repeat) return;
+        this.view = zoomCamera3dView(
+          this.view,
+          zoomDelta,
+          this.viewport(),
+          this.bounds,
+          this.config,
+        );
+        this.apply();
       }
     };
     this.onKeyUp = (event) => {

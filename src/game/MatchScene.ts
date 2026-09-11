@@ -318,7 +318,7 @@ export class MatchScene {
           this.setPaused(!this.paused);
         }
         event.preventDefault();
-      } else if (!this.paused && !this.placement.isActive() && event.code === 'KeyA') {
+      } else if (!this.paused && !this.placement.isActive() && event.code === 'KeyQ') {
         this.selection.setAttackMoveArmed(true);
         event.preventDefault();
       } else if (!this.paused && event.code === DEBUG_LABEL_KEY) {
@@ -326,7 +326,7 @@ export class MatchScene {
         this.routeDebug.setEnabled(this.debugLabels.isEnabled());
       }
     };
-    // Capture A before the camera's WASD listener so it becomes a one-click command, not a left pan.
+    // Capture Q before other keyboard listeners so it becomes a one-click command.
     window.addEventListener('keydown', this.onKeyDown, true);
 
     // The very latest state right before a reload or tab close should not be lost waiting for the
