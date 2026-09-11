@@ -10,9 +10,9 @@ HUD are visual shortcuts, not missing commands: Move and explicit Attack use rig
 uses `A` plus left-click, and the working Build/Produce actions live in contextual panels.
 
 For current behavior use [`docs/gameplay.md`](./docs/gameplay.md) and the source code. In particular,
-Open Field currently has two resource fields and no blocking terrain, building placement does not
-require explored fog state, the player faction is fixed, and victory requires eliminating every
-enemy building rather than only the HQ.
+Open Field currently has two resource fields, a passable southwest forest and a blocking northern
+ridge; building placement does not require explored fog state, the player faction is fixed, and
+victory requires eliminating every enemy building rather than only the HQ.
 
 ## How to use this plan
 

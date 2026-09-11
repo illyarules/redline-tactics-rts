@@ -21,8 +21,8 @@ export interface PlacementCheck {
 
 /**
  * Checks whether `buildingType`'s footprint could stand with its top-left at `topLeft`: every tile
- * in bounds, every tile passable ground, and no overlap with an existing building's footprint (which
- * a `constructing` site occupies exactly as fully as a finished one).
+ * in bounds, every tile passable (ground or forest), and no overlap with an existing building's
+ * footprint (which a `constructing` site occupies exactly as fully as a finished one).
  */
 export function checkBuildingPlacement(
   world: World,

@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { MAP_CONFIG } from '../../src/config/map';
 import { BUILDING_CONFIG } from '../../src/config/buildings';
 import { createMapGrid, resourceFieldTiles, type MapGrid } from '../../src/core/map';
+import { findPath } from '../../src/core/pathfinding';
 import { PLAYER_IDS, type PlayerId } from '../../src/core/ids';
 import { tileRectContains, type TileCoord, type TileRect } from '../../src/core/geometry';
+import { generateTerrainSceneryLayout } from '../../src/game/models/terrainScenery';
 
 const grid = createMapGrid(MAP_CONFIG);
 
@@ -104,40 +106,40 @@ describe('map data', () => {
     }
   });
 
-  it('keeps the layout rotationally symmetric so both starts are equal', () => {
-    for (let ty = 0; ty < grid.heightTiles; ty++) {
-      for (let tx = 0; tx < grid.widthTiles; tx++) {
-        expect(grid.terrainAt(tx, ty)).toBe(grid.terrainAt(63 - tx, 63 - ty));
-      }
-    }
+  it('builds the same scenery layout every time from the same config', () => {
+    expect(generateTerrainSceneryLayout(createMapGrid(MAP_CONFIG))).toEqual(
+      generateTerrainSceneryLayout(createMapGrid(MAP_CONFIG)),
+    );
   });
 });
 
 describe('open field', () => {
-  it('configures no terrain regions at all', () => {
-    expect(MAP_CONFIG.regions).toEqual([]);
+  it('defines a passable southwest forest and a blocking northern rock ridge', () => {
+    expect(grid.terrainAt(10, 50)).toBe('forest');
+    expect(grid.isPassable(10, 50)).toBe(true);
+    expect(grid.terrainAt(32, 6)).toBe('rock');
+    expect(grid.isPassable(32, 6)).toBe(false);
   });
 
-  it('has no blocked cell anywhere in bounds', () => {
-    const blocked: string[] = [];
-    for (let ty = 0; ty < grid.heightTiles; ty++) {
-      for (let tx = 0; tx < grid.widthTiles; tx++) {
-        if (!grid.isPassable(tx, ty)) {
-          blocked.push(`${tx},${ty}`);
-        }
+  it('keeps every configured terrain region in bounds and clear of starts and resources', () => {
+    const protectedTiles = [
+      ...grid.starts.flatMap((start) => [...tilesOf(start.baseArea), ...tilesOf(hqRect(start.player))]),
+      ...grid.resourceFields.flatMap((field) => field.tiles),
+    ];
+    for (const region of MAP_CONFIG.regions) {
+      for (const tile of tilesOf(region.area)) {
+        expect(grid.isInBounds(tile.tx, tile.ty)).toBe(true);
+        expect(protectedTiles).not.toContainEqual(tile);
       }
     }
-    expect(blocked).toEqual([]);
   });
 
-  it('is ground everywhere, with no rock and no water', () => {
-    const kinds = new Set<string>();
-    for (let ty = 0; ty < grid.heightTiles; ty++) {
-      for (let tx = 0; tx < grid.widthTiles; tx++) {
-        kinds.add(grid.terrainAt(tx, ty) as string);
-      }
-    }
-    expect(kinds).toEqual(new Set(['ground']));
+  it('routes around rather than through the connected northern ridge', () => {
+    const result = findPath(grid, { tx: 32, ty: 1 }, { tx: 32, ty: 15 });
+    expect(result.found).toBe(true);
+    if (!result.found) return;
+    expect(result.tiles.some((tile) => grid.terrainAt(tile.tx, tile.ty) === 'rock')).toBe(false);
+    expect(result.tiles.some((tile) => tile.tx <= 1 || tile.tx >= 62)).toBe(true);
   });
 
   it('leaves a wide empty band across the middle', () => {
@@ -159,6 +161,15 @@ describe('open field', () => {
     expect(centre.length).toBeGreaterThanOrEqual(16);
     // The empty columns must be one unbroken band, not scattered gaps.
     expect(Math.max(...centre) - Math.min(...centre) + 1).toBe(centre.length);
+  });
+
+  it('places every generated tree on forest and every mountain on rock', () => {
+    const items = generateTerrainSceneryLayout(grid).flatMap((chunk) => chunk.items);
+    expect(items.some((item) => item.kind === 'tree')).toBe(true);
+    expect(items.some((item) => item.kind === 'mountain')).toBe(true);
+    for (const item of items) {
+      expect(grid.terrainAt(item.tx, item.ty)).toBe(item.kind === 'tree' ? 'forest' : 'rock');
+    }
   });
 });
 

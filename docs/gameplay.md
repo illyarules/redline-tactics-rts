@@ -10,6 +10,11 @@ can scale them. Gameplay systems are added incrementally by the tasks in the imp
 Both bases stand on the map. Each player starts with an HQ and one of each mobile role — Worker,
 Infantry, Tank and Rocket — and the view opens on the player's own base. The starting units support selection and direct right-click movement. Combat is active; the AI gathers Credits, builds its opening base, trains a deterministic army, scouts and launches attacks.
 
+Open Field's forest tiles are normal passable ground for movement and construction and apply no
+speed, combat, or vision modifier. The northern mountain ridge is `rock`: existing ground units
+path around it and building placement rejects any footprint that overlaps it. Both starts retain a
+ground route to both Credits fields and the opposing base.
+
 Each player has a Credits balance, shown in the HUD, that starts from `src/config/economy.ts` and
 never goes negative. Right-clicking a resource field with a Worker selected sends it to gather
 instead of just walking there: it travels to the field, stands and gathers for a few seconds, carries
@@ -85,9 +90,10 @@ and existing engagements continue; idle units within the configured arrival radi
 Acquisition, retaliation, explicit target commands and pursuit apply the same fog predicate to both
 players. Dedicated defense and recovery execution remain Task 28.
 
-Schema-11 `WorldSnapshot` persists state, completed build-order index, exact decision remainder,
+Schema-12 `WorldSnapshot` persists state, completed build-order index, exact decision remainder,
 production-cycle index, last-known base coordinates and the match lifecycle clock/statistics/result.
-Old or invalid saves start fresh. Queues, positions, orders and Credits remain solely in
+Schema 11 and other old or invalid saves start fresh, preventing pre-terrain routes or entities from
+being restored onto the blocking ridge. Queues, positions, orders and Credits remain solely in
 world/economy data. The development-only AI readout shows strategy, cycle, army threshold, discovery
 status and the latest military action.
 

@@ -1,6 +1,7 @@
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { MultiMaterial } from '@babylonjs/core/Materials/multiMaterial';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder';
 import type { Scene } from '@babylonjs/core/scene';
@@ -12,6 +13,7 @@ import { createGroundTexture } from './groundTexture';
 import type { MaterialLibrary } from './materials';
 import { generateCrystalFieldLayout } from './models/crystalField';
 import { buildModel } from './models/kit';
+import { generateTerrainSceneryLayout } from './models/terrainScenery';
 import { CRYSTAL_FIELD_TONES, FIELD_TONES } from './palette';
 import type { SceneSpace } from './sceneSpace';
 
@@ -19,10 +21,8 @@ import type { SceneSpace } from './sceneSpace';
  * The static battlefield: the ground the match is played on, the edge of the playable area, and the
  * crystal deposits standing in the resource fields.
  *
- * Everything here is read from the `MapGrid` and never decides a rule. "Open Field" has no blocking
- * terrain at all, so there is nothing to build but the surface itself. A deposit's own layout —
- * where its shards, rocks and fragments sit — comes from `generateCrystalFieldLayout`, so the same
- * map always grows the same crystals; this view only turns that layout into merged geometry.
+ * Everything here is read from the `MapGrid` and never decides a rule. Terrain scenery and crystal
+ * deposits use deterministic layouts; this view only turns those layouts into merged geometry.
  */
 
 /** How far past the map edge the ground keeps going, in map widths, so the horizon is never void. */
@@ -34,7 +34,9 @@ const MIN_FIELD_SCALE = 0.08;
 export class MapView {
   private readonly meshes: Mesh[] = [];
   private readonly crystals: Mesh[] = [];
-  private readonly crystalsByField = new Map<string, Mesh>();
+  private readonly scenery: { mesh: Mesh; tiles: readonly { tx: number; ty: number }[] }[] = [];
+  private readonly crystalsByField = new Map<string, Mesh[]>();
+  private readonly fogMaterials = new Map<Mesh, { normal: Mesh['material']; dim: Mesh['material'] }>();
   private readonly disposables: { dispose(): void }[] = [];
   private readonly ground: Mesh;
 
@@ -74,11 +76,22 @@ export class MapView {
     surround.material = groundMaterial;
     surround.receiveShadows = true;
 
+    this.buildTerrainScenery(scene, materials, space);
+
     for (const field of grid.resourceFields) {
-      const crystals = this.buildCrystals(scene, materials, space, field);
-      this.crystals.push(crystals);
-      this.meshes.push(crystals);
-      this.crystalsByField.set(field.id, crystals);
+      const parts: Mesh[] = [];
+      for (const tile of field.tiles) {
+        const crystals = this.buildCrystals(scene, materials, space, field, tile);
+        if (crystals === null) continue;
+        parts.push(crystals);
+        this.crystals.push(crystals);
+        this.meshes.push(crystals);
+        // Crystal positions are compressed toward the field center in buildCrystals.
+        const bounds = crystals.getBoundingInfo().boundingBox.centerWorld;
+        const world = space.toWorld(bounds.x, bounds.z);
+        this.scenery.push({ mesh: crystals, tiles: [grid.worldToTile(world)] });
+      }
+      this.crystalsByField.set(field.id, parts);
     }
   }
 
@@ -97,34 +110,118 @@ export class MapView {
     if (mesh === undefined) {
       return;
     }
-    mesh.scaling.y = Math.max(fraction, MIN_FIELD_SCALE);
+    for (const part of mesh) part.scaling.y = Math.max(fraction, MIN_FIELD_SCALE);
   }
 
   /** Applies fog to resource deposits, which stand above the terrain veil. */
   public updateFog(fog: FogState, player: PlayerId): void {
-    for (const field of this.grid.resourceFields) {
-      const crystals = this.crystalsByField.get(field.id);
-      if (crystals === undefined) continue;
-      // A field is one merged mesh, so choose its least-visible tile. This is conservative at a
-      // boundary (a partly uncovered field may wait for full vision), but never leaks a crystal
-      // through a hidden cell.
-      let visibility: 'hidden' | 'explored' | 'visible' = 'visible';
-      for (const tile of field.tiles) {
-        const tileVisibility = cellVisibility(fog, player, tile.tx, tile.ty);
-        if (tileVisibility === 'hidden') {
-          visibility = 'hidden';
-          break;
-        }
-        if (tileVisibility === 'explored') visibility = 'explored';
-      }
-      crystals.setEnabled(visibility !== 'hidden');
-      crystals.visibility = visibility === 'explored' ? 0.25 : 1;
+    for (const scenery of this.scenery) {
+      this.applyTileFog(scenery.mesh, scenery.tiles, fog, player);
     }
   }
 
   /** Meshes that should cast a shadow. The ground itself only receives them. */
   public shadowCasters(): readonly Mesh[] {
-    return this.crystals;
+    return this.scenery.map(({ mesh }) => mesh);
+  }
+
+  private buildTerrainScenery(scene: Scene, materials: MaterialLibrary, space: SceneSpace): void {
+    for (const chunk of generateTerrainSceneryLayout(this.grid)) {
+      for (const item of chunk.items) {
+      const model = buildModel(scene, materials, `terrain:${chunk.id}:${item.tx}:${item.ty}`, (builder) => {
+          const center = this.sceneTileCenter(space, item.tx, item.ty);
+          const x = center.x + item.offsetX;
+          const z = center.z - item.offsetY;
+          if (item.kind === 'tree') {
+            const trunkHeight = item.height * 0.36;
+            builder.cylinder(
+              { height: trunkHeight, diameter: item.width * 0.18, sides: 6, at: [x, trunkHeight / 2, z] },
+              FIELD_TONES.treeTrunk,
+            );
+            builder.cylinder(
+              {
+                height: item.height * 0.48,
+                diameter: item.width,
+                diameterTop: item.width * 0.28,
+                sides: 7,
+                at: [x, trunkHeight + item.height * 0.2, z],
+                turn: [0, item.turn, 0],
+              },
+              item.height > 1.7 ? FIELD_TONES.treeDark : FIELD_TONES.treeLight,
+            );
+            builder.cylinder(
+              {
+                height: item.height * 0.42,
+                diameter: item.width * 0.7,
+                diameterTop: 0.04,
+                sides: 7,
+                at: [x, trunkHeight + item.height * 0.5, z],
+                turn: [0, item.turn + 0.35, 0],
+              },
+              FIELD_TONES.treeLight,
+            );
+          } else {
+            builder.cylinder(
+              {
+                height: item.height,
+                diameter: item.width,
+                diameterTop: item.width * 0.28,
+                sides: 5,
+                at: [x, item.height / 2 - 0.02, z],
+                turn: [0, item.turn, 0],
+              },
+              item.height > 1.85 ? FIELD_TONES.mountainLight : FIELD_TONES.mountainDark,
+            );
+          }
+      });
+      model.mesh.setEnabled(true);
+      model.mesh.isPickable = false;
+      model.mesh.checkCollisions = false;
+      this.meshes.push(model.mesh);
+      this.scenery.push({ mesh: model.mesh, tiles: [{ tx: item.tx, ty: item.ty }] });
+      }
+    }
+  }
+
+  private applyTileFog(
+    mesh: Mesh,
+    tiles: readonly { tx: number; ty: number }[],
+    fog: FogState,
+    player: PlayerId,
+  ): void {
+    let visibility: 'hidden' | 'explored' | 'visible' = 'visible';
+    for (const tile of tiles) {
+      const tileVisibility = cellVisibility(fog, player, tile.tx, tile.ty);
+      if (tileVisibility === 'hidden') {
+        visibility = 'hidden';
+        break;
+      }
+      if (tileVisibility === 'explored') visibility = 'explored';
+    }
+    mesh.setEnabled(visibility !== 'hidden');
+    mesh.visibility = 1;
+    if (visibility === 'hidden') return;
+    let pair = this.fogMaterials.get(mesh);
+    if (pair === undefined) {
+      const normal = mesh.material;
+      const dim = normal?.clone(`${mesh.name}:explored`) ?? null;
+      if (dim instanceof MultiMaterial) {
+        dim.subMaterials = dim.subMaterials.map((material) => {
+          const copy = material?.clone(`${material.name}:explored`) ?? null;
+          if (copy instanceof StandardMaterial) {
+            copy.diffuseColor = copy.diffuseColor.scale(0.42);
+            copy.emissiveColor = copy.emissiveColor.scale(0.42);
+            copy.specularColor = copy.specularColor.scale(0.42);
+          }
+          if (copy !== null) this.disposables.push(copy);
+          return copy;
+        });
+      }
+      if (dim !== null) this.disposables.push(dim);
+      pair = { normal, dim };
+      this.fogMaterials.set(mesh, pair);
+    }
+    mesh.material = visibility === 'explored' ? pair.dim : pair.normal;
   }
 
   public dispose(): void {
@@ -133,6 +230,9 @@ export class MapView {
     }
     this.meshes.length = 0;
     this.crystals.length = 0;
+    this.scenery.length = 0;
+    this.fogMaterials.clear();
+    this.crystalsByField.clear();
     for (const disposable of this.disposables) {
       disposable.dispose();
     }
@@ -149,8 +249,15 @@ export class MapView {
     materials: MaterialLibrary,
     space: SceneSpace,
     field: ResourceField,
-  ): Mesh {
-    const layout = generateCrystalFieldLayout(field.tiles, CRYSTAL_FIELD_CONFIG);
+    tile: { tx: number; ty: number },
+  ): Mesh | null {
+    const fullLayout = generateCrystalFieldLayout(field.tiles, CRYSTAL_FIELD_CONFIG);
+    const layout = {
+      rocks: fullLayout.rocks.filter((part) => part.tx === tile.tx && part.ty === tile.ty),
+      shards: fullLayout.shards.filter((part) => part.tx === tile.tx && part.ty === tile.ty),
+      fragments: fullLayout.fragments.filter((part) => part.tx === tile.tx && part.ty === tile.ty),
+    };
+    if (layout.rocks.length + layout.shards.length + layout.fragments.length === 0) return null;
     const config = CRYSTAL_FIELD_CONFIG;
 
     const model = buildModel(scene, materials, `crystals:${field.id}`, (builder) => {

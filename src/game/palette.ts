@@ -70,6 +70,15 @@ export const FIELD_TONES = {
   surround: 0x626c46,
   /** The line along the map edge, so the limit of the battlefield is visible. */
   border: 0x8fb08a,
+  forestFloor: 0x3f5134,
+  treeTrunk: 0x4a3826,
+  treeDark: 0x27432f,
+  treeLight: 0x426244,
+  road: 0x96865f,
+  roadEdge: 0x655f43,
+  mountainGround: 0x53584e,
+  mountainDark: 0x474a45,
+  mountainLight: 0x77786b,
   sky: 0x0b1020,
 } as const;
 

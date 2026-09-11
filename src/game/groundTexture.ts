@@ -6,13 +6,11 @@ import { FIELD_TONES } from './palette';
 /**
  * The battlefield's surface, painted once into a texture.
  *
- * The map is one flat, passable field, so the ground has one job: to be legibly a grid without
- * becoming noisy. A 64 x 64 field of individually tinted squares reads as a checkerboard however
- * small the tint is, so the variation is layered — a barely-there tint per tile to say where the
- * grid is, then soft blotches at free positions to break the rows up again.
+ * Terrain color and the worn road are baked once from map data, beneath a quiet grid and small
+ * deterministic surface details. Raised scenery is handled separately by `MapView`.
  *
  * Every value comes from a hash of the tile position, so the same map always paints the same field.
- * None of it changes what a tile reports as passable: this is decoration only.
+ * This is a visual projection only; `MapGrid` remains authoritative for passability.
  */
 
 /** Texels per tile. Enough to stay soft at the closest zoom without a large texture. */
@@ -54,6 +52,47 @@ export function createGroundTexture(scene: Scene, grid: MapGrid): DynamicTexture
         TILE_TINT_ALPHA * Math.abs(shade - 0.5) * 2,
       );
       context.fillRect(tx * tile, ty * tile, tile, tile);
+
+      const terrain = grid.terrainAt(tx, ty);
+      if (terrain === 'forest') {
+        context.fillStyle = rgba(FIELD_TONES.forestFloor, 0.48);
+        context.fillRect(tx * tile, ty * tile, tile, tile);
+      } else if (terrain === 'rock') {
+        context.fillStyle = rgba(FIELD_TONES.mountainGround, 0.9);
+        context.fillRect(tx * tile, ty * tile, tile, tile);
+      }
+    }
+  }
+
+  // One restrained road across the centre, plus branches to the bases and Credits fields. Nothing
+  // is painted under whole building footprints: only the narrow route reaches each rally point.
+  const lane = grid.lanes[0];
+  const starts = [...grid.starts].sort((a, b) => a.rallyPoint.tx - b.rallyPoint.tx);
+  if (lane !== undefined && starts.length >= 2) {
+    const main = [starts[0]?.rallyPoint, ...lane.waypoints, starts[starts.length - 1]?.rallyPoint]
+      .filter((point): point is { tx: number; ty: number } => point !== undefined);
+    const branches = grid.resourceFields.map((field) => {
+      const nearest = lane.waypoints.reduce((best, point) => {
+        const distance = Math.hypot(point.tx - field.center.tx, point.ty - field.center.ty);
+        const bestDistance = Math.hypot(best.tx - field.center.tx, best.ty - field.center.ty);
+        return distance < bestDistance ? point : best;
+      });
+      return [field.center, nearest];
+    });
+
+    for (const points of [main, ...branches]) {
+      context.strokeStyle = rgba(FIELD_TONES.roadEdge, 0.4);
+      context.lineWidth = tile * 1.58;
+      context.beginPath();
+      points.forEach((point, index) => {
+        const x = (point.tx + 0.5) * tile;
+        const y = (point.ty + 0.5) * tile;
+        if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
+      });
+      context.stroke();
+      context.strokeStyle = rgba(FIELD_TONES.road, 0.58);
+      context.lineWidth = tile * 1.18;
+      context.stroke();
     }
   }
 
@@ -97,17 +136,6 @@ export function createGroundTexture(scene: Scene, grid: MapGrid): DynamicTexture
     if (i % 19 === 0) {
       context.fillStyle = rgba(0xa4a58c, 0.3);
       context.fillRect(x, y, 2.5, 1.5);
-    }
-  }
-  // Faded paired vehicle tracks follow the existing approach through each base.
-  for (const start of grid.starts) {
-    for (const offset of [-0.28, 0.28]) {
-      context.strokeStyle = rgba(0xb5a888, 0.14);
-      context.lineWidth = tile * 0.13;
-      context.beginPath();
-      context.moveTo((start.hqTopLeft.tx + 2) * tile, (start.rallyPoint.ty + offset) * tile);
-      context.lineTo((start.rallyPoint.tx + 6) * tile, (start.rallyPoint.ty + offset) * tile);
-      context.stroke();
     }
   }
   texture.update();

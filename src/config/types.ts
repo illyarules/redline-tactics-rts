@@ -159,15 +159,18 @@ export interface CameraConfig {
   readonly fieldOfViewDegrees: number;
 }
 
-/** Ground is walkable; rock and water are blocked, like map edges and building footprints. */
-export type TerrainType = 'ground' | 'rock' | 'water';
+/** Ground and forest are walkable; rock and water block existing ground units. */
+export type TerrainType = 'ground' | 'forest' | 'rock' | 'water';
 
-/** Terrain that is painted over the default ground layer. */
-export type BlockingTerrainType = Exclude<TerrainType, 'ground'>;
+/** Terrain explicitly painted over the default ground layer. */
+export type TerrainRegionType = Exclude<TerrainType, 'ground'>;
+
+/** Terrain kinds that block existing ground units and building placement. */
+export type BlockingTerrainType = Extract<TerrainType, 'rock' | 'water'>;
 
 /** One rectangle of non-ground terrain. Regions are applied in declaration order. */
 export interface TerrainRegionConfig {
-  readonly terrain: BlockingTerrainType;
+  readonly terrain: TerrainRegionType;
   readonly area: TileRect;
 }
 

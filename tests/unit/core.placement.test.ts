@@ -48,6 +48,19 @@ describe('checkBuildingPlacement', () => {
     });
   });
 
+  it('accepts otherwise-clear forest but rejects rock', () => {
+    const g = grid(20, 20, [
+      { terrain: 'forest', area: { tx: 2, ty: 2, width: 4, height: 4 } },
+      { terrain: 'rock', area: { tx: 10, ty: 10, width: 4, height: 4 } },
+    ]);
+    const w = world(g);
+    expect(checkBuildingPlacement(w, g, 'barracks', { tx: 2, ty: 2 })).toEqual({ valid: true, reasons: [] });
+    expect(checkBuildingPlacement(w, g, 'barracks', { tx: 10, ty: 10 })).toEqual({
+      valid: false,
+      reasons: ['blocked-terrain'],
+    });
+  });
+
   it('rejects a footprint that overlaps another building', () => {
     const g = grid(20, 20);
     const w = world(g);

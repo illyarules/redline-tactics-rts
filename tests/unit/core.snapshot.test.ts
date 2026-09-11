@@ -254,6 +254,15 @@ describe('isValidSnapshotShape (AC-002)', () => {
     expect(isValidSnapshotShape({ entities: [], selection: [] })).toBe(false);
   });
 
+  it('rejects schema 11 snapshots from the pre-terrain map', () => {
+    const snapshot: WorldSnapshot = {
+      schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+      entities: [], selection: [], credits: EMPTY_CREDITS, resourceFields: [],
+      fog: EMPTY_FOG, ai: EMPTY_AI, lifecycle: EMPTY_LIFECYCLE,
+    };
+    expect(isValidSnapshotShape({ ...snapshot, schemaVersion: 11 })).toBe(false);
+  });
+
   it('rejects entities/selection that are not arrays', () => {
     expect(
       isValidSnapshotShape({

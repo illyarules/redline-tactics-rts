@@ -42,12 +42,14 @@ creating a fresh match; quitting a completed report to the title also clears it.
 
 ## Battlefield
 
-The current build uses one fixed, 180-degree rotationally symmetric 64 × 64 tile map, Open Field.
+The current build uses one fixed asymmetric 64 × 64 tile map, Open Field.
 
 - A starting base area sits at the west and east edges.
 - One finite home resource field sits near each base; there are no contested fields.
-- The center is a wide, empty approach with no configured terrain obstacles.
-- Every in-bounds terrain tile is currently passable; buildings and map edges block movement.
+- A restrained worn road crosses the spacious center and branches toward both bases and resources.
+- A sparse southwest forest is passable and has no speed, combat, or vision modifier.
+- A connected rocky ridge spans the north. Rock is impassable to ground units and invalid for
+  building placement, but open routes preserve access between every strategic location.
 - The full map is larger than the viewport and supports camera pan and zoom.
 
 Placeholder visuals should use original geometric silhouettes and a clear palette. The player uses cool cyan/blue; AI uses warm amber/red. Faction identity is communicated by shape and accent, not copied iconography.
@@ -251,7 +253,7 @@ The MVP is complete when a new player can, without developer tools:
 - Start a match as the fixed Meridian faction against the Ember AI.
 - Select units individually and by box, move them, attack, and attack-move.
 - Gather Credits, place every building, and produce every unit.
-- Navigate around buildings with acceptable group movement; the current map has no blocking terrain.
+- Navigate around buildings and the northern mountain ridge with acceptable group movement.
 - Discover the map through fog of war.
 - Face an AI that gathers, builds, produces, defends, and attacks.
 - Win by eliminating every enemy building, lose when every owned building is eliminated, or draw at

@@ -4,24 +4,27 @@
 
 "Open Field" is a 64 x 64 grid defined entirely as typed data in `src/config/map.ts`:
 
-- **No obstacles at all.** Every tile in bounds is passable ground; only the map edges stop a unit,
-  and `regions` is deliberately empty. The rock and water terrain kinds still exist in the types for
-  later maps.
+- **A connected northern ridge.** Overlapping rock regions form an irregular mountain chain across
+  the north. Rock blocks ground movement and building placement, while routes around both ends and
+  across the broad southern field keep all strategic locations connected.
+- **A passable southwest forest.** Explicit `forest` regions form a recognizable woodland clear of
+  the player base and west Credits field. Forest changes no movement speed, combat, or vision rule,
+  and otherwise-clear forest remains valid construction ground.
 - **Two bases on opposite edges.** One sits against the west edge and one against the east edge at
   the same height, each with a base area, an HQ footprint inside it and a rally point on the side
   facing the middle.
 - **Two resource fields**, one just outside each base on the side facing the middle, equally far
   from their owner's rally point.
-- **A wide, empty centre.** Twenty tile-wide columns between the two fields hold nothing at all, so
-  the middle of the map is open ground both sides have to cross.
+- **A spacious road crossing.** A subdued worn road follows the central lane, with narrow branches
+  toward both rally points and resource fields; there are no bare dirt pads below buildings.
 
-The layout is 180-degree rotationally symmetric, so both starts are equivalent. One tile is 30 world
-pixels; that is a rendering value only — every balance number is expressed in tiles, or tiles per
-second.
+The scenery is intentionally asymmetric, while connectivity and equal access to each side's home
+field preserve gameplay fairness. One tile is 30 world pixels; that is a rendering value only.
 
 ## Visual direction
 
-The concept in `assets/concepts/open-field-map-render.png` is art direction only; it is not used as a texture.
+The approved concept in `assets/concepts/open-field-map-render-v2.png` is art direction only; it is
+not used as a runtime texture.
 
 A perspective 3D field seen from a high angled top-down camera: steep enough that the battlefield
 still reads like a map and units never hide behind each other, shallow enough that a building shows
@@ -59,7 +62,11 @@ because a door on the far side of a building is a door nobody sees.
 The ground is a single plane carrying one baked texture: a barely-there tint per tile to say where
 the grid is, then soft blotches at free positions to stop those tints reading as a checkerboard, and
 a faint grid so distances can be judged by eye. It is decoration only — **it never changes what a
-tile reports as passable**. The field continues past the camera bounds without a lit border. Sparse grass, small painted stones and faded wheel tracks add scale without blocking movement. Each resource field is a grounded crystal deposit — an uneven dark stone bed, loose rocks and broken shard fragments around the base, and faceted prismatic shards of varied height, width, tilt and rotation, shading from a dark teal lower band into a bright, glowing cyan tip. `src/game/models/crystalField.ts` grows the same layout deterministically from the same map data every time; nothing about it is random per match.
+tile reports as passable**. It also carries the road, forest floor, and rocky ground transition, all
+derived from `MapGrid`. Sparse faceted trees leave visible travel gaps in the southwest, while merged
+low-poly peaks make the northern blocked footprint unmistakable. Scenery placement is deterministic,
+non-pickable, collision-free, chunk-merged, and conservatively hidden or dimmed with three-state fog.
+Each resource field remains a grounded cyan crystal deposit generated deterministically from map data.
 
 A warm directional sun and cool hemispheric fill separate model faces with soft percentage-closer shadows. The opening camera uses a 58-degree pitch and fits roughly 26 tiles across on smaller desktop windows, up to the configured opening zoom. The HQ is selected on arrival.
 

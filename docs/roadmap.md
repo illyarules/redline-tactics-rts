@@ -3,16 +3,17 @@
 This backlog begins after the MVP tasks in [`implementation-plan.md`](../implementation-plan.md).
 Items are grouped by dependency rather than promised release dates.
 
-The completed MVP baseline is desktop-only: one fixed, obstacle-free Open Field map, a fixed
-Meridian-versus-Ember matchup, a read-only minimap, ground units only and no defensive weapons.
+The completed MVP baseline is desktop-only: one fixed Open Field map with its v2 road, passable
+southwest forest and blocking northern ridge, a fixed Meridian-versus-Ember matchup, a read-only
+minimap, ground units only and no defensive weapons.
 Phones and tablets are currently unsupported because core controls require a mouse and keyboard and
 the interface is not laid out for a mobile viewport.
 
 ## Maps and environment
 
-- [ ] Add map detail: forests, water, shores, rocks, ruins and roads.
-- [ ] Define terrain rules for passability and vision; for example, water blocks ground units and
-  forests may affect visibility.
+- [x] Add Open Field's first environment pass: road, passable forest, and blocking mountain ridge.
+- [ ] Add further map detail: water, shores and ruins.
+- [x] Define Open Field forest/rock passability (forest currently has no vision modifier).
 - [ ] Add map themes: Open Field, forest and river-crossing maps.
 - [ ] Add map and player-faction selection before a match starts.
 - [ ] Move each map's starts, resource fields, obstacles and theme into a dedicated typed definition.

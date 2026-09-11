@@ -35,7 +35,7 @@ export interface MapGrid {
   isInBounds(tx: number, ty: number): boolean;
   /** Terrain of a tile, or `undefined` outside the map. */
   terrainAt(tx: number, ty: number): TerrainType | undefined;
-  /** True only for in-bounds ground. Out-of-bounds tiles are blocked, like map edges. */
+  /** True for in-bounds ground and forest. Out-of-bounds, rock and water are blocked. */
   isPassable(tx: number, ty: number): boolean;
   /** World position of the centre of a tile. */
   tileCenter(tx: number, ty: number): Vec2;
@@ -45,7 +45,7 @@ export interface MapGrid {
   laneById(id: string): MapLaneConfig | undefined;
 }
 
-const TERRAIN_CODES: readonly TerrainType[] = ['ground', 'rock', 'water'];
+const TERRAIN_CODES: readonly TerrainType[] = ['ground', 'forest', 'rock', 'water'];
 
 function codeOf(terrain: TerrainType): number {
   return TERRAIN_CODES.indexOf(terrain);
@@ -124,7 +124,9 @@ export function createMapGrid(config: MapConfig): MapGrid {
     },
 
     isPassable(tx, ty) {
-      return inBounds(tx, ty) && terrain[index(tx, ty)] === codeOf('ground');
+      if (!inBounds(tx, ty)) return false;
+      const kind = TERRAIN_CODES[terrain[index(tx, ty)] as number];
+      return kind === 'ground' || kind === 'forest';
     },
 
     tileCenter(tx, ty) {
