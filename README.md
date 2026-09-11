@@ -28,11 +28,15 @@ Gameplay, world, camera and per-task build notes live in [`docs/`](./docs/README
 
 ## Match flow
 
-Start from the title screen and eliminate every enemy building before your own structures fall or the
-ten-minute active-time limit expires. The battle report then offers a clean rematch or return to the
-title. Escape opens Pause only while a match is live; Pause also offers New Match and Return to Title.
-Active and terminal matches are restored from local browser storage, while every fresh-match path
-clears the prior save first.
+The title screen offers Resume Game and New Game when a saved match exists, or only New Game when
+there is none; New Game asks for confirmation before it discards an existing save. From there,
+eliminate every enemy building before your own structures fall or the ten-minute active-time limit
+expires. The battle report then offers a clean rematch or return to the title.
+
+Escape opens Pause only while a match is live; Pause also offers New Match and a Quit to Main Menu
+that first confirms — Save and Quit persists the match before closing it, Quit Without Saving
+discards it, and Cancel returns to the live match unchanged. Active and terminal matches are restored
+from local browser storage, while every fresh-match or discarded-quit path clears the prior save.
 
 Gameplay and saves require no backend. The deployed client initializes Vercel Web Analytics; it does
 not synchronize match state or provide accounts, cloud saves, multiplayer, or other online gameplay.

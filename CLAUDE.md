@@ -71,6 +71,9 @@ build/production). Keep it small, fast (well under 3 minutes total), and stable.
 - Type checking and production build pass.
 - Relevant tests pass; new pure rules have focused tests.
 - If the task touches a flow the E2E suite covers (start, pause, selection/movement, persistence, combat, build/production), `npm run test:e2e` still passes.
+- If the task adds or changes any UI (a screen, menu, dialog, or HUD element), verify it visually against
+  the running dev server using the Playwright MCP tools (navigate, click, screenshot) before reporting
+  the task as complete — passing tests alone do not confirm the UI renders and behaves as intended.
 - No unrelated features, dependencies, or cleanup are included.
 - Any controls or visible behavior introduced by the task are briefly documented in the project README once it exists.
 

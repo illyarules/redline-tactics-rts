@@ -9,11 +9,19 @@ import { expect, type Page } from '@playwright/test';
 import type { WorldSnapshot } from '../../../src/core/snapshot';
 import { readSnapshot } from './storage';
 
-/** Opens the app's ordinary `/` route and starts a match through the real title screen. */
+/**
+ * Opens the app's ordinary `/` route and starts a match through the real title screen: Resume Game
+ * when a saved match makes the title screen offer one, New Game otherwise.
+ */
 export async function startMatch(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByTestId('title-screen')).toBeVisible();
-  await page.getByTestId('start-match').click();
+  const resumeButton = page.getByTestId('title-resume');
+  if (await resumeButton.isVisible()) {
+    await resumeButton.click();
+  } else {
+    await page.getByTestId('title-new-game').click();
+  }
   await expect(page.getByTestId('game-canvas')).toBeVisible();
   await expect(page.getByTestId('tactical-hud')).toBeVisible();
 }
@@ -22,7 +30,7 @@ export async function startMatch(page: Page): Promise<void> {
 export async function saveAndResume(page: Page): Promise<void> {
   await page.reload();
   await expect(page.getByTestId('title-screen')).toBeVisible();
-  await page.getByTestId('start-match').click();
+  await page.getByTestId('title-resume').click();
   await expect(page.getByTestId('game-canvas')).toBeVisible();
 }
 

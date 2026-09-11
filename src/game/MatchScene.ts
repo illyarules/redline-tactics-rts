@@ -36,6 +36,7 @@ import { createAiState, observeAiStrategy, stepAi, type AiState } from '../core/
 import { executeAiDefenseDecisions } from '../core/aiDefense';
 import { executeAiEconomyDecisions } from '../core/aiEconomy';
 import { BuildMenu } from '../ui/buildMenu';
+import { ConfirmDialog } from '../ui/confirmDialog';
 import { ControlsOverlay } from '../ui/controlsOverlay';
 import { PauseMenu } from '../ui/pauseMenu';
 import { SelectionPanel } from '../ui/selectionPanel';
@@ -141,6 +142,7 @@ export class MatchScene {
   private readonly productionMenu: ProductionMenu;
   private readonly placement: PlacementController;
   private readonly pauseMenu: PauseMenu;
+  private readonly quitConfirm: ConfirmDialog;
   private readonly resultOverlay: MatchResultOverlay;
   private readonly onKeyDown: (event: KeyboardEvent) => void;
   private readonly onPageHide: () => void;
@@ -290,10 +292,18 @@ export class MatchScene {
       overlayContainer,
       () => this.setPaused(false),
       this.onNewMatch,
-      () => {
-        this.saveNow();
-        this.onReturnToTitle();
-      },
+      () => this.openQuitConfirm(),
+    );
+    this.quitConfirm = new ConfirmDialog(
+      overlayContainer,
+      'quit-confirm',
+      'Quit to Main Menu?',
+      'Leaving now closes this match. Save your progress before you go, or quit without saving to discard it.',
+      [
+        { label: 'Save and Quit', testId: 'quit-confirm-save', primary: true, onClick: () => this.confirmQuit(true) },
+        { label: 'Quit Without Saving', testId: 'quit-confirm-discard', onClick: () => this.confirmQuit(false) },
+        { label: 'Cancel', testId: 'quit-confirm-cancel', onClick: () => this.cancelQuit() },
+      ],
     );
     this.resultOverlay = new MatchResultOverlay(
       overlayContainer,
@@ -310,7 +320,9 @@ export class MatchScene {
     this.onKeyDown = (event) => {
       if (this.lifecycle.result !== null) return;
       if (event.code === 'Escape') {
-        if (this.selection.isAttackMoveArmed()) {
+        if (this.quitConfirm.isVisible()) {
+          this.cancelQuit();
+        } else if (this.selection.isAttackMoveArmed()) {
           this.selection.setAttackMoveArmed(false);
         } else if (this.placement.isActive()) {
           this.placement.cancel();
@@ -472,6 +484,7 @@ export class MatchScene {
     this.productionMenu.destroy();
     this.placement.dispose();
     this.pauseMenu.destroy();
+    this.quitConfirm.destroy();
     this.resultOverlay.destroy();
     this.scene.dispose();
   }
@@ -491,6 +504,29 @@ export class MatchScene {
     this.selection.setEnabled(!paused);
     this.placement.setEnabled(!paused);
     this.pauseMenu.setVisible(paused);
+  }
+
+  /** Swaps the pause menu for the quit confirmation; the match stays paused underneath either way. */
+  private openQuitConfirm(): void {
+    this.pauseMenu.setVisible(false);
+    this.quitConfirm.show();
+  }
+
+  /** "Cancel": back to the pause menu, match state untouched. */
+  private cancelQuit(): void {
+    this.quitConfirm.hide();
+    this.pauseMenu.setVisible(true);
+  }
+
+  /** "Save and Quit" / "Quit Without Saving": persist or discard, then let the caller dispose this scene. */
+  private confirmQuit(save: boolean): void {
+    this.quitConfirm.hide();
+    if (save) {
+      this.saveNow();
+    } else {
+      clearSnapshot();
+    }
+    this.onReturnToTitle();
   }
 
   /** Saves the current world and selection to local storage now, and resets the autosave timer. */

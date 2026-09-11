@@ -36,7 +36,7 @@ test('wins through real attack controls, restores terminal, and plays again clea
 
   // A terminal snapshot opens frozen with its report instead of silently becoming a live match.
   await page.reload();
-  await page.getByTestId('start-match').click();
+  await page.getByTestId('title-resume').click();
   await expect(page.getByTestId('match-result-victory')).toBeVisible();
 
   await page.getByTestId('match-result-play-again').click();
@@ -56,20 +56,23 @@ test('wins through real attack controls, restores terminal, and plays again clea
   // Reuse the terminal save produced above to cover terminal Quit without another combat wait.
   await page.keyboard.press('Escape');
   await page.getByTestId('pause-return-title').click();
+  await expect(page.getByTestId('quit-confirm')).toBeVisible();
+  await page.getByTestId('quit-confirm-discard').click();
   await expect(page.getByTestId('title-screen')).toBeVisible();
+  expect(await page.evaluate((key) => localStorage.getItem(key), SNAPSHOT_STORAGE_KEY)).toBeNull();
   await page.evaluate(
     ([key, value]) => localStorage.setItem(key, value),
     [SNAPSHOT_STORAGE_KEY, terminalJson] as const,
   );
   await page.reload();
-  await page.getByTestId('start-match').click();
+  await page.getByTestId('title-resume').click();
   await expect(page.getByTestId('match-result-victory')).toBeVisible();
   await page.getByTestId('match-result-quit').click();
   await expect(page.getByTestId('title-screen')).toBeVisible();
   expect(await page.evaluate((key) => localStorage.getItem(key), SNAPSHOT_STORAGE_KEY)).toBeNull();
 
   // Starting again from title creates one clean live scene after all prior disposal paths.
-  await page.getByTestId('start-match').click();
+  await page.getByTestId('title-new-game').click();
   await expect(page.getByTestId('tactical-hud')).toBeVisible();
   await expect(page.getByTestId('match-result-overlay')).toBeHidden();
   expect(consoleErrors).toEqual([]);

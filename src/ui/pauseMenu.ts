@@ -27,7 +27,7 @@ export class PauseMenu {
       heading,
       this.button('Resume', onResume, 'pause-resume'),
       this.button('New Match', onNewMatch, 'pause-new-match'),
-      this.button('Return to Title', onReturnToTitle, 'pause-return-title'),
+      this.button('Quit to Main Menu', onReturnToTitle, 'pause-return-title'),
     );
     this.root.append(panel);
     container.append(this.root);

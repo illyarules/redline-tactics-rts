@@ -2,7 +2,7 @@ import { inject } from '@vercel/analytics';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { RENDER_CONFIG } from './config/render';
 import { FramePacer } from './game/framePacer';
-import { clearSnapshot } from './game/matchPersistence';
+import { clearSnapshot, loadSnapshot } from './game/matchPersistence';
 import { MatchScene } from './game/MatchScene';
 import { GAME_TITLE } from './game/title';
 import { TitleScreen } from './ui/titleScreen';
@@ -67,7 +67,9 @@ const showTitle = (): void => {
     container,
     GAME_TITLE,
     'Establish your base, secure crystal fields, and outmaneuver the Ember Collective in fast, readable RTS battles.',
+    loadSnapshot() !== null,
     startMatch,
+    startNewMatch,
   );
 };
 

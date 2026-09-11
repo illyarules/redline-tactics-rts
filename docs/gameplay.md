@@ -43,10 +43,15 @@ Power Plant and resumes from the same progress when power returns.
 
 An active or completed match survives a browser reload on the same device: units mid-route resume
 their route, the selection is restored, and a completed match reopens on its frozen battlefield with
-the same battle report. `New Match` from Pause and `Play Again` from the report both clear that save
-and create the normal fresh opening without reloading the browser. `Quit to Title` clears a completed
-match so it cannot be resumed. Local saves are not synchronized, transferable, or backed by any
-server — see `implementation-plan.md`'s Task 12.5 for scope.
+the same battle report. From Pause, `New Match` clears that save and starts fresh immediately, while
+`Quit to Main Menu` opens a confirmation instead of leaving right away: `Save and Quit` persists the
+match before returning to the title screen, `Quit Without Saving` discards it, and `Cancel` returns to
+the unchanged live match. `Play Again` from the battle report clears the save and starts fresh the same
+way `New Match` does; `Quit to Title` there clears a completed match so it cannot be resumed. The title
+screen itself offers `Resume Game` and `New Game` whenever a save exists — `New Game` confirms before
+discarding it — or only `New Game`, which starts immediately, when there is none. Local saves are not
+synchronized, transferable, or backed by any server — see `implementation-plan.md`'s Task 12.5 for
+scope.
 
 Left-click selects one friendly unit or building. Dragging on ground selects every friendly unit in
 the rectangle; buildings are excluded from box selection. Hold Shift to toggle one clicked unit or
@@ -141,6 +146,12 @@ can click. A health bar appears above an entity while it is selected and wheneve
 | `Escape` | Open or close Pause during a live match |
 | `Play Again` (battle report) | Clear the completed save and start a fresh match |
 | `Quit to Title` (battle report) | Clear the completed save and return to the title screen |
+| `Quit to Main Menu` (Pause) | Open a confirmation instead of leaving immediately |
+| `Save and Quit` (quit confirmation) | Persist the match, then return to the title screen |
+| `Quit Without Saving` (quit confirmation) | Discard the match, then return to the title screen |
+| `Cancel` (quit confirmation) | Close the confirmation; the live match is unchanged |
+| `Resume Game` (title screen) | Restore the saved match, when one exists |
+| `New Game` (title screen) | Start fresh; confirms first when a saved match would be discarded |
 
 A compact one-line version of this list sits in the bottom-left corner in game. Attack-Move is
 available by pressing `A` and then left-clicking passable ground.
