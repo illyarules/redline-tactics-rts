@@ -111,6 +111,7 @@ export function startConstruction(
 }
 
 /** Advances every in-progress construction site by `deltaSeconds`, driven by its assigned Worker. */
+// eslint-disable-next-line complexity -- Construction progress retains ordered completion and cancellation transitions.
 export function stepConstruction(world: World, deltaSeconds: number): void {
   if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) {
     return;

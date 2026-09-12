@@ -183,6 +183,7 @@ export class MapView {
     }
   }
 
+  // eslint-disable-next-line complexity -- Tile fog reduces several cell states into one shared mesh material state.
   private applyTileFog(
     mesh: Mesh,
     tiles: readonly { tx: number; ty: number }[],

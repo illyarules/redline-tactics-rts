@@ -130,6 +130,7 @@ describe('AI defense and recovery', () => {
   });
 
   it('rebuilds destroyed infrastructure deterministically with normal income, paid timed sites, and recovery restore', () => {
+    // eslint-disable-next-line complexity -- The scenario keeps its sequential recovery checkpoints in one test helper.
     function simulate(reload: boolean) {
       let c = setup();
       let spent = 0;

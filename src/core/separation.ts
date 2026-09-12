@@ -24,6 +24,7 @@ import type { World } from './world';
  * dividing by zero. A resulting position that would land out of bounds, on blocked terrain or under a
  * building is discarded for that unit this step, leaving its current position untouched.
  */
+// eslint-disable-next-line complexity -- Separation retains pairwise deterministic collision resolution in one pass.
 export function stepSeparation(
   world: World,
   grid: MapGrid,

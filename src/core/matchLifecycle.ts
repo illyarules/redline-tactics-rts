@@ -163,6 +163,7 @@ export function serializeMatchLifecycle(state: MatchLifecycleState): MatchLifecy
   };
 }
 
+// eslint-disable-next-line complexity -- Snapshot validation checks each independently persisted lifecycle field.
 export function isMatchLifecycleSnapshot(value: unknown): value is MatchLifecycleSnapshot {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Record<string, unknown>;

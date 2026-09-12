@@ -53,6 +53,7 @@ export function issueAttackMoveOrders(
 }
 
 /** Advances Attack-Move travel or its temporary target engagement and returns confirmed hit events. */
+// eslint-disable-next-line complexity -- Travel and engagement states are intentionally handled in one ordered step.
 export function stepAttackMoveOrders(world: World, grid: MapGrid, deltaSeconds: number, canTarget: CanTargetEntity = () => true): readonly AttackHitEvent[] {
   if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) return [];
   const events: AttackHitEvent[] = [];
@@ -70,6 +71,7 @@ export function stepAttackMoveOrders(world: World, grid: MapGrid, deltaSeconds: 
   return events;
 }
 
+// eslint-disable-next-line complexity -- Engagement resolution keeps targeting, movement, and hit ordering atomic.
 function stepEngagement(
   world: World,
   grid: MapGrid,

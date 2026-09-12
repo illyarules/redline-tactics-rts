@@ -57,6 +57,7 @@ export function formationSlotPositions(
  * and status untouched rather than being sent partway or stopped; so does anything beyond the
  * configured `maxGroupSize`.
  */
+// eslint-disable-next-line complexity -- Formation allocation preserves deterministic assignment and fallback order.
 export function issueGroupMoveOrders(
   world: World,
   grid: MapGrid,

@@ -29,6 +29,7 @@ export interface OrderMarker {
  * `positionOf` resolves an attack target's id, because an Attack order names an entity rather than
  * a place; it returns `null` for a target that is gone, and so does this.
  */
+// eslint-disable-next-line complexity -- Marker selection dispatches the complete order union and absent-target cases.
 export function orderMarkerFor(
   entity: ReadonlyEntity | null,
   positionOf: (id: EntityId) => Vec2 | null,

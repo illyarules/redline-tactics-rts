@@ -108,6 +108,7 @@ export const COMBAT_EFFECTS_CONFIG: CombatEffectsConfig = {
 };
 
 /** Narrow runtime validation used by tests and by the view before it constructs a scene pool. */
+// eslint-disable-next-line complexity -- Validation mirrors the complete persisted configuration shape.
 export function isValidCombatEffectsConfig(config: CombatEffectsConfig): boolean {
   const positiveInteger = (value: number) => Number.isInteger(value) && value > 0;
   const positive = (value: number) => Number.isFinite(value) && value > 0;
@@ -149,6 +150,7 @@ export function isValidCombatEffectsConfig(config: CombatEffectsConfig): boolean
     ].every(positive)
   ) return false;
 
+  // eslint-disable-next-line complexity -- Each weapon field is independently required by the render effect.
   return (['infantry', 'tank', 'rocket'] as const).every((id) => {
     const weapon = config.weapons[id];
     return weapon !== undefined &&

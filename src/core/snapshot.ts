@@ -180,6 +180,7 @@ export function serializeWorld(
  * version this build understands? It never inspects individual entities and never throws; deep
  * per-entity validation happens implicitly in `restoreWorld`, which the caller must guard instead.
  */
+// eslint-disable-next-line complexity -- Validation verifies the complete externally stored snapshot contract.
 export function isValidSnapshotShape(raw: unknown): raw is WorldSnapshot {
   if (typeof raw !== 'object' || raw === null) {
     return false;
@@ -208,6 +209,7 @@ export function isValidSnapshotShape(raw: unknown): raw is WorldSnapshot {
  * order's `targetId`/`buildingId`, and the selection — is carried through an id map built while
  * entities are created, resolved only once every entity exists.
  */
+// eslint-disable-next-line complexity -- Restoration maps all entity references before rebuilding dependent state.
 export function restoreWorld(
   snapshot: WorldSnapshot,
   grid: MapGrid,
@@ -299,6 +301,7 @@ export function restoreWorld(
  * otherwise absent, at save time) is unrestorable and becomes `null` rather than failing the whole
  * restore.
  */
+// eslint-disable-next-line complexity -- The order union is remapped exhaustively to preserve snapshot compatibility.
 function remapOrder(order: OrderSnapshot, idMap: ReadonlyMap<EntityId, EntityId>): Order | null {
   switch (order.kind) {
     case 'Move':

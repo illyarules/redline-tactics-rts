@@ -35,6 +35,7 @@ function rgba(hex: number, alpha: number): string {
 }
 
 /** Paints the ground for `grid`. The caller owns the returned texture. */
+// eslint-disable-next-line complexity -- Ground painting maps each authoritative terrain case to a fixed visual treatment.
 export function createGroundTexture(scene: Scene, grid: MapGrid): DynamicTexture {
   const size = Math.min(grid.widthTiles * TEXELS_PER_TILE, MAX_TEXTURE_SIZE);
   const texture = new DynamicTexture(`ground:${grid.id}`, { width: size, height: size }, scene, true);

@@ -53,6 +53,7 @@ export class SelectionController {
     });
     canvas.parentElement?.append(this.dragBox);
 
+    // eslint-disable-next-line complexity -- Pointer handling keeps selection, drag, and tactical commands ordered.
     this.onPointerDown = (event) => {
       if (!this.enabled) return;
       const point = this.canvasPoint(event);

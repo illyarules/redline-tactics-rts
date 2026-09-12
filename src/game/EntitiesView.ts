@@ -240,6 +240,7 @@ export class EntitiesView {
     return quad;
   }
 
+  // eslint-disable-next-line complexity -- Per-entity presentation combines independent animation and visibility states.
   private update(
     display: EntityDisplay,
     entity: ReadonlyEntity,

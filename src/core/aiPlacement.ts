@@ -10,6 +10,7 @@ import type { World } from './world';
 export type AiPlacement = { readonly kind: 'placement'; readonly topLeft: TileCoord } | { readonly kind: 'no-placement' };
 
 /** Bounded square rings, with stable row/column ties. Depot candidates prefer the supplied field. */
+// eslint-disable-next-line complexity -- Candidate selection evaluates each build location constraint independently.
 export function planAiPlacement(
   world: World, grid: MapGrid, _owner: PlayerId, _faction: FactionId,
   buildingType: BuildingTypeId, anchor: TileCoord,
@@ -20,6 +21,7 @@ export function planAiPlacement(
   for (let r = 0; r <= radius; r++) {
     for (let ty = anchor.ty - r; ty <= anchor.ty + r; ty++) {
       for (let tx = anchor.tx - r; tx <= anchor.tx + r; tx++) {
+        // eslint-disable-next-line max-depth -- Ring traversal needs the candidate check within both coordinate loops.
         if (Math.max(Math.abs(tx - anchor.tx), Math.abs(ty - anchor.ty)) === r) candidates.push({ tx, ty });
       }
     }

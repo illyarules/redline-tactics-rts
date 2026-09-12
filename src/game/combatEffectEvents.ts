@@ -35,6 +35,7 @@ export type CombatEffectEvent = CombatHitEffectEvent | CombatDeathEffectEvent;
  * The VFX receives no mutable entity objects, combat values, or target-selection data. Its opaque
  * token is used solely to retire a pre-existing target flash on death.
  */
+// eslint-disable-next-line complexity -- VFX mapping exhaustively guards the gameplay event contract before rendering.
 export function mapAttackHitToCombatEffect(
   hit: AttackHitEvent,
   attacker: ReadonlyEntity | undefined,

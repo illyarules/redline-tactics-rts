@@ -162,6 +162,7 @@ export function serializeFogState(fog: FogState): FogSnapshot {
 }
 
 /** Restores fog only when its grid dimensions, player ownership, cadence fraction, and cell codes are valid. */
+// eslint-disable-next-line complexity -- Restoration validates all saved visibility arrays before applying them.
 export function restoreFogState(
   snapshot: FogSnapshot,
   grid: MapGrid,

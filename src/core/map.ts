@@ -86,6 +86,7 @@ export function createMapGrid(config: MapConfig): MapGrid {
     const { tx, ty, width, height } = region.area;
     for (let y = ty; y < ty + height; y++) {
       for (let x = tx; x < tx + width; x++) {
+        // eslint-disable-next-line max-depth -- Region rasterization requires a cell guard inside both loops.
         if (inBounds(x, y)) {
           terrain[index(x, y)] = code;
         }

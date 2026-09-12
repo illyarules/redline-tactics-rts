@@ -32,6 +32,7 @@ export function turnTowards(current: number, target: number, maxDelta: number): 
  * footprints. A unit whose target has no reachable tile within the configured search radius keeps
  * its previous order and status untouched rather than being sent partway or stopped.
  */
+// eslint-disable-next-line complexity -- Move issuance preserves validation of every selected unit and destination.
 export function issueMoveOrders(
   world: World,
   grid: MapGrid,
@@ -129,6 +130,7 @@ export function advanceAlongRoute(
  * whichever waypoint is current when the step begins. Arrival tolerance applies only to the final
  * waypoint; completion clears the order and leaves the unit idle.
  */
+// eslint-disable-next-line complexity -- Route stepping keeps movement and completion transitions in deterministic order.
 export function stepMovement(
   world: World,
   deltaSeconds: number,

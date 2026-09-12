@@ -75,6 +75,7 @@ interface OpenNode {
  * A diagonal step is refused unless both flanking orthogonal tiles are walkable, so a route can never
  * cut across a blocked corner. Returns an explicit no-path result rather than throwing.
  */
+// eslint-disable-next-line complexity -- A* keeps all neighbor eligibility checks in its deterministic expansion loop.
 export function findPath(
   grid: MapGrid,
   start: TileCoord,
@@ -125,6 +126,7 @@ export function findPath(
       if (offset.dx !== 0 && offset.dy !== 0) {
         const flankA: TileCoord = { tx: current.tile.tx + offset.dx, ty: current.tile.ty };
         const flankB: TileCoord = { tx: current.tile.tx, ty: current.tile.ty + offset.dy };
+        // eslint-disable-next-line max-depth -- Corner cutting can only be checked after selecting a diagonal neighbor.
         if (!walkable(flankA) || !walkable(flankB)) {
           continue;
         }

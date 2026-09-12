@@ -25,6 +25,7 @@ export interface AiEconomyContext {
 }
 
 /** Pure plan: completed progress is returned, never copied into a second world model. */
+// eslint-disable-next-line complexity -- Economy planning encodes ordered affordability and prerequisite decisions.
 export function planAiEconomy(ai: AiState, context: AiEconomyContext, config: AiConfig = AI_CONFIG, owner: PlayerId = 'ai'):
   { readonly buildOrderIndex: number; readonly intent: AiEconomyIntent | null } {
   const { world, grid, economy, resourceFieldState } = context;
@@ -66,6 +67,7 @@ export function planAiEconomy(ai: AiState, context: AiEconomyContext, config: Ai
 }
 
 /** All gameplay mutation goes through public player APIs; stale intents are revalidated. */
+// eslint-disable-next-line complexity -- Intent execution dispatches the closed set of economy commands.
 export function executeAiEconomyIntent(context: AiEconomyContext, intent: AiEconomyIntent, owner: PlayerId = 'ai'): boolean {
   const { world, grid, economy, resourceFieldState } = context;
   const worker = world.unit(intent.workerId);

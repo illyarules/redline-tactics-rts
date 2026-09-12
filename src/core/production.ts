@@ -107,6 +107,7 @@ export function cancelProduction(
 }
 
 /** Advances the one front item at each active producer. Completed units wait in place if blocked. */
+// eslint-disable-next-line complexity -- Production advancement preserves queue, spawn, and blocked-tile ordering.
 export function stepProduction(
   world: World,
   grid: MapGrid,

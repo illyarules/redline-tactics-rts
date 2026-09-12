@@ -26,6 +26,7 @@ export type AiMilitaryIntent =
 export interface AiMilitaryReadout { latestAction: string }
 export const aiArmy = (world: World) => world.units('ai').filter((u) => isAlive(u) && u.stats.attack !== null);
 
+// eslint-disable-next-line complexity -- Military planning uses ordered tactical gates before emitting an intent.
 export function planAiMilitary(ai: AiState, { world, grid, economy }: AiMilitaryContext, config: AiConfig = AI_CONFIG): readonly AiMilitaryIntent[] {
   if (!world.buildings('ai').some((b) => b.type === 'hq' && isCompleted(b)) || ai.state === 'recover' || ai.state === 'defend') return [];
   const intents: AiMilitaryIntent[] = [];

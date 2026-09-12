@@ -317,6 +317,7 @@ export class MatchScene {
     this.aiDebug = import.meta.env.DEV ? new AiDebugReadout(overlayContainer) : null;
     this.aiDebug?.update(this.ai, this.world, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
 
+    // eslint-disable-next-line complexity -- Keyboard shortcuts have intentionally ordered modal and match-state handling.
     this.onKeyDown = (event) => {
       if (this.lifecycle.result !== null) return;
       if (event.code === 'Escape') {

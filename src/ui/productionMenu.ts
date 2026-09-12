@@ -44,6 +44,7 @@ export class ProductionMenu {
     container.append(this.root);
   }
 
+  // eslint-disable-next-line complexity -- The menu renders distinct producer, queue, and affordability states together.
   public update(entities: readonly ReadonlyEntity[], world: World, economy: Economy, player: PlayerId): void {
     const building = entities.length === 1 && entities[0]?.kind === 'building' ? entities[0] : undefined;
     if (building === undefined || building.owner !== player || !isCompleted(building) || building.stats.produces.length === 0) {

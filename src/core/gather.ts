@@ -63,6 +63,7 @@ export function issueGatherOrder(
 }
 
 /** Advances every Worker's Gather order by `deltaSeconds`. */
+// eslint-disable-next-line complexity -- Gathering keeps movement, collection, and delivery as one ordered lifecycle.
 export function stepGather(
   world: World,
   grid: MapGrid,
@@ -171,6 +172,7 @@ function stepGathering(
   world.setStatus(unitId, 'moving');
 }
 
+// eslint-disable-next-line complexity -- Depositing preserves the distinct target validity and transfer outcomes.
 function deposit(
   world: World,
   grid: MapGrid,

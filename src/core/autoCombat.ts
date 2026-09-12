@@ -30,6 +30,7 @@ export function createAutoTargetingState(): AutoTargetingState {
  * Scans only at the configured cadence. Idle units gain an acquired Attack order; Attack-Move
  * units retain their travel route and gain only a temporary engagement.
  */
+// eslint-disable-next-line complexity -- Automatic targeting evaluates ordered eligibility and pursuit transitions.
 export function stepAutomaticTargeting(
   world: World,
   state: AutoTargetingState,
@@ -107,6 +108,7 @@ export function issueRetaliationOrders(
 }
 
 /** Nearest valid enemy in range, with creation-order tie-breaking for deterministic replays/tests. */
+// eslint-disable-next-line complexity -- Candidate filtering is kept adjacent to deterministic distance selection.
 export function nearestValidEnemy(
   world: World,
   attacker: ReadonlyUnit,

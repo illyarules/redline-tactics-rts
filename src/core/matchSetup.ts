@@ -50,6 +50,7 @@ export function populateStartingEntities(
     for (const group of setup.startingUnits) {
       for (let i = 0; i < group.count; i++) {
         const tile = tiles.shift();
+        // eslint-disable-next-line max-depth -- Spawn-group creation keeps the missing-tile guard at its use site.
         if (tile === undefined) {
           throw new Error(`No free tile near the ${start.player} rally point for a ${group.type}`);
         }
@@ -72,6 +73,7 @@ export function populateStartingEntities(
  * Up to `count` passable tiles closest to `origin`, searched ring by ring so the result is stable
  * and the same config always produces the same opening. Returns fewer tiles when the area is full.
  */
+// eslint-disable-next-line complexity -- Ring search intentionally keeps deterministic traversal and early completion together.
 export function nearbyFreeTiles(
   grid: MapGrid,
   origin: TileCoord,
@@ -88,12 +90,15 @@ export function nearbyFreeTiles(
     for (let ty = origin.ty - radius; ty <= origin.ty + radius; ty++) {
       for (let tx = origin.tx - radius; tx <= origin.tx + radius; tx++) {
         // Only the outer ring is new; the tiles inside it were visited on an earlier pass.
+        // eslint-disable-next-line max-depth -- The outer-ring check belongs inside the coordinate traversal.
         if (Math.max(Math.abs(tx - origin.tx), Math.abs(ty - origin.ty)) !== radius) {
           continue;
         }
         const tile = { tx, ty };
+        // eslint-disable-next-line max-depth -- Availability depends on the tile constructed by the nested loops.
         if (grid.isPassable(tx, ty) && isFree(tile)) {
           found.push(tile);
+          // eslint-disable-next-line max-depth -- The early return prevents extra, observable candidate ordering work.
           if (found.length === count) {
             return found;
           }

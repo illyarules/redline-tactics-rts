@@ -45,6 +45,7 @@ function hash01(x: number, y: number, salt: number): number {
  * Produces deterministic, sparse low-poly scenery positions from authoritative terrain cells.
  * Chunks bound draw calls and let raised scenery follow fog without creating one mesh per object.
  */
+// eslint-disable-next-line complexity -- Scenery generation retains deterministic terrain filtering and placement rules.
 export function generateTerrainSceneryLayout(grid: MapGrid): readonly TerrainSceneryChunk[] {
   const chunks = new Map<string, { visibilityTiles: TileCoord[]; items: TerrainScenery[] }>();
 

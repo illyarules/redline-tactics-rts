@@ -33,6 +33,7 @@ export class TacticalHud {
   public updateTimer(elapsedActiveSeconds: number): void {
     this.timer.textContent = formatMatchCountdown(elapsedActiveSeconds);
   }
+  // eslint-disable-next-line complexity -- HUD rendering combines independent tactical readouts without shared state.
   public update(
     world: World,
     grid: MapGrid,

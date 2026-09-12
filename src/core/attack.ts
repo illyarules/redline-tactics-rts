@@ -23,6 +23,7 @@ export interface AttackHitEvent {
 }
 
 /** Returns selected combat units that accepted this explicit enemy target. */
+// eslint-disable-next-line complexity -- Order issuance validates each selected attacker without changing selection semantics.
 export function issueAttackOrders(
   world: World,
   player: PlayerId,
@@ -50,6 +51,7 @@ export function issueAttackOrders(
  * Advances every explicit Attack order. Units only follow a route while outside their attack range;
  * an unreachable or invalid target clears the order instead of leaving a unit stuck in pursuit.
  */
+// eslint-disable-next-line complexity -- Attack stepping preserves ordered target-loss and range transitions.
 export function stepAttackOrders(world: World, grid: MapGrid, deltaSeconds: number, canTarget: CanTargetEntity = () => true): readonly AttackHitEvent[] {
   if (!Number.isFinite(deltaSeconds) || deltaSeconds < 0) return [];
   const events: AttackHitEvent[] = [];

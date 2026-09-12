@@ -33,6 +33,7 @@ export function observeAiDefense({ world, grid, fog }: AiDefenseContext, config:
   return { base, threats, defenders };
 }
 
+// eslint-disable-next-line complexity -- Defense planning prioritizes mutually exclusive recovery conditions.
 export function planAiDefense(ai: AiState, context: AiDefenseContext, config: AiConfig = AI_CONFIG): readonly AiDefenseIntent[] {
   const { base, threats, defenders } = observeAiDefense(context, config);
   const active = ai.state === 'defend' && base !== undefined;

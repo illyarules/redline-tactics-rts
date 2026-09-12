@@ -165,6 +165,7 @@ describe('AI military', () => {
     expect(attacker.order).toMatchObject({ kind: 'AttackMove', engagement: null, route });
     expect(enemy.health).toBe(enemy.stats.maxHealth);
   });
+  // eslint-disable-next-line complexity -- This integration scenario intentionally exercises its complete strategic sequence.
   it('completes an ordinary economy, produces all three types and launches within bounded strategic ticks', () => {
     const grid = createMapGrid(MAP_CONFIG);
     const world = createWorld({ tileSizePixels: grid.tileSizePixels });

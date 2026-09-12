@@ -87,6 +87,7 @@ export function serializeAiState(ai: AiState): AiSnapshot {
 }
 
 /** Validates a persisted AI shell without creating mutable state or silently repairing bad saves. */
+// eslint-disable-next-line complexity -- Snapshot validation deliberately checks every optional persisted field.
 export function isAiSnapshotShape(raw: unknown): raw is AiSnapshot {
   if (typeof raw !== 'object' || raw === null) return false;
   const candidate = raw as Record<string, unknown>;
@@ -170,6 +171,7 @@ export function evaluateAiState(
   return transition;
 }
 
+// eslint-disable-next-line complexity -- The transition table preserves the strategic tick state machine ordering.
 export function nextAiState(
   state: AiStateId,
   observation: AiObservation,
@@ -255,6 +257,7 @@ function isAiTransitionShape(value: unknown): value is AiTransition {
   return isAiStateId(candidate.from) && isAiStateId(candidate.to);
 }
 
+// eslint-disable-next-line complexity -- Each AI tuning value needs an independent invariant check at startup.
 function assertAiConfig(config: AiConfig): void {
   if (!Number.isInteger(config.maximumDefenders) || config.maximumDefenders < 1 ||
     !Number.isFinite(config.defenderSelectionRadiusTiles) || config.defenderSelectionRadiusTiles <= 0 ||
