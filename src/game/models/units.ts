@@ -5,11 +5,11 @@ import { NEUTRAL_TONES, OWNER_PALETTES, type OwnerPalette } from '../palette';
 import { QUARTER_TURN, buildModel, type ModelBuilder, type ModelSpec } from './kit';
 
 /**
- * Three of the four unit silhouettes, as original low-poly geometry: the Worker a small cab with a
- * load on the back, the Tank a low hull between two tracks with a barrel out front, the Rocket a long
- * chassis carrying three raised tubes. Infantry is not among them — it renders as a three-soldier
- * squad built by `models/soldier.ts` instead of a single merged model, so it needs limbs that move
- * independently rather than one static mesh.
+ * Three of the four unit silhouettes, as original low-poly geometry: the Worker a compact tractor
+ * with an engine hood, a semi-enclosed cab and a short front scoop, the Tank a low hull between two
+ * tracks with a barrel out front, the Rocket a long chassis carrying three raised tubes. Infantry is
+ * not among them — it renders as a three-soldier squad built by `models/soldier.ts` instead of a
+ * single merged model, so it needs limbs that move independently rather than one static mesh.
  *
  * Measurements are in tiles and roughly fill the `bodySizeTiles` the unit's config gives it, so what
  * is drawn is the same size as the circle `core/selection.ts` picks with. Models face `+z`, which is
@@ -27,21 +27,25 @@ function wheel(builder: ModelBuilder, x: number, z: number, diameter: number): v
 }
 
 const WORKER: UnitParts = (b, palette) => {
-  b.box({size: [0.5, 0.1, 0.16], at: [0, 0.25, 0.42]}, NEUTRAL_TONES.metal)
-    .box({size: [0.12, 0.28, 0.28], at: [-0.24, 0.4, -0.12], turn: [0.3, 0, 0]}, palette.light);
-  b.box({ size: [0.5, 0.16, 0.72], at: [0, 0.2, 0] }, palette.body)
-    .box({ size: [0.4, 0.24, 0.3], at: [0, 0.4, 0.16] }, palette.light)
-    .box({ size: [0.34, 0.13, 0.05], at: [0, 0.43, 0.32] }, NEUTRAL_TONES.glass)
-    // Open bed with a crystal load, so a Worker reads as economic even when it is standing still.
-    .box({ size: [0.44, 0.07, 0.32], at: [0, 0.31, -0.2] }, palette.shell)
+  // Low chassis frame, a stepped engine hood over the front axle, and a semi-enclosed cab behind it.
+  b.box({ size: [0.46, 0.16, 0.62], at: [0, 0.18, -0.03] }, palette.body)
+    .box({ size: [0.32, 0.16, 0.3], at: [0, 0.32, 0.2] }, NEUTRAL_TONES.metalDark)
+    .box({ size: [0.26, 0.06, 0.26], at: [0, 0.41, 0.18] }, palette.light)
+    .box({ size: [0.34, 0.26, 0.26], at: [0, 0.42, -0.18] }, palette.light)
+    .box({ size: [0.28, 0.14, 0.04], at: [0, 0.46, -0.05] }, NEUTRAL_TONES.glass)
     .cylinder(
-      { height: 0.24, diameter: 0.18, diameterTop: 0, sides: 5, at: [0, 0.46, -0.2] },
-      NEUTRAL_TONES.crystal,
-      'glowing',
+      { height: 0.22, diameter: 0.045, sides: 8, at: [0.13, 0.5, -0.28] },
+      NEUTRAL_TONES.metalDark,
     );
+  // A short front loader arm and scoop, so a Worker reads as a utility vehicle even standing still.
+  for (const x of [-0.13, 0.13]) {
+    b.box({ size: [0.05, 0.05, 0.22], at: [x, 0.16, 0.38] }, NEUTRAL_TONES.metal);
+  }
+  b.box({ size: [0.4, 0.16, 0.08], at: [0, 0.16, 0.53] }, palette.shell)
+    .box({ size: [0.4, 0.04, 0.03], at: [0, 0.25, 0.56] }, NEUTRAL_TONES.metalLight);
   for (const x of [-0.25, 0.25]) {
-    for (const z of [-0.22, 0.22]) {
-      wheel(b, x, z, 0.22);
+    for (const z of [-0.22, 0.2]) {
+      wheel(b, x, z, 0.24);
     }
   }
 };

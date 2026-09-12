@@ -185,6 +185,6 @@ export function timeoutScenario(): WorldSnapshot {
   });
   return {
     ...snapshot,
-    lifecycle: { ...snapshot.lifecycle, elapsedActiveSeconds: 599.95 },
+    lifecycle: { ...snapshot.lifecycle, elapsedActiveSeconds: 899.95 },
   };
 }

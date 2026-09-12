@@ -11,7 +11,7 @@ test('wins through real attack controls, restores terminal, and plays again clea
   await seedSnapshot(page, victoryScenario());
   await startMatch(page);
 
-  await expect(page.getByTestId('match-timer')).toHaveText('10:00');
+  await expect(page.getByTestId('match-timer')).toHaveText('15:00');
   await expect(page.getByTestId('selection-panel')).toContainText('Rocket');
   await expect.poll(async () => {
     await page.mouse.click(SCREEN.victoryEnemyHq.x, SCREEN.victoryEnemyHq.y, { button: 'right' });
@@ -42,7 +42,7 @@ test('wins through real attack controls, restores terminal, and plays again clea
   await page.getByTestId('match-result-play-again').click();
   await expect(page.getByTestId('match-result-overlay')).toBeHidden();
   await expect(page.getByTestId('tactical-hud')).toBeVisible();
-  await expect(page.getByTestId('match-timer')).toHaveText('10:00');
+  await expect(page.getByTestId('match-timer')).toHaveText('15:00');
   expect(await page.evaluate((key) => localStorage.getItem(key), SNAPSHOT_STORAGE_KEY)).toBeNull();
 
   // Escape opens Pause again, proving this is a live fresh scene rather than the frozen old one.
@@ -85,7 +85,7 @@ test('reaches Draw at the active-time limit and persists the frozen timer', asyn
   await expect(page.getByTestId('match-result-draw')).toHaveText('Draw');
   await expect(page.getByTestId('match-timer')).toHaveText('00:00');
   const terminal = await readSnapshot(page);
-  expect(terminal.lifecycle.elapsedActiveSeconds).toBe(600);
+  expect(terminal.lifecycle.elapsedActiveSeconds).toBe(900);
   expect(terminal.lifecycle.result).toBe('draw');
 
   await page.waitForTimeout(1_100);

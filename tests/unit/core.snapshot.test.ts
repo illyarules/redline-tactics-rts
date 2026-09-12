@@ -27,6 +27,7 @@ function setup() {
 }
 
 describe('serializeWorld / restoreWorld round trip (AC-001)', () => {
+  // eslint-disable-next-line complexity -- The round-trip test enumerates every persisted order and entity variant.
   it('round-trips every persisted field exactly', () => {
     const { grid, world, economy, resourceFieldState, fog } = setup();
     economy.spend('player', 250);
@@ -157,7 +158,7 @@ describe('match lifecycle snapshot persistence', () => {
   it('restores elapsed time, statistics and Draw through the top-level snapshot', () => {
     const { grid, world, economy, resourceFieldState, fog } = setup();
     const lifecycle = createMatchLifecycle();
-    stepMatchElapsedTime(lifecycle, 600);
+    stepMatchElapsedTime(lifecycle, 900);
     lifecycle.unitsProduced.player = 2;
     lifecycle.unitsLost.ai = 1;
     resolveMatchOutcome(lifecycle, { player: 1, ai: 1 });

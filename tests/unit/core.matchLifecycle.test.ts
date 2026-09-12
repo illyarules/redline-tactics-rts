@@ -109,26 +109,26 @@ describe('match lifecycle', () => {
     expect(resolveMatchOutcome(state, { player: 0, ai: 0 })).toBe('defeat');
   });
 
-  it('remains active at 599.999 seconds and draws at 600 without elimination', () => {
+  it('remains active at 899.999 seconds and draws at 900 without elimination', () => {
     const state = createMatchLifecycle();
-    stepMatchElapsedTime(state, 599.999);
+    stepMatchElapsedTime(state, 899.999);
     expect(resolveMatchOutcome(state, { player: 1, ai: 1 })).toBeNull();
     expect(stepMatchElapsedTime(state, 1)).toBeCloseTo(0.001);
-    expect(state.elapsedActiveSeconds).toBe(600);
+    expect(state.elapsedActiveSeconds).toBe(900);
     expect(resolveMatchOutcome(state, { player: 1, ai: 1 })).toBe('draw');
   });
 
-  it('gives final-building elimination priority over Draw at exactly 600 seconds', () => {
+  it('gives final-building elimination priority over Draw at exactly 900 seconds', () => {
     const state = createMatchLifecycle();
     stepMatchElapsedTime(state, MATCH_CONFIG.matchDurationSeconds);
     expect(resolveMatchOutcome(state, { player: 1, ai: 0 })).toBe('victory');
   });
 
   it('formats countdown boundaries deterministically', () => {
-    expect(formatMatchCountdown(0)).toBe('10:00');
-    expect(formatMatchCountdown(1)).toBe('09:59');
-    expect(formatMatchCountdown(540)).toBe('01:00');
-    expect(formatMatchCountdown(600)).toBe('00:00');
+    expect(formatMatchCountdown(0)).toBe('15:00');
+    expect(formatMatchCountdown(1)).toBe('14:59');
+    expect(formatMatchCountdown(840)).toBe('01:00');
+    expect(formatMatchCountdown(900)).toBe('00:00');
   });
 
   it('is terminally idempotent and never overwrites an established result', () => {
@@ -142,7 +142,7 @@ describe('match lifecycle', () => {
     expect(state.unitsLost.player).toBe(0);
   });
 
-  it('round-trips active state and a 600-second Draw', () => {
+  it('round-trips active state and a 900-second Draw', () => {
     const active = createMatchLifecycle();
     stepMatchElapsedTime(active, 12.5);
     recordProducedUnits(active, [{
@@ -150,7 +150,7 @@ describe('match lifecycle', () => {
     }]);
     expect(restoreMatchLifecycle(serializeMatchLifecycle(active))).toEqual(active);
 
-    stepMatchElapsedTime(active, 600);
+    stepMatchElapsedTime(active, 900);
     resolveMatchOutcome(active, { player: 1, ai: 1 });
     expect(active.result).toBe('draw');
     expect(restoreMatchLifecycle(serializeMatchLifecycle(active))).toEqual(active);
@@ -166,11 +166,11 @@ describe('match lifecycle', () => {
       unitsProduced: { player: 0, ai: 0 }, unitsLost: { player: 0, ai: 0 },
     })).toBe(false);
     expect(isMatchLifecycleSnapshot({
-      result: null, elapsedActiveSeconds: 601,
+      result: null, elapsedActiveSeconds: 901,
       unitsProduced: { player: 0, ai: 0 }, unitsLost: { player: 0, ai: 0 },
     })).toBe(false);
     expect(isMatchLifecycleSnapshot({
-      result: 'draw', elapsedActiveSeconds: 599,
+      result: 'draw', elapsedActiveSeconds: 899,
       unitsProduced: { player: 0, ai: 0 }, unitsLost: { player: 0, ai: 0 },
     })).toBe(false);
   });

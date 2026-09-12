@@ -35,7 +35,7 @@ Gameplay, world, camera and per-task build notes live in [`docs/`](./docs/README
 
 The title screen offers Resume Game and New Game when a saved match exists, or only New Game when
 there is none; New Game asks for confirmation before it discards an existing save. From there,
-eliminate every enemy building before your own structures fall or the ten-minute active-time limit
+eliminate every enemy building before your own structures fall or the fifteen-minute active-time limit
 expires. The battle report then offers a clean rematch or return to the title.
 
 Escape opens Pause only while a match is live; Pause also offers New Match and a Quit to Main Menu

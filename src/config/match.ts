@@ -8,7 +8,7 @@
 import type { MatchRulesConfig, MatchSetupConfig } from './types';
 
 export const MATCH_CONFIG: MatchRulesConfig = {
-  matchDurationSeconds: 600,
+  matchDurationSeconds: 900,
 };
 
 export const MATCH_SETUP: MatchSetupConfig = {

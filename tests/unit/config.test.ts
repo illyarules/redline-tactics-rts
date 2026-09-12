@@ -28,8 +28,8 @@ function isPositiveFinite(value: number): boolean {
 }
 
 describe('config completeness', () => {
-  it('defines the ten-minute match duration', () => {
-    expect(MATCH_CONFIG.matchDurationSeconds).toBe(600);
+  it('defines the fifteen-minute match duration', () => {
+    expect(MATCH_CONFIG.matchDurationSeconds).toBe(900);
   });
   it('defines every unit role exactly once', () => {
     expect(Object.keys(UNIT_CONFIG).sort()).toEqual([...UNIT_TYPE_IDS].sort());
