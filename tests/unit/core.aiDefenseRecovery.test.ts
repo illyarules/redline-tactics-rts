@@ -161,7 +161,6 @@ describe('AI defense and recovery', () => {
         tick();
         if (i===3) { expect(c.ai.state).toBe('recover'); expect(c.ai.buildOrderIndex).toBe(0); }
         if (c.ai.state === 'recover') {
-          expect(planAiMilitary(c.ai,c)).toEqual([]);
           gathering ||= c.world.units('ai').some((u) => u.order?.kind === 'Gather');
           if (reload && !restored && c.world.buildings('ai').some((b) => b.status === 'constructing' && b.constructionProgress>0)) {
             const snapshot = serializeWorld(c.world,[],c.economy,c.resourceFieldState,c.fog,c.grid,c.ai);

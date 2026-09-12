@@ -33,6 +33,7 @@ function setup() {
   const barracks = world.createBuilding({ type: 'barracks', owner: 'ai', faction: 'ember', topLeft: { tx: 12, ty: 30 } });
   const factory = world.createBuilding({ type: 'factory', owner: 'ai', faction: 'ember', topLeft: { tx: 24, ty: 30 } });
   const power = world.createBuilding({ type: 'powerPlant', owner: 'ai', faction: 'ember', topLeft: { tx: 18, ty: 30 } });
+  world.createUnit({ type: 'worker', owner: 'ai', faction: 'ember', position: grid.tileCenter(35, 35) });
   const fog = createFogState(grid);
   return { grid, world, economy, ai, barracks, factory, power, fog };
 }
@@ -133,17 +134,18 @@ describe('AI military', () => {
     c.ai.lastKnownPlayerBasePosition = c.grid.tileCenter(5, 30);
     const attack = planAiMilitary(c.ai, c).find((p) => p.kind === 'attack')!;
     expect(executeAiMilitaryIntent(c.ai, c, attack)).toBe(true);
-    const orders = c.world.units('ai').map((u) => u.order);
+    const combatUnits = () => c.world.units('ai').filter((unit) => unit.stats.attack !== null);
+    const orders = combatUnits().map((u) => u.order);
     expect(orders.every((o) => o?.kind === 'AttackMove')).toBe(true);
     for (let i = 0; i < 5; i++) expect(planAiMilitary(c.ai, c).some((p) => p.kind === 'attack')).toBe(false);
-    c.world.units('ai').forEach((u, i) => expect(u.order).toBe(orders[i]));
+    combatUnits().forEach((u, i) => expect(u.order).toBe(orders[i]));
     const reinforcement = c.world.createUnit({ type: 'rocket', owner: 'ai', faction: 'ember', position: c.grid.tileCenter(25, 40) });
     const reinforce = planAiMilitary(c.ai, c).find((p) => p.kind === 'attack')!;
     expect(reinforce).toMatchObject({ unitIds: [reinforcement.id], target: c.ai.lastKnownPlayerBasePosition });
     expect(executeAiMilitaryIntent(c.ai, c, reinforce)).toBe(true);
-    c.world.units('ai').slice(0, orders.length).forEach((u, i) => expect(u.order).toBe(orders[i]));
+    combatUnits().slice(0, orders.length).forEach((u, i) => expect(u.order).toBe(orders[i]));
     c.world.remove(reinforcement.id);
-    c.world.remove(c.world.units('ai')[0]!.id);
+    c.world.remove(combatUnits()[0]!.id);
     expect(executeAiMilitaryIntent(c.ai, c, attack)).toBe(false);
   });
   it.each(['ai', 'player'] as const)('blocks hidden explicit attacks, acquisition, retaliation and pursuit for %s', (owner) => {

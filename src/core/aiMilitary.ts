@@ -1,12 +1,12 @@
 /** Pure military plans and a narrow executor using the same queues/orders as player commands. */
 import { AI_CONFIG } from '../config/ai';
-import type { AiConfig, AiMilitaryUnitType } from '../config/types';
+import type { AiConfig } from '../config/types';
 import type { AiState, AiStepResult } from './ai';
 import { issueAttackMoveOrders } from './attackMove';
 import type { Economy } from './economy';
 import { isAlive } from './entities';
 import type { Vec2 } from './geometry';
-import type { EntityId } from './ids';
+import type { EntityId, UnitTypeId } from './ids';
 import type { MapGrid } from './map';
 import { isProductionActive } from './power';
 import { isCompleted } from './prerequisites';
@@ -19,7 +19,7 @@ export interface AiMilitaryContext {
   readonly economy: Economy;
 }
 export type AiMilitaryIntent =
-  | { readonly kind: 'produce'; readonly producerId: EntityId; readonly unitType: AiMilitaryUnitType }
+  | { readonly kind: 'produce'; readonly producerId: EntityId; readonly unitType: UnitTypeId }
   | { readonly kind: 'scout' | 'attack'; readonly unitIds: readonly EntityId[]; readonly target: Vec2 };
 
 /** Debug-only history is transient, never a second copy of orders or queues. */
@@ -28,11 +28,19 @@ export const aiArmy = (world: World) => world.units('ai').filter((u) => isAlive(
 
 // eslint-disable-next-line complexity -- Military planning uses ordered tactical gates before emitting an intent.
 export function planAiMilitary(ai: AiState, { world, grid, economy }: AiMilitaryContext, config: AiConfig = AI_CONFIG): readonly AiMilitaryIntent[] {
-  if (!world.buildings('ai').some((b) => b.type === 'hq' && isCompleted(b)) || ai.state === 'recover' || ai.state === 'defend') return [];
+  if (!world.buildings('ai').some((b) => b.type === 'hq' && isCompleted(b))) return [];
   const intents: AiMilitaryIntent[] = [];
+  const workers = world.units('ai').filter((unit) => isAlive(unit) && unit.type === 'worker');
+  const workerQueued = world.buildings('ai').some((building) => building.productionQueue.some((item) => item.unitType === 'worker'));
+  if (workers.length === 0 && !workerQueued) {
+    const hq = world.buildings('ai').find((building) =>
+      building.type === 'hq' && isCompleted(building) && checkProductionRequest(world, economy, 'ai', building.id, 'worker').allowed);
+    if (hq !== undefined) return [{ kind: 'produce', producerId: hq.id, unitType: 'worker' }];
+  }
   const army = aiArmy(world); // World creation order is deterministic, including after restore.
-  // Reserve the entire opening for economy; no military spending can starve its construction.
-  if (ai.buildOrderIndex === config.buildOrder.length &&
+  // Reserve the normal opening for economy, but allow emergency reinforcements while defending or recovering.
+  const mayReinforce = ai.buildOrderIndex === config.buildOrder.length || ai.state === 'defend' || ai.state === 'recover';
+  if (mayReinforce &&
     army.length + world.buildings('ai').reduce((n, b) => n + b.productionQueue.length, 0) < config.targetArmyUnits) {
     const unitType = config.productionCycle[ai.productionCycleIndex]!;
     const producer = world.buildings('ai').find((b) =>
@@ -71,7 +79,9 @@ export function executeAiMilitaryIntent(ai: AiState, context: AiMilitaryContext,
   if (!valid) return false;
   if (intent.kind === 'produce') {
     if (!queueProduction(context.world, context.economy, 'ai', intent.producerId, intent.unitType).allowed) return false;
-    ai.productionCycleIndex = (ai.productionCycleIndex + 1) % config.productionCycle.length;
+    if (intent.unitType !== 'worker') {
+      ai.productionCycleIndex = (ai.productionCycleIndex + 1) % config.productionCycle.length;
+    }
     return true;
   }
   return issueAttackMoveOrders(context.world, context.grid, 'ai', intent.unitIds, intent.target).length > 0;
