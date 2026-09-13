@@ -6,6 +6,7 @@ import { clearSnapshot, loadSnapshot } from './game/matchPersistence';
 import { MatchScene } from './game/MatchScene';
 import { GAME_TITLE } from './game/title';
 import { TitleScreen } from './ui/titleScreen';
+import { AudioManager } from './audio/AudioManager';
 
 // Initialize Vercel Analytics
 inject();
@@ -31,6 +32,7 @@ const physicalPixelRatio = window.devicePixelRatio || 1;
 engine.setHardwareScalingLevel(Math.max(1, physicalPixelRatio / RENDER_CONFIG.maxDevicePixelRatio));
 let scene: MatchScene | null = null;
 let titleScreen: TitleScreen | null = null;
+const audio = new AudioManager();
 const framePacer = new FramePacer(
   RENDER_CONFIG.targetFramesPerSecond,
   RENDER_CONFIG.maxDeltaSeconds,
@@ -59,6 +61,7 @@ window.addEventListener('resize', () => {
 });
 
 const showTitle = (): void => {
+  audio.enterMainMenu();
   scene?.dispose();
   scene = null;
   canvas.style.display = 'none';
@@ -70,14 +73,16 @@ const showTitle = (): void => {
     loadSnapshot() !== null,
     startMatch,
     startNewMatch,
+    audio,
   );
 };
 
 const startMatch = (): void => {
+  audio.enterMatch();
   titleScreen?.destroy();
   titleScreen = null;
   canvas.style.display = 'block';
-  scene = new MatchScene(engine, canvas, container, startNewMatch, showTitle);
+  scene = new MatchScene(engine, canvas, container, startNewMatch, showTitle, audio);
   framePacer.reset();
 };
 

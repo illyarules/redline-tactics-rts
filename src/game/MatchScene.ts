@@ -43,6 +43,7 @@ import { SelectionPanel } from '../ui/selectionPanel';
 import { ProductionMenu } from '../ui/productionMenu';
 import { TacticalHud } from '../ui/tacticalHud';
 import { MatchResultOverlay } from '../ui/matchResultOverlay';
+import type { AudioManager } from '../audio/AudioManager';
 import { TitleBanner } from '../ui/titleBanner';
 import { CameraController } from './CameraController';
 import { AiDebugReadout } from './AiDebugReadout';
@@ -163,6 +164,7 @@ export class MatchScene {
     overlayContainer: HTMLElement,
     private readonly onNewMatch: () => void,
     private readonly onReturnToTitle: () => void,
+    audio: AudioManager,
   ) {
     this.scene = new Scene(engine);
     this.scene.clearColor = Color4.FromColor3(color3(FIELD_TONES.sky), 1);
@@ -293,6 +295,7 @@ export class MatchScene {
       () => this.setPaused(false),
       this.onNewMatch,
       () => this.openQuitConfirm(),
+      audio,
     );
     this.quitConfirm = new ConfirmDialog(
       overlayContainer,
@@ -321,7 +324,9 @@ export class MatchScene {
     this.onKeyDown = (event) => {
       if (this.lifecycle.result !== null) return;
       if (event.code === 'Escape') {
-        if (this.quitConfirm.isVisible()) {
+        if (this.pauseMenu.handleEscape()) {
+          // Settings owns Escape while its navigation layer is open.
+        } else if (this.quitConfirm.isVisible()) {
           this.cancelQuit();
         } else if (this.selection.isAttackMoveArmed()) {
           this.selection.setAttackMoveArmed(false);

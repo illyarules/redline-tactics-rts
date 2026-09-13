@@ -1,11 +1,12 @@
 # Source layout and module boundaries
 
-Four areas, each with one responsibility. Imports may only flow **downward** in this list:
+Five code areas, each with one responsibility. Imports may only flow **downward** in this list:
 
 | Area | Contains | May import from |
 |---|---|---|
-| `game/` | Babylon scene, models, views, input, camera, effects | `ui`, `core`, `config`, Babylon |
-| `ui/` | HUD and menu presentation | `core`, `config` |
+| `game/` | Babylon scene, models, views, input, camera, effects | `ui`, `audio`, `core`, `config`, Babylon |
+| `ui/` | HUD and menu presentation | `audio`, `core`, `config` |
+| `audio/` | Browser music lifecycle, playlists, volume and mute | `config` |
 | `core/` | Pure rules: state, commands, geometry, economy, combat, AI decisions | `config` |
 | `config/` | Typed balance, faction and map data — data only, no behavior | `core` *types* only |
 | `assets/` | Original artwork — files, not code | nothing |

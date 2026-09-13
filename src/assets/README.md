@@ -3,7 +3,18 @@
 Original artwork made for this project. Nothing here is imported, sampled, traced or adapted from
 any other game, and nothing here is under a third-party licence.
 
-## Nothing here is loaded by the 3D game
+## Audio
+
+Audio is organized by playback role under `audio/`:
+
+- `menu/` contains the main-menu playlist. A random track is selected on initial load and whenever
+  the player returns from a match.
+- `match/` is where future match music files belong. Import their URLs in `config/audio.ts` and add
+  them to `AUDIO_CONFIG.matchMusic.tracks`; the match player handles random ordering and repeats.
+- `effects/` is for sound effects registered in `AUDIO_CONFIG.soundEffects`.
+- `audio/ui/` contains the compact enabled and muted artwork used by the global audio toggle.
+
+## 3D artwork
 
 Since the renderer moved to Babylon.js, **every model on the field is geometry built in code**, not
 a file:

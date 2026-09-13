@@ -1,4 +1,6 @@
 import { ConfirmDialog } from './confirmDialog';
+import type { AudioManager } from '../audio/AudioManager';
+import { QuickAudioToggle } from './quickAudioToggle';
 
 /**
  * The first screen a player sees. It is deliberately HTML instead of a Babylon scene: loading the
@@ -12,7 +14,9 @@ const OPEN_FIELD_RENDER = new URL('../../assets/concepts/open-field-map-render.p
 
 export class TitleScreen {
   private readonly root: HTMLDivElement;
+  private readonly mainPanel: HTMLElement;
   private readonly newGameConfirm: ConfirmDialog | null;
+  private readonly quickAudioToggle: QuickAudioToggle;
 
   public constructor(
     container: HTMLElement,
@@ -21,6 +25,7 @@ export class TitleScreen {
     hasSavedMatch: boolean,
     onResume: () => void,
     onNewGame: () => void,
+    audio: AudioManager,
   ) {
     this.root = document.createElement('div');
     this.root.dataset.testid = 'title-screen';
@@ -30,14 +35,14 @@ export class TitleScreen {
       backgroundPosition: 'center', backgroundSize: 'cover', color: '#e7f5ff',
     });
 
-    const panel = document.createElement('section');
-    Object.assign(panel.style, {
+    this.mainPanel = document.createElement('section');
+    Object.assign(this.mainPanel.style, {
       width: 'min(420px, calc(100vw - 48px))', padding: '38px 34px', textAlign: 'center',
       background: 'linear-gradient(180deg, rgba(9, 22, 30, 0.9), rgba(6, 13, 19, 0.94))',
       border: '1px solid rgba(130, 214, 255, 0.45)', borderRadius: '8px',
       boxShadow: '0 18px 70px rgba(0, 0, 0, 0.55)',
     });
-    panel.innerHTML = `<div style="font:600 12px/1.2 system-ui,sans-serif;letter-spacing:.22em;color:#83d6ff">TACTICAL COMMAND</div>
+    this.mainPanel.innerHTML = `<div style="font:600 12px/1.2 system-ui,sans-serif;letter-spacing:.22em;color:#83d6ff">TACTICAL COMMAND</div>
       <h1 style="margin:10px 0 8px;font:700 clamp(38px,7vw,58px)/1 system-ui,sans-serif;letter-spacing:-.045em">${title}</h1>
       <p style="margin:0 0 28px;color:#b8cad5;font:15px/1.5 system-ui,sans-serif">${description}</p>`;
 
@@ -80,14 +85,15 @@ export class TitleScreen {
         !hasSavedMatch,
       ),
     );
-
-    panel.append(actions);
-    this.root.append(panel);
+    this.mainPanel.append(actions);
+    this.root.append(this.mainPanel);
+    this.quickAudioToggle = new QuickAudioToggle(this.root, audio, 'title');
     container.append(this.root);
   }
 
   public destroy(): void {
     this.newGameConfirm?.destroy();
+    this.quickAudioToggle.destroy();
     this.root.remove();
   }
 

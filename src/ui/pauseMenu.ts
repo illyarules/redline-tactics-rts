@@ -1,12 +1,19 @@
+import type { AudioManager } from '../audio/AudioManager';
+import { SettingsMenu } from './settingsMenu';
+
 /** Full-screen pause layer. Only this layer exposes New Match during gameplay. */
 export class PauseMenu {
   private readonly root: HTMLDivElement;
+  private readonly mainPanel: HTMLElement;
+  private readonly settingsMenu: SettingsMenu;
+  private readonly settingsButton: HTMLButtonElement;
 
   public constructor(
     container: HTMLElement,
     onResume: () => void,
     onNewMatch: () => void,
     onReturnToTitle: () => void,
+    audio: AudioManager,
   ) {
     this.root = document.createElement('div');
     this.root.dataset.testid = 'pause-menu';
@@ -14,8 +21,8 @@ export class PauseMenu {
       position: 'fixed', inset: '0', display: 'none', placeItems: 'center', zIndex: '50',
       background: 'rgba(3, 9, 13, 0.7)', backdropFilter: 'blur(3px)',
     });
-    const panel = document.createElement('section');
-    Object.assign(panel.style, {
+    this.mainPanel = document.createElement('section');
+    Object.assign(this.mainPanel.style, {
       minWidth: '250px', padding: '28px', display: 'grid', gap: '10px', textAlign: 'center',
       background: 'linear-gradient(180deg, rgba(19, 39, 51, 0.98), rgba(8, 18, 25, 0.98))',
       border: '1px solid rgba(134, 214, 255, 0.42)', borderRadius: '6px', boxShadow: '0 18px 55px rgba(0,0,0,.5)',
@@ -23,13 +30,25 @@ export class PauseMenu {
     const heading = document.createElement('h2');
     heading.textContent = 'Paused';
     Object.assign(heading.style, { margin: '0 0 8px', color: '#e9f8ff', font: '600 27px/1 system-ui,sans-serif' });
-    panel.append(
+    this.settingsButton = this.button('Settings', () => this.openSettings(), 'pause-settings');
+    this.mainPanel.append(
       heading,
       this.button('Resume', onResume, 'pause-resume'),
       this.button('New Match', onNewMatch, 'pause-new-match'),
+      this.settingsButton,
       this.button('Quit to Main Menu', onReturnToTitle, 'pause-return-title'),
     );
-    this.root.append(panel);
+    this.root.append(this.mainPanel);
+    this.settingsMenu = new SettingsMenu(
+      this.root,
+      audio,
+      'pause',
+      () => {
+        this.mainPanel.style.display = 'grid';
+        this.settingsButton.focus();
+      },
+      'Back',
+    );
     container.append(this.root);
   }
 
@@ -37,7 +56,17 @@ export class PauseMenu {
     this.root.style.display = visible ? 'grid' : 'none';
   }
 
-  public destroy(): void { this.root.remove(); }
+  public handleEscape(): boolean { return this.settingsMenu.handleEscape(); }
+
+  public destroy(): void {
+    this.settingsMenu.destroy();
+    this.root.remove();
+  }
+
+  private openSettings(): void {
+    this.mainPanel.style.display = 'none';
+    this.settingsMenu.open();
+  }
 
   private button(label: string, onClick: () => void, testId: string): HTMLButtonElement {
     const button = document.createElement('button');

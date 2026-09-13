@@ -20,6 +20,7 @@ import {
 } from '../../src/core/ids';
 import { resolveBuildingStats, resolveUnitStats } from '../../src/core/factionStats';
 import { MATCH_CONFIG } from '../../src/config/match';
+import { AUDIO_CONFIG } from '../../src/config/audio';
 
 const ARMOR_CATEGORIES: readonly ArmorCategory[] = ['light', 'armored', 'structure'];
 
@@ -214,6 +215,21 @@ describe('persistence config', () => {
   it('uses a positive, finite save interval and a non-empty storage key', () => {
     expect(isPositiveFinite(PERSISTENCE_CONFIG.saveIntervalSeconds)).toBe(true);
     expect(PERSISTENCE_CONFIG.storageKey.trim().length).toBeGreaterThan(0);
+  });
+});
+
+describe('audio config', () => {
+  it('keeps menu, match, and effect assets separate with the requested defaults', () => {
+    expect(AUDIO_CONFIG.mainMenuMusic.tracks).toHaveLength(3);
+    expect(AUDIO_CONFIG.mainMenuMusic.tracks).toEqual(expect.arrayContaining([
+      expect.stringContaining('Strategic%20Horizon.mp3'),
+      expect.stringContaining('Forge%20Protocol.mp3'),
+      expect.stringContaining('Tactical%20Pulse.mp3'),
+    ]));
+    expect(AUDIO_CONFIG.matchMusic.tracks).toEqual([]);
+    expect(AUDIO_CONFIG.soundEffects).toEqual({});
+    expect(AUDIO_CONFIG.settings.defaultVolumePercent).toBe(30);
+    expect(AUDIO_CONFIG.settings.defaultSoundEnabled).toBe(false);
   });
 });
 
