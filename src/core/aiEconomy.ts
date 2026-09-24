@@ -38,6 +38,8 @@ export function planAiEconomy(ai: AiState, context: AiEconomyContext, config: Ai
   if (dropoff === undefined) return result(null);
   const workers = world.units(owner).filter((w) => w.type === 'worker' && isAlive(w));
   const fields = grid.resourceFields.filter((f) => !resourceFieldState.isDepleted(f.id)).slice().sort((a, b) => {
+    const homePriority = Number(b.homeFor === owner) - Number(a.homeFor === owner);
+    if (homePriority !== 0) return homePriority;
     const anchor = grid.worldToTile(dropoff.position);
     const distance = (tile: TileCoord) => Math.hypot(tile.tx - anchor.tx, tile.ty - anchor.ty);
     return distance(a.center) - distance(b.center) || a.id.localeCompare(b.id);
@@ -82,11 +84,17 @@ export function executeAiEconomyIntent(context: AiEconomyContext, intent: AiEcon
 }
 
 /** Consume strategic decision ticks without adding a second timer or renderer rules. */
-export function executeAiEconomyDecisions(ai: AiState, step: AiStepResult, context: AiEconomyContext, readout?: { latestAction: string }): void {
+export function executeAiEconomyDecisions(
+  ai: AiState,
+  step: AiStepResult,
+  context: AiEconomyContext,
+  readout?: { latestAction: string },
+  owner: PlayerId = 'ai',
+): void {
   for (let tick = 0; tick < step.evaluations; tick++) {
-    const plan = planAiEconomy({ ...ai, state: step.intents[tick]?.state ?? ai.state }, context);
+    const plan = planAiEconomy({ ...ai, state: step.intents[tick]?.state ?? ai.state }, context, AI_CONFIG, owner);
     ai.buildOrderIndex = plan.buildOrderIndex;
-    if (plan.intent !== null && executeAiEconomyIntent(context, plan.intent) && ai.state === 'recover' && readout) {
+    if (plan.intent !== null && executeAiEconomyIntent(context, plan.intent, owner) && ai.state === 'recover' && readout) {
       readout.latestAction = plan.intent.kind === 'construct' ? 'rebuild ' + plan.intent.buildingType : 'gather';
     }
   }

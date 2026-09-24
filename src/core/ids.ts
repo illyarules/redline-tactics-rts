@@ -6,8 +6,9 @@
 /** Identifies a single unit or building instance for its whole lifetime. */
 export type EntityId = string;
 
-/** The two competing sides of a skirmish. */
-export type PlayerId = 'player' | 'ai';
+/** Every independently simulated owner that may appear on a battlefield. */
+export type PlayerId = 'player' | 'ai' | 'ai2';
+export type AiPlayerId = Exclude<PlayerId, 'player'>;
 
 /** Everything on the map belongs to a player or to nobody (resource fields, terrain). */
 export type OwnerId = PlayerId | 'neutral';
@@ -24,7 +25,10 @@ export type BuildingTypeId = 'hq' | 'barracks' | 'factory' | 'powerPlant' | 'res
 /** Any placeable/producible entity kind. */
 export type EntityTypeId = UnitTypeId | BuildingTypeId;
 
+/** The participants on the original 1v1 map. Kept stable for existing map-level consumers. */
 export const PLAYER_IDS: readonly PlayerId[] = ['player', 'ai'];
+export const ALL_PLAYER_IDS: readonly PlayerId[] = ['player', 'ai', 'ai2'];
+export const AI_PLAYER_IDS: readonly AiPlayerId[] = ['ai', 'ai2'];
 export const FACTION_IDS: readonly FactionId[] = ['meridian', 'ember'];
 export const UNIT_TYPE_IDS: readonly UnitTypeId[] = ['worker', 'infantry', 'tank', 'rocket'];
 export const BUILDING_TYPE_IDS: readonly BuildingTypeId[] = [

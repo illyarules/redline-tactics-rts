@@ -33,6 +33,9 @@ export class AudioManager {
   }
 
   public enterMainMenu(): void {
+    // Moving between title and map selection is still the same menu session: keep the current
+    // track and playback position. Returning from a match starts the next menu track below.
+    if (this.mode === 'menu') return;
     this.stopPlayer(this.matchPlayer);
     this.mode = 'menu';
     const track = selectRandomTrack(AUDIO_CONFIG.mainMenuMusic.tracks, this.previousMenuTrack);

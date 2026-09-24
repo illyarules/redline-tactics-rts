@@ -31,6 +31,7 @@ export interface OwnerPalette {
 export const OWNER_PALETTES: Readonly<Record<PlayerId, OwnerPalette>> = {
   player: { shell: 0x1b325a, body: 0x3266b4, light: 0x6fb0ef, accent: 0xbde4ff, banner: 0x4a94ec },
   ai: { shell: 0x5d2f0c, body: 0xc4711d, light: 0xef9a3f, accent: 0xffd79a, banner: 0xf08c2c },
+  ai2: { shell: 0x5d2f0c, body: 0xc4711d, light: 0xef9a3f, accent: 0xffd79a, banner: 0xf08c2c },
 };
 
 /** Neutral tones shared by both factions, so machinery never competes with the faction colour. */

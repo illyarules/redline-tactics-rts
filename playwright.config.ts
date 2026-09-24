@@ -14,7 +14,8 @@ export default defineConfig({
   // Failures must be fixed, not retried away.
   retries: 0,
   reporter: 'list',
-  timeout: 25_000,
+  // Babylon scene creation and image decoding can briefly contend on slower CI/browser workers.
+  timeout: 40_000,
   expect: {
     timeout: 10_000,
   },

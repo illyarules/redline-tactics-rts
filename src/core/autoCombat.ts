@@ -11,6 +11,7 @@ import { attackMoveOrder, attackOrder } from './orders';
 import type { AttackHitEvent } from './attack';
 import type { EntityId } from './ids';
 import type { World } from './world';
+import { areHostile } from './teams';
 
 /** Scene-owned elapsed time for a bounded target scan; target choices themselves live in orders. */
 export interface AutoTargetingState {
@@ -123,7 +124,7 @@ export function nearestValidEnemy(
   for (const candidate of world.entities()) {
     if (
       !isAlive(candidate) ||
-      candidate.owner === attacker.owner ||
+      !areHostile(candidate.owner, attacker.owner) ||
       !canTarget(attacker, candidate) ||
       !attacker.stats.attack!.targetCategories.includes(attackTargetCategory(candidate))
     ) continue;

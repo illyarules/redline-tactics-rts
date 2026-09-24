@@ -28,6 +28,7 @@ export function populateStartingEntities(
 
   for (const start of grid.starts) {
     const faction = setup.factions[start.player];
+    if (faction === undefined) throw new Error(`Missing faction for ${start.player}`);
 
     created.push(
       world.createBuilding({

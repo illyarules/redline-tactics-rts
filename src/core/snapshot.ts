@@ -58,7 +58,7 @@ import {
  * Bumped whenever a saved shape stops matching what `restoreWorld` expects, so an old save from a
  * prior version is discarded instead of misread.
  */
-export const SNAPSHOT_SCHEMA_VERSION = 12;
+export const SNAPSHOT_SCHEMA_VERSION = 13;
 
 /**
  * The persisted shape of an `Order`. Structurally identical to `core/orders.ts`'s `Order` union —
@@ -98,6 +98,7 @@ export type EntitySnapshot = UnitSnapshot | BuildingSnapshot;
 /** Everything needed to resume a match: the surviving entities and what the player had selected. */
 export interface WorldSnapshot {
   readonly schemaVersion: number;
+  readonly mapId: string;
   readonly entities: readonly EntitySnapshot[];
   readonly selection: readonly EntityId[];
   readonly credits: EconomySnapshot;
@@ -106,6 +107,8 @@ export interface WorldSnapshot {
   readonly fog: FogSnapshot;
   /** AI strategy state and its time remaining until the next decision. */
   readonly ai: AiSnapshot;
+  /** A second independent controller exists only on 1v2 maps. */
+  readonly secondaryAi: AiSnapshot | null;
   /** Active clock, production/loss statistics and any terminal match result. */
   readonly lifecycle: MatchLifecycleSnapshot;
 }
@@ -124,6 +127,7 @@ export function serializeWorld(
   grid: MapGrid,
   ai: AiState = createAiState(),
   lifecycle: MatchLifecycleState = createMatchLifecycle(),
+  secondaryAi: AiState | null = null,
 ): WorldSnapshot {
   const entities: EntitySnapshot[] = [];
 
@@ -165,12 +169,14 @@ export function serializeWorld(
 
   return {
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+    mapId: grid.id,
     entities,
     selection: [...selection],
     credits: serializeEconomy(economy),
     resourceFields: serializeResourceFieldState(resourceFieldState, grid),
     fog: serializeFogState(fog),
     ai: serializeAiState(ai),
+    secondaryAi: secondaryAi === null ? null : serializeAiState(secondaryAi),
     lifecycle: serializeMatchLifecycle(lifecycle),
   };
 }
@@ -188,6 +194,7 @@ export function isValidSnapshotShape(raw: unknown): raw is WorldSnapshot {
   const candidate = raw as Record<string, unknown>;
   return (
     candidate.schemaVersion === SNAPSHOT_SCHEMA_VERSION &&
+    typeof candidate.mapId === 'string' &&
     Array.isArray(candidate.entities) &&
     Array.isArray(candidate.selection) &&
     typeof candidate.credits === 'object' &&
@@ -195,6 +202,7 @@ export function isValidSnapshotShape(raw: unknown): raw is WorldSnapshot {
     Array.isArray(candidate.resourceFields) &&
     isFogSnapshotShape(candidate.fog) &&
     isAiSnapshotShape(candidate.ai) &&
+    (candidate.secondaryAi === null || isAiSnapshotShape(candidate.secondaryAi)) &&
     isMatchLifecycleSnapshot(candidate.lifecycle)
   );
 }
@@ -220,9 +228,11 @@ export function restoreWorld(
   resourceFieldState: ResourceFieldState;
   fog: FogState;
   ai: AiState;
+  secondaryAi: AiState | null;
   lifecycle: MatchLifecycleState;
 } {
   const world = createWorld({ tileSizePixels: grid.tileSizePixels });
+  if (snapshot.mapId !== grid.id) throw new Error('Snapshot belongs to a different map');
   const idMap = new Map<EntityId, EntityId>();
 
   for (const entitySnapshot of snapshot.entities) {
@@ -284,6 +294,11 @@ export function restoreWorld(
   if (rememberedBase !== null && !grid.isInBounds(grid.worldToTile(rememberedBase).tx, grid.worldToTile(rememberedBase).ty)) {
     throw new Error('AI remembered base is outside the map');
   }
+  const secondaryRememberedBase = snapshot.secondaryAi?.lastKnownPlayerBasePosition ?? null;
+  if (secondaryRememberedBase !== null && !grid.isInBounds(
+    grid.worldToTile(secondaryRememberedBase).tx,
+    grid.worldToTile(secondaryRememberedBase).ty,
+  )) throw new Error('Secondary AI remembered base is outside the map');
   return {
     world,
     selection,
@@ -291,6 +306,7 @@ export function restoreWorld(
     resourceFieldState: createResourceFieldState(grid, snapshot.resourceFields),
     fog: restoreFogState(snapshot.fog, grid),
     ai: restoreAiState(snapshot.ai),
+    secondaryAi: snapshot.secondaryAi === null ? null : restoreAiState(snapshot.secondaryAi),
     lifecycle: restoreMatchLifecycle(snapshot.lifecycle),
   };
 }

@@ -5,7 +5,7 @@
  */
 import { expect, test } from '@playwright/test';
 import { persistenceScenario } from './fixtures/scenarios';
-import { startMatch } from './helpers/match';
+import { selectMapAndStart, startMatch } from './helpers/match';
 import { clearSnapshot, readSnapshot, seedSnapshot, SNAPSHOT_STORAGE_KEY } from './helpers/storage';
 
 test('Cancel leaves the live match active and untouched', async ({ page }) => {
@@ -88,6 +88,7 @@ test('New Game from a menu with a save requires confirmation before starting cle
 
   await page.getByTestId('title-new-game').click();
   await page.getByTestId('title-new-game-confirm-accept').click();
+  await selectMapAndStart(page);
 
   await expect(page.getByTestId('title-screen')).not.toBeAttached();
   await expect(page.getByTestId('tactical-hud')).toBeVisible();
@@ -107,5 +108,6 @@ test('With no saved match the title screen only offers New Game', async ({ page 
   await page.getByTestId('title-new-game').click();
   // Nothing to lose, so New Game starts immediately with no confirmation dialog.
   await expect(page.getByTestId('title-new-game-confirm')).toHaveCount(0);
+  await selectMapAndStart(page);
   await expect(page.getByTestId('tactical-hud')).toBeVisible();
 });

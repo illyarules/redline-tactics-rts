@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { AUDIO_CONFIG } from '../../src/config/audio';
 import { clearSnapshot } from './helpers/storage';
+import { selectMapAndStart } from './helpers/match';
 
 interface AudioProbeSnapshot {
   readonly instanceCount: number;
@@ -94,6 +95,7 @@ test('menu quick toggle persists and preserves playback position', async ({ page
   expect(afterToggle.playCalls.slice(beforeToggle.playCalls.length)).toEqual([{ player: 0, currentTime: 18 }]);
 
   await page.getByTestId('title-new-game').click();
+  await selectMapAndStart(page);
   await page.keyboard.press('Escape');
   await openPauseAudio(page);
   await page.getByTestId('pause-master-volume').fill('67');
@@ -120,6 +122,7 @@ test('saved mute is applied before startup playback', async ({ page }) => {
   expect((await audioProbe(page)).playCalls).toEqual([]);
   expect((await audioProbe(page)).volumes).toEqual([0, 0]);
   await page.getByTestId('title-new-game').click();
+  await selectMapAndStart(page);
   await page.keyboard.press('Escape');
   await openPauseAudio(page);
   await expect(page.getByTestId('pause-master-volume')).toHaveValue('54');
@@ -132,6 +135,7 @@ test('match screen omits the quick toggle while pause settings keep the match in
   const firstMenuSource = (await audioProbe(page)).sources[0];
   expect(firstMenuSource).toMatch(/(?:Strategic%20Horizon|Forge%20Protocol|Tactical%20Pulse).*\.mp3/);
   await page.getByTestId('title-new-game').click();
+  await selectMapAndStart(page);
 
   await expect(page.getByTestId('match-quick-audio-toggle')).not.toBeAttached();
   await expect(page.getByTestId('title-quick-audio-toggle')).not.toBeAttached();

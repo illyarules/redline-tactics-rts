@@ -7,7 +7,7 @@ import { FOG_CONFIG } from '../config/fog';
 import type { FogConfig } from '../config/types';
 import { isAlive, type ReadonlyEntity } from './entities';
 import type { PlayerId } from './ids';
-import { PLAYER_IDS } from './ids';
+import { ALL_PLAYER_IDS } from './ids';
 import type { MapGrid } from './map';
 import type { World } from './world';
 
@@ -61,7 +61,7 @@ const cellsByState = new WeakMap<FogState, readonly PlayerFogCells[]>();
 /** Creates fully hidden fog for every requested player. */
 export function createFogState(
   grid: MapGrid,
-  players: readonly PlayerId[] = PLAYER_IDS,
+  players: readonly PlayerId[] = ['player', 'ai'],
   config: FogConfig = FOG_CONFIG,
 ): FogState {
   assertFogConfig(config);
@@ -243,7 +243,7 @@ function indexOf(fog: FogState, tx: number, ty: number): number {
 function uniqueKnownPlayers(players: readonly PlayerId[]): readonly PlayerId[] {
   const unique: PlayerId[] = [];
   for (const player of players) {
-    if (!PLAYER_IDS.includes(player)) throw new Error(`Unknown fog player "${player}"`);
+    if (!ALL_PLAYER_IDS.includes(player)) throw new Error(`Unknown fog player "${player}"`);
     if (!unique.includes(player)) unique.push(player);
   }
   return unique;

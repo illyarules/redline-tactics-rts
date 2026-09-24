@@ -7,12 +7,12 @@ import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator'
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
-import { MAP_CONFIG } from '../config/map';
+import type { MapConfig } from '../config/types';
 import { PERSISTENCE_CONFIG } from '../config/persistence';
 import { RENDER_CONFIG } from '../config/render';
 import { createMapGrid, type MapGrid } from '../core/map';
 import type { TileCoord, Vec2 } from '../core/geometry';
-import type { BuildingTypeId, EntityId, PlayerId, UnitTypeId } from '../core/ids';
+import type { AiPlayerId, BuildingTypeId, EntityId, PlayerId, UnitTypeId } from '../core/ids';
 import { issueAttackOrders, stepAttackOrders, type AttackHitEvent } from '../core/attack';
 import { issueAttackMoveOrders, stepAttackMoveOrders } from '../core/attackMove';
 import { createAutoTargetingState, issueRetaliationOrders, stepAutomaticTargeting } from '../core/autoCombat';
@@ -52,7 +52,7 @@ import { deathEffectAt, mapAttackHitToCombatEffect } from './combatEffectEvents'
 import { DebugLabelsView } from './DebugLabelsView';
 import { EntitiesView } from './EntitiesView';
 import { FogView } from './FogView';
-import { clearSnapshot, loadSnapshot, saveSnapshot } from './matchPersistence';
+import { clearSnapshot, saveSnapshot } from './matchPersistence';
 import { MapView } from './MapView';
 import { OrderMarkerView } from './OrderMarkerView';
 import { PlacementController } from './PlacementController';
@@ -75,6 +75,7 @@ import {
   type CombatDestructionEvent,
   type MatchLifecycleState,
 } from '../core/matchLifecycle';
+import { areHostile } from '../core/teams';
 
 /**
  * The single gameplay scene. It builds the map grid and the world from typed config, renders both in
@@ -114,7 +115,8 @@ export class MatchScene {
   private readonly economy: Economy;
   private readonly resourceFieldState: ResourceFieldState;
   private readonly fog: FogState;
-  private readonly ai: AiState;
+  private readonly aiPlayers: readonly AiPlayerId[];
+  private readonly ais: ReadonlyMap<AiPlayerId, AiState>;
   private readonly lifecycle: MatchLifecycleState;
   private readonly space: SceneSpace;
   private readonly materials: MaterialLibrary;
@@ -151,12 +153,13 @@ export class MatchScene {
   private readonly isVisibleToHuman = (entity: ReadonlyEntity): boolean =>
     isEntityVisibleToPlayer(this.fog, PLAYER_ID, entity);
   private readonly canTarget = (observer: ReadonlyUnit, candidate: ReadonlyEntity): boolean =>
-    fogTargetPredicate(this.fog)(observer, candidate);
+    areHostile(observer.owner, candidate.owner) && fogTargetPredicate(this.fog)(observer, candidate);
   private hudElapsedSeconds = Number.POSITIVE_INFINITY;
   private saveElapsedSeconds = 0;
   private paused = false;
   private terminalSnapshotSaved = false;
 
+  // eslint-disable-next-line complexity -- Construction wires independent scene systems and guarded restore state.
   public constructor(
     engine: Engine,
     canvas: HTMLCanvasElement,
@@ -165,32 +168,40 @@ export class MatchScene {
     private readonly onNewMatch: () => void,
     private readonly onReturnToTitle: () => void,
     audio: AudioManager,
+    mapConfig: MapConfig,
+    snapshot: WorldSnapshot | null,
   ) {
     this.scene = new Scene(engine);
     this.scene.clearColor = Color4.FromColor3(color3(FIELD_TONES.sky), 1);
 
-    this.grid = createMapGrid(MAP_CONFIG);
+    this.grid = createMapGrid(mapConfig);
+    this.aiPlayers = this.grid.starts
+      .map((start) => start.player)
+      .filter((player): player is AiPlayerId => player !== PLAYER_ID);
     this.space = createSceneSpace(this.grid);
 
     // Resume an unfinished match saved on this device when one exists and is readable; otherwise
     // open the same opening position every fresh match always has.
-    const restored = MatchScene.tryRestore(loadSnapshot(), this.grid);
+    const restored = MatchScene.tryRestore(snapshot, this.grid);
     if (restored !== null) {
       this.world = restored.world;
       this.economy = restored.economy;
       this.resourceFieldState = restored.resourceFieldState;
       this.fog = restored.fog;
-      this.ai = restored.ai;
+      const states = new Map<AiPlayerId, AiState>();
+      states.set('ai', restored.ai);
+      if (restored.secondaryAi !== null) states.set('ai2', restored.secondaryAi);
+      this.ais = states;
       this.lifecycle = restored.lifecycle;
       this.terminalSnapshotSaved = this.lifecycle.result !== null;
     } else {
       clearSnapshot();
       this.world = createWorld({ tileSizePixels: this.grid.tileSizePixels });
       populateStartingEntities(this.world, this.grid);
-      this.economy = createEconomy();
+      this.economy = createEconomy(undefined, undefined, this.grid.starts.map((start) => start.player));
       this.resourceFieldState = createResourceFieldState(this.grid);
-      this.fog = createFogState(this.grid);
-      this.ai = createAiState();
+      this.fog = createFogState(this.grid, this.grid.starts.map((start) => start.player));
+      this.ais = new Map(this.aiPlayers.map((owner) => [owner, createAiState()]));
       this.lifecycle = createMatchLifecycle();
       // Fresh matches have authoritative opening vision before the first rendered frame.
       updateFogVisibility(this.fog, this.world, this.grid);
@@ -264,7 +275,7 @@ export class MatchScene {
 
     // The title, the controls card and the selection readout sit in the HTML layer above the canvas,
     // so no camera movement can scale them and they stay crisp at any zoom.
-    this.hud = new TacticalHud(overlayContainer);
+    this.hud = new TacticalHud(overlayContainer, this.grid.name);
     this.hud.updateTimer(this.lifecycle.elapsedActiveSeconds);
     this.titleBanner = new TitleBanner(overlayContainer, GAME_TITLE);
     this.controlsOverlay = new ControlsOverlay(overlayContainer);
@@ -318,7 +329,8 @@ export class MatchScene {
     );
     this.debugLabels = new DebugLabelsView(overlayContainer, this.scene, canvas, this.space);
     this.aiDebug = import.meta.env.DEV ? new AiDebugReadout(overlayContainer) : null;
-    this.aiDebug?.update(this.ai, this.world, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
+    const primaryAi = this.ais.get('ai');
+    if (primaryAi !== undefined) this.aiDebug?.update(primaryAi, this.world, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
 
     // eslint-disable-next-line complexity -- Keyboard shortcuts have intentionally ordered modal and match-state handling.
     this.onKeyDown = (event) => {
@@ -380,6 +392,7 @@ export class MatchScene {
     resourceFieldState: ResourceFieldState;
     fog: FogState;
     ai: AiState;
+    secondaryAi: AiState | null;
     lifecycle: MatchLifecycleState;
   } | null {
     if (snapshot === null) {
@@ -394,6 +407,7 @@ export class MatchScene {
   }
 
   /** Advances and draws one budgeted frame. Called by the capped engine render loop. */
+  // eslint-disable-next-line complexity -- One frame intentionally sequences all deterministic simulation systems.
   public render(deltaSeconds: number): void {
     if (this.paused || this.lifecycle.result !== null) {
       this.scene.render();
@@ -411,14 +425,18 @@ export class MatchScene {
       this.fogView.update(this.fog, PLAYER_ID);
       this.mapView.updateFog(this.fog, PLAYER_ID);
     }
-    const aiStep = stepAi(this.ai, observeAiStrategy(this.ai, this.world, this.grid, this.fog), activeDeltaSeconds);
-    executeAiEconomyDecisions(this.ai, aiStep, {
-      world: this.world, grid: this.grid, economy: this.economy, resourceFieldState: this.resourceFieldState,
-    }, this.defenseRecoveryReadout);
-    executeAiMilitaryDecisions(this.ai, aiStep, {
-      world: this.world, grid: this.grid, economy: this.economy,
-    }, this.militaryReadout);
-    executeAiDefenseDecisions(this.ai, aiStep, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout);
+    for (const owner of this.aiPlayers) {
+      const ai = this.ais.get(owner);
+      if (ai === undefined) continue;
+      const aiStep = stepAi(ai, observeAiStrategy(ai, this.world, this.grid, this.fog, owner), activeDeltaSeconds);
+      executeAiEconomyDecisions(ai, aiStep, {
+        world: this.world, grid: this.grid, economy: this.economy, resourceFieldState: this.resourceFieldState,
+      }, this.defenseRecoveryReadout, owner);
+      executeAiMilitaryDecisions(ai, aiStep, {
+        world: this.world, grid: this.grid, economy: this.economy,
+      }, this.militaryReadout, owner);
+      executeAiDefenseDecisions(ai, aiStep, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout, owner);
+    }
     stepAutomaticTargeting(this.world, this.autoTargeting, activeDeltaSeconds, undefined, this.canTarget);
     const hits = [
       ...stepAttackOrders(this.world, this.grid, activeDeltaSeconds, this.canTarget),
@@ -454,7 +472,8 @@ export class MatchScene {
         this.fog,
         PLAYER_ID,
       );
-      this.aiDebug?.update(this.ai, this.world, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
+      const ai = this.ais.get('ai');
+      if (ai !== undefined) this.aiDebug?.update(ai, this.world, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
       this.hudElapsedSeconds = 0;
     }
 
@@ -546,8 +565,9 @@ export class MatchScene {
         this.resourceFieldState,
         this.fog,
         this.grid,
-        this.ai,
+        this.ais.get('ai') ?? createAiState(),
         this.lifecycle,
+        this.ais.get('ai2') ?? null,
       ),
     );
     if (this.lifecycle.result !== null) this.terminalSnapshotSaved = true;

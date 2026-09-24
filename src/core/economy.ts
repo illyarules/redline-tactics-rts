@@ -7,9 +7,10 @@
  */
 import { ECONOMY_CONFIG } from '../config/economy';
 import type { EconomyConfig } from '../config/types';
-import { PLAYER_IDS, type PlayerId } from './ids';
+import { ALL_PLAYER_IDS, type PlayerId } from './ids';
 
 export interface Economy {
+  readonly players: readonly PlayerId[];
   balance(player: PlayerId): number;
   canAfford(player: PlayerId, amount: number): boolean;
   /** Deducts `amount` and reports success, or leaves the balance untouched and reports failure. */
@@ -20,17 +21,22 @@ export interface Economy {
 }
 
 /** The persisted shape of an `Economy`: every player's current balance. */
-export type EconomySnapshot = Readonly<Record<PlayerId, number>>;
+export type EconomySnapshot = Readonly<Partial<Record<PlayerId, number>>>;
 
 export function createEconomy(
   config: EconomyConfig = ECONOMY_CONFIG,
   initial?: EconomySnapshot,
+  players: readonly PlayerId[] = initial === undefined
+    ? ['player', 'ai']
+    : ALL_PLAYER_IDS.filter((player) => initial[player] !== undefined),
 ): Economy {
+  const activePlayers = [...new Set(players)];
   const balances = new Map<PlayerId, number>(
-    PLAYER_IDS.map((player) => [player, initial?.[player] ?? config.startingCredits]),
+    activePlayers.map((player) => [player, initial?.[player] ?? config.startingCredits]),
   );
 
   return {
+    players: activePlayers,
     balance(player) {
       return balances.get(player) ?? 0;
     },
@@ -74,7 +80,7 @@ export function refundAmount(paidCost: number, fraction: number): number {
 /** Captures every player's current balance. */
 export function serializeEconomy(economy: Economy): EconomySnapshot {
   return Object.fromEntries(
-    PLAYER_IDS.map((player) => [player, economy.balance(player)]),
+    economy.players.map((player) => [player, economy.balance(player)]),
   ) as EconomySnapshot;
 }
 

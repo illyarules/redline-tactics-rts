@@ -65,15 +65,25 @@ export function createGroundTexture(scene: Scene, grid: MapGrid): DynamicTexture
     }
   }
 
-  // One restrained road across the centre, plus branches to the bases and Credits fields. Nothing
-  // is painted under whole building footprints: only the narrow route reaches each rally point.
-  const lane = grid.lanes[0];
-  const starts = [...grid.starts].sort((a, b) => a.rallyPoint.tx - b.rallyPoint.tx);
-  if (lane !== undefined && starts.length >= 2) {
-    const main = [starts[0]?.rallyPoint, ...lane.waypoints, starts[starts.length - 1]?.rallyPoint]
-      .filter((point): point is { tx: number; ty: number } => point !== undefined);
+  // Paint every configured route. Each route is extended to the closest distinct start at either
+  // end, so multi-start maps display all of their approaches rather than only the first lane.
+  const starts = [...grid.starts];
+  if (grid.lanes.length > 0 && starts.length >= 2) {
+    const mainRoutes = grid.lanes.map((lane) => {
+      const first = lane.waypoints[0];
+      const last = lane.waypoints[lane.waypoints.length - 1];
+      if (first === undefined || last === undefined) return [...lane.waypoints];
+      const byDistance = (point: { tx: number; ty: number }) => starts.slice().sort((a, b) =>
+        Math.hypot(a.rallyPoint.tx - point.tx, a.rallyPoint.ty - point.ty) -
+        Math.hypot(b.rallyPoint.tx - point.tx, b.rallyPoint.ty - point.ty));
+      const start = byDistance(first)[0];
+      const end = byDistance(last).find((candidate) => candidate !== start) ?? byDistance(last)[0];
+      return [start?.rallyPoint, ...lane.waypoints, end?.rallyPoint]
+        .filter((point): point is { tx: number; ty: number } => point !== undefined);
+    });
+    const lanePoints = grid.lanes.flatMap((lane) => lane.waypoints);
     const branches = grid.resourceFields.map((field) => {
-      const nearest = lane.waypoints.reduce((best, point) => {
+      const nearest = lanePoints.reduce((best, point) => {
         const distance = Math.hypot(point.tx - field.center.tx, point.ty - field.center.ty);
         const bestDistance = Math.hypot(best.tx - field.center.tx, best.ty - field.center.ty);
         return distance < bestDistance ? point : best;
@@ -81,7 +91,7 @@ export function createGroundTexture(scene: Scene, grid: MapGrid): DynamicTexture
       return [field.center, nearest];
     });
 
-    for (const points of [main, ...branches]) {
+    for (const points of [...mainRoutes, ...branches]) {
       context.strokeStyle = rgba(FIELD_TONES.roadEdge, 0.4);
       context.lineWidth = tile * 1.58;
       context.beginPath();

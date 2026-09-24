@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { SCREEN, timeoutScenario, victoryScenario } from './fixtures/scenarios';
-import { startMatch } from './helpers/match';
+import { selectMapAndStart, startMatch } from './helpers/match';
 import { readSnapshot, seedSnapshot, SNAPSHOT_STORAGE_KEY } from './helpers/storage';
 
 test('wins through real attack controls, restores terminal, and plays again cleanly', async ({ page }) => {
@@ -40,6 +40,7 @@ test('wins through real attack controls, restores terminal, and plays again clea
   await expect(page.getByTestId('match-result-victory')).toBeVisible();
 
   await page.getByTestId('match-result-play-again').click();
+  await selectMapAndStart(page);
   await expect(page.getByTestId('match-result-overlay')).toBeHidden();
   await expect(page.getByTestId('tactical-hud')).toBeVisible();
   await expect(page.getByTestId('match-timer')).toHaveText('15:00');
@@ -49,6 +50,7 @@ test('wins through real attack controls, restores terminal, and plays again clea
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('pause-menu')).toBeVisible();
   await page.getByTestId('pause-new-match').click();
+  await selectMapAndStart(page);
   await expect(page.getByTestId('pause-menu')).toBeHidden();
   await expect(page.getByTestId('tactical-hud')).toBeVisible();
   expect(await page.evaluate((key) => localStorage.getItem(key), SNAPSHOT_STORAGE_KEY)).toBeNull();
@@ -73,6 +75,7 @@ test('wins through real attack controls, restores terminal, and plays again clea
 
   // Starting again from title creates one clean live scene after all prior disposal paths.
   await page.getByTestId('title-new-game').click();
+  await selectMapAndStart(page);
   await expect(page.getByTestId('tactical-hud')).toBeVisible();
   await expect(page.getByTestId('match-result-overlay')).toBeHidden();
   expect(consoleErrors).toEqual([]);

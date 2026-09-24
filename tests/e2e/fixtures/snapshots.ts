@@ -25,7 +25,7 @@ export const GRID: MapGrid = createMapGrid(MAP_CONFIG);
 export const PLAYER_START = GRID.starts.find((start) => start.player === 'player')!;
 export const AI_START = GRID.starts.find((start) => start.player === 'ai')!;
 
-export const FACTION_OF: Readonly<Record<PlayerId, FactionId>> = { player: 'meridian', ai: 'ember' };
+export const FACTION_OF: Readonly<Record<PlayerId, FactionId>> = { player: 'meridian', ai: 'ember', ai2: 'ember' };
 
 /**
  * Builds one fixture world and serializes it. `populate` creates entities on a fresh `World` through

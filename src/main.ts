@@ -7,6 +7,11 @@ import { MatchScene } from './game/MatchScene';
 import { GAME_TITLE } from './game/title';
 import { TitleScreen } from './ui/titleScreen';
 import { AudioManager } from './audio/AudioManager';
+import { MAP_CATALOG } from './config/maps';
+import { mapConfigById } from './config/map';
+import type { MapConfig } from './config/types';
+import type { WorldSnapshot } from './core/snapshot';
+import { MapSelectionScreen } from './ui/mapSelectionScreen';
 
 // Initialize Vercel Analytics
 inject();
@@ -32,6 +37,7 @@ const physicalPixelRatio = window.devicePixelRatio || 1;
 engine.setHardwareScalingLevel(Math.max(1, physicalPixelRatio / RENDER_CONFIG.maxDevicePixelRatio));
 let scene: MatchScene | null = null;
 let titleScreen: TitleScreen | null = null;
+let mapSelection: MapSelectionScreen | null = null;
 const audio = new AudioManager();
 const framePacer = new FramePacer(
   RENDER_CONFIG.targetFramesPerSecond,
@@ -66,31 +72,62 @@ const showTitle = (): void => {
   scene = null;
   canvas.style.display = 'none';
   titleScreen?.destroy();
+  mapSelection?.destroy();
+  mapSelection = null;
   titleScreen = new TitleScreen(
     container,
     GAME_TITLE,
     'Establish your base, secure crystal fields, and outmaneuver the Ember Collective in fast, readable RTS battles.',
     loadSnapshot() !== null,
-    startMatch,
-    startNewMatch,
+    resumeMatch,
+    showMapSelection,
     audio,
   );
 };
 
-const startMatch = (): void => {
+const startMatch = (map: MapConfig, snapshot: WorldSnapshot | null): void => {
   audio.enterMatch();
   titleScreen?.destroy();
   titleScreen = null;
+  mapSelection?.destroy();
+  mapSelection = null;
   canvas.style.display = 'block';
-  scene = new MatchScene(engine, canvas, container, startNewMatch, showTitle, audio);
+  scene = new MatchScene(engine, canvas, container, showMapSelection, showTitle, audio, map, snapshot);
   framePacer.reset();
 };
 
-const startNewMatch = (): void => {
+const startNewMatch = (map: MapConfig): void => {
   scene?.dispose();
   scene = null;
   clearSnapshot();
-  startMatch();
+  startMatch(map, null);
+};
+
+const resumeMatch = (): void => {
+  const snapshot = loadSnapshot();
+  const map = snapshot === null ? undefined : mapConfigById(snapshot.mapId);
+  if (snapshot === null || map === undefined) {
+    clearSnapshot();
+    showTitle();
+    return;
+  }
+  startMatch(map, snapshot);
+};
+
+const showMapSelection = (): void => {
+  audio.enterMainMenu();
+  scene?.dispose();
+  scene = null;
+  canvas.style.display = 'none';
+  titleScreen?.destroy();
+  titleScreen = null;
+  mapSelection?.destroy();
+  mapSelection = new MapSelectionScreen(
+    container,
+    MAP_CATALOG,
+    showTitle,
+    (entry) => startNewMatch(entry.config),
+  );
 };
 
 showTitle();

@@ -230,12 +230,14 @@ describe('isValidSnapshotShape (AC-002)', () => {
   it('accepts a well-formed snapshot shell', () => {
     const snapshot: WorldSnapshot = {
       schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+      mapId: 'open-field',
       entities: [],
       selection: [],
       credits: EMPTY_CREDITS,
       resourceFields: [],
       fog: EMPTY_FOG,
       ai: EMPTY_AI,
+      secondaryAi: null,
       lifecycle: EMPTY_LIFECYCLE,
     };
     expect(isValidSnapshotShape(snapshot)).toBe(true);
@@ -258,8 +260,9 @@ describe('isValidSnapshotShape (AC-002)', () => {
   it('rejects schema 11 snapshots from the pre-terrain map', () => {
     const snapshot: WorldSnapshot = {
       schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+      mapId: 'open-field',
       entities: [], selection: [], credits: EMPTY_CREDITS, resourceFields: [],
-      fog: EMPTY_FOG, ai: EMPTY_AI, lifecycle: EMPTY_LIFECYCLE,
+      fog: EMPTY_FOG, ai: EMPTY_AI, secondaryAi: null, lifecycle: EMPTY_LIFECYCLE,
     };
     expect(isValidSnapshotShape({ ...snapshot, schemaVersion: 11 })).toBe(false);
   });
@@ -352,12 +355,14 @@ describe('isValidSnapshotShape (AC-002)', () => {
     const { grid } = setup();
     const snapshot: WorldSnapshot = {
       schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+      mapId: 'open-field',
       entities: [],
       selection: [],
       credits: EMPTY_CREDITS,
       resourceFields: [],
       fog: EMPTY_FOG,
       ai: { productionCycleIndex: 0, lastKnownPlayerBasePosition: null, state: 'develop', buildOrderIndex: 0, decisionRemainingSeconds: 0, lastTransition: null },
+      secondaryAi: null,
       lifecycle: EMPTY_LIFECYCLE,
     };
     expect(() => restoreWorld(snapshot, grid)).toThrow('AI snapshot has an invalid shape');
@@ -394,12 +399,14 @@ describe('restoreWorld failure handling (AC-003)', () => {
   function snapshotOf(entity: WorldSnapshot['entities'][number]): WorldSnapshot {
     return {
       schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+      mapId: 'open-field',
       entities: [entity],
       selection: [],
       credits: EMPTY_CREDITS,
       resourceFields: [],
       fog: EMPTY_FOG,
       ai: EMPTY_AI,
+      secondaryAi: null,
       lifecycle: EMPTY_LIFECYCLE,
     };
   }

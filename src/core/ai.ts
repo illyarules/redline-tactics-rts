@@ -297,17 +297,17 @@ function assertAiConfig(config: AiConfig): void {
 }
 
 /** Read positions only after the AI's authoritative fog reveals the HQ. Memory remains stale under fog. */
-export function updateAiKnowledge(ai: AiState, world: World, fog: FogState): void {
-  const base = world.buildings('player').find((b) =>
-    b.type === 'hq' && isAlive(b) && isEntityVisibleToPlayer(fog, 'ai', b));
+export function updateAiKnowledge(ai: AiState, world: World, fog: FogState, owner: PlayerId = 'ai', opponent: PlayerId = 'player'): void {
+  const base = world.buildings(opponent).find((b) =>
+    b.type === 'hq' && isAlive(b) && isEntityVisibleToPlayer(fog, owner, b));
   if (base !== undefined) ai.lastKnownPlayerBasePosition = { ...base.position };
 }
 
-export function observeAiStrategy(ai: AiState, world: World, grid: MapGrid, fog: FogState): AiObservation {
-  updateAiKnowledge(ai, world, fog);
-  const observation = observeAiWorld(world, grid, fog);
+export function observeAiStrategy(ai: AiState, world: World, grid: MapGrid, fog: FogState, owner: PlayerId = 'ai'): AiObservation {
+  updateAiKnowledge(ai, world, fog, owner);
+  const observation = observeAiWorld(world, grid, fog, AI_CONFIG, owner);
   const lostOpening = AI_CONFIG.buildOrder.slice(0, ai.buildOrderIndex).some((type) =>
-    !world.buildings('ai').some((b) => b.type === type && isCompleted(b)));
+    !world.buildings(owner).some((b) => b.type === type && isCompleted(b)));
   return { ...observation, essentialInfrastructureIntact: observation.essentialInfrastructureIntact && !lostOpening,
     playerBaseKnown: ai.lastKnownPlayerBasePosition !== null };
 }

@@ -22,7 +22,7 @@ import type { TileCoord, Vec2 } from './geometry';
 import {
   createEntityIdFactory,
   FACTION_IDS,
-  PLAYER_IDS,
+  ALL_PLAYER_IDS,
   type BuildingTypeId,
   type EntityId,
   type FactionId,
@@ -360,7 +360,7 @@ function assertKnown(type: string, table: Readonly<Record<string, unknown>>, lab
 }
 
 function assertOwner(owner: PlayerId): void {
-  if (!PLAYER_IDS.includes(owner)) {
+  if (!ALL_PLAYER_IDS.includes(owner)) {
     throw new Error(`Unknown owner "${owner}"`);
   }
 }

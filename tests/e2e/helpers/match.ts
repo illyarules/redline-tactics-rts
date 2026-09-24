@@ -9,6 +9,12 @@ import { expect, type Page } from '@playwright/test';
 import type { WorldSnapshot } from '../../../src/core/snapshot';
 import { readSnapshot } from './storage';
 
+export async function selectMapAndStart(page: Page, mapId = 'open-field'): Promise<void> {
+  await expect(page.getByTestId('map-selection')).toBeVisible();
+  await page.getByTestId(`map-option-${mapId}`).click();
+  await page.getByTestId('map-selection-start').click();
+}
+
 /**
  * Opens the app's ordinary `/` route and starts a match through the real title screen: Resume Game
  * when a saved match makes the title screen offer one, New Game otherwise.
@@ -21,6 +27,7 @@ export async function startMatch(page: Page): Promise<void> {
     await resumeButton.click();
   } else {
     await page.getByTestId('title-new-game').click();
+    await selectMapAndStart(page);
   }
   await expect(page.getByTestId('game-canvas')).toBeVisible();
   await expect(page.getByTestId('tactical-hud')).toBeVisible();

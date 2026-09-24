@@ -15,13 +15,13 @@ export class TacticalHud {
   private readonly creditsValue: HTMLElement;
   private readonly powerLine: HTMLElement;
   private readonly timer: HTMLElement;
-  public constructor(container: HTMLElement) {
+  public constructor(container: HTMLElement, mapName = 'Open Field') {
     this.root.className = 'tactical-hud';
     this.root.dataset.testid = 'tactical-hud';
     this.root.innerHTML = `<div class="credits"><span>CREDITS</span><strong>${ECONOMY_CONFIG.startingCredits.toLocaleString()}</strong><small class="power"></small></div>
       <div class="commands" aria-label="Command shortcuts"><button disabled title="Right-click ground to move selected units">↗<small>MOVE</small></button><button disabled title="Right-click an enemy to attack, or press Q for Attack-Move">◎<small>ATTACK</small></button><button disabled title="Select a Worker to open the build menu">⌂<small>BUILD</small></button></div>
       <div class="match-timer" data-testid="match-timer">${formatMatchCountdown(0)}</div>
-      <div class="sector">OPEN FIELD <span>TACTICAL MAP</span></div>`;
+      <div class="sector">${mapName.toUpperCase()} <span>TACTICAL MAP</span></div>`;
     this.creditsValue = this.root.querySelector('.credits strong') as HTMLElement;
     this.powerLine = this.root.querySelector('.credits .power') as HTMLElement;
     this.timer = this.root.querySelector('.match-timer') as HTMLElement;

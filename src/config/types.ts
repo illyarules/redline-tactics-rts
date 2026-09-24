@@ -87,7 +87,7 @@ export interface MatchSetupConfig {
   /** Units each player receives near their rally point, spawned in this order. */
   readonly startingUnits: readonly StartingUnitGroup[];
   /** Faction per side, until the title screen offers a choice. */
-  readonly factions: Readonly<Record<PlayerId, FactionId>>;
+  readonly factions: Readonly<Partial<Record<PlayerId, FactionId>>>;
 }
 
 /** Rules that bound one live match independently of its opening setup. */
@@ -162,8 +162,8 @@ export interface CameraConfig {
 /** Ground and forest are walkable; rock and water block existing ground units. */
 export type TerrainType = 'ground' | 'forest' | 'rock' | 'water';
 
-/** Terrain explicitly painted over the default ground layer. */
-export type TerrainRegionType = Exclude<TerrainType, 'ground'>;
+/** Terrain explicitly painted over the default ground layer; later regions may cut ground crossings. */
+export type TerrainRegionType = TerrainType;
 
 /** Terrain kinds that block existing ground units and building placement. */
 export type BlockingTerrainType = Extract<TerrainType, 'rock' | 'water'>;
@@ -182,6 +182,8 @@ export interface ResourceFieldConfig {
   readonly credits: number;
   /** Contested fields sit near the middle and are reachable by both players. */
   readonly contested: boolean;
+  /** Preferred opening economy. Other players may use it after their home field is depleted. */
+  readonly homeFor?: PlayerId;
 }
 
 /** Where a player begins: a cleared base area, the HQ footprint inside it, and a rally point. */
@@ -201,7 +203,7 @@ export interface MapLaneConfig {
   readonly waypoints: readonly TileCoord[];
 }
 
-/** The single fixed battlefield, as data: bounds, terrain, starts, fields and lanes. */
+/** One battlefield, expressed entirely as data. */
 export interface MapConfig {
   readonly id: string;
   readonly name: string;
@@ -213,6 +215,13 @@ export interface MapConfig {
   readonly resourceFields: readonly ResourceFieldConfig[];
   readonly starts: readonly StartLocationConfig[];
   readonly lanes: readonly MapLaneConfig[];
+}
+
+export interface MapCatalogEntry {
+  readonly config: MapConfig;
+  readonly description: string;
+  readonly matchType: '1 VS 1' | '1 VS 2';
+  readonly thumbnailUrl: string;
 }
 
 /** Direct movement distances are expressed in map tiles. */

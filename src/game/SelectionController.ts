@@ -10,6 +10,7 @@ import { pruneSelection, updateSelection } from '../core/selection';
 import type { World } from '../core/world';
 import { projectToScreen } from './screenProjection';
 import type { SceneSpace } from './sceneSpace';
+import { areHostile } from '../core/teams';
 
 interface PointerPoint { readonly x: number; readonly y: number; }
 interface DragState { readonly start: PointerPoint; readonly additive: boolean; }
@@ -80,7 +81,7 @@ export class SelectionController {
         const target = this.world.get(targetId);
         if (
           target !== undefined &&
-          target.owner !== this.player &&
+          areHostile(target.owner, this.player) &&
           this.isVisibleToPlayer(target)
         ) {
           this.onAttack(this.selected, targetId);

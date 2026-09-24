@@ -6,7 +6,7 @@ import { issueAttackMoveOrders } from './attackMove';
 import type { Economy } from './economy';
 import { isAlive } from './entities';
 import type { Vec2 } from './geometry';
-import type { EntityId, UnitTypeId } from './ids';
+import type { EntityId, PlayerId, UnitTypeId } from './ids';
 import type { MapGrid } from './map';
 import { isProductionActive } from './power';
 import { isCompleted } from './prerequisites';
@@ -24,33 +24,40 @@ export type AiMilitaryIntent =
 
 /** Debug-only history is transient, never a second copy of orders or queues. */
 export interface AiMilitaryReadout { latestAction: string }
-export const aiArmy = (world: World) => world.units('ai').filter((u) => isAlive(u) && u.stats.attack !== null);
+export const aiArmy = (world: World, owner: PlayerId = 'ai') =>
+  world.units(owner).filter((u) => isAlive(u) && u.stats.attack !== null);
 
 // eslint-disable-next-line complexity -- Military planning uses ordered tactical gates before emitting an intent.
-export function planAiMilitary(ai: AiState, { world, grid, economy }: AiMilitaryContext, config: AiConfig = AI_CONFIG): readonly AiMilitaryIntent[] {
-  if (!world.buildings('ai').some((b) => b.type === 'hq' && isCompleted(b))) return [];
+export function planAiMilitary(
+  ai: AiState,
+  { world, grid, economy }: AiMilitaryContext,
+  config: AiConfig = AI_CONFIG,
+  owner: PlayerId = 'ai',
+  opponent: PlayerId = 'player',
+): readonly AiMilitaryIntent[] {
+  if (!world.buildings(owner).some((b) => b.type === 'hq' && isCompleted(b))) return [];
   const intents: AiMilitaryIntent[] = [];
-  const workers = world.units('ai').filter((unit) => isAlive(unit) && unit.type === 'worker');
-  const workerQueued = world.buildings('ai').some((building) => building.productionQueue.some((item) => item.unitType === 'worker'));
+  const workers = world.units(owner).filter((unit) => isAlive(unit) && unit.type === 'worker');
+  const workerQueued = world.buildings(owner).some((building) => building.productionQueue.some((item) => item.unitType === 'worker'));
   if (workers.length === 0 && !workerQueued) {
-    const hq = world.buildings('ai').find((building) =>
-      building.type === 'hq' && isCompleted(building) && checkProductionRequest(world, economy, 'ai', building.id, 'worker').allowed);
+    const hq = world.buildings(owner).find((building) =>
+      building.type === 'hq' && isCompleted(building) && checkProductionRequest(world, economy, owner, building.id, 'worker').allowed);
     if (hq !== undefined) return [{ kind: 'produce', producerId: hq.id, unitType: 'worker' }];
   }
-  const army = aiArmy(world); // World creation order is deterministic, including after restore.
+  const army = aiArmy(world, owner); // World creation order is deterministic, including after restore.
   // Reserve the normal opening for economy, but allow emergency reinforcements while defending or recovering.
   const mayReinforce = ai.buildOrderIndex === config.buildOrder.length || ai.state === 'defend' || ai.state === 'recover';
   if (mayReinforce &&
-    army.length + world.buildings('ai').reduce((n, b) => n + b.productionQueue.length, 0) < config.targetArmyUnits) {
+    army.length + world.buildings(owner).reduce((n, b) => n + b.productionQueue.length, 0) < config.targetArmyUnits) {
     const unitType = config.productionCycle[ai.productionCycleIndex]!;
-    const producer = world.buildings('ai').find((b) =>
-      isCompleted(b) && isProductionActive(world, 'ai', b.stats.requiresPower) &&
-      checkProductionRequest(world, economy, 'ai', b.id, unitType).allowed);
+    const producer = world.buildings(owner).find((b) =>
+      isCompleted(b) && isProductionActive(world, owner, b.stats.requiresPower) &&
+      checkProductionRequest(world, economy, owner, b.id, unitType).allowed);
     if (producer !== undefined) intents.push({ kind: 'produce', producerId: producer.id, unitType });
   }
   const attacking = ai.state === 'attack' && ai.lastKnownPlayerBasePosition !== null &&
     army.length >= config.minimumAttackArmyUnits;
-  const start = grid.startFor('player');
+  const start = grid.startFor(opponent);
   const target = attacking ? ai.lastKnownPlayerBasePosition :
     ai.state === 'scout' && ai.lastKnownPlayerBasePosition === null && start !== undefined
       ? grid.tileCenter(start.hqTopLeft.tx, start.hqTopLeft.ty) : null;
@@ -67,8 +74,8 @@ export function planAiMilitary(ai: AiState, { world, grid, economy }: AiMilitary
 }
 
 /** Re-plan before applying so stale/forged plans cannot bypass ownership, strategy or knowledge. */
-export function executeAiMilitaryIntent(ai: AiState, context: AiMilitaryContext, intent: AiMilitaryIntent, config: AiConfig = AI_CONFIG): boolean {
-  const valid = planAiMilitary(ai, context, config).some((p) => {
+export function executeAiMilitaryIntent(ai: AiState, context: AiMilitaryContext, intent: AiMilitaryIntent, config: AiConfig = AI_CONFIG, owner: PlayerId = 'ai'): boolean {
+  const valid = planAiMilitary(ai, context, config, owner).some((p) => {
     if (p.kind === 'produce' || intent.kind === 'produce') {
       return p.kind === 'produce' && intent.kind === 'produce' &&
         p.producerId === intent.producerId && p.unitType === intent.unitType;
@@ -78,20 +85,20 @@ export function executeAiMilitaryIntent(ai: AiState, context: AiMilitaryContext,
   });
   if (!valid) return false;
   if (intent.kind === 'produce') {
-    if (!queueProduction(context.world, context.economy, 'ai', intent.producerId, intent.unitType).allowed) return false;
+    if (!queueProduction(context.world, context.economy, owner, intent.producerId, intent.unitType).allowed) return false;
     if (intent.unitType !== 'worker') {
       ai.productionCycleIndex = (ai.productionCycleIndex + 1) % config.productionCycle.length;
     }
     return true;
   }
-  return issueAttackMoveOrders(context.world, context.grid, 'ai', intent.unitIds, intent.target).length > 0;
+  return issueAttackMoveOrders(context.world, context.grid, owner, intent.unitIds, intent.target).length > 0;
 }
 
-export function executeAiMilitaryDecisions(ai: AiState, step: AiStepResult, context: AiMilitaryContext, readout?: AiMilitaryReadout): void {
+export function executeAiMilitaryDecisions(ai: AiState, step: AiStepResult, context: AiMilitaryContext, readout?: AiMilitaryReadout, owner: PlayerId = 'ai'): void {
   for (let tick = 0; tick < step.evaluations; tick++) {
     const decisionAi = { ...ai, state: step.intents[tick]?.state ?? ai.state };
-    for (const intent of planAiMilitary(decisionAi, context)) {
-      if (executeAiMilitaryIntent(decisionAi, context, intent) && readout !== undefined) {
+    for (const intent of planAiMilitary(decisionAi, context, AI_CONFIG, owner)) {
+      if (executeAiMilitaryIntent(decisionAi, context, intent, AI_CONFIG, owner) && readout !== undefined) {
         readout.latestAction = intent.kind === 'produce' ? 'queue ' + intent.unitType : intent.kind + ' ' + intent.unitIds.length;
       }
     }

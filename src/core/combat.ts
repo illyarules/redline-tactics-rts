@@ -6,6 +6,7 @@ import { DAMAGE_TABLE } from '../config/combat';
 import { isAlive, isUnit, type ReadonlyEntity, type ReadonlyUnit } from './entities';
 import type { EntityId } from './ids';
 import type { World } from './world';
+import { areHostile } from './teams';
 
 /** Prevents binary floating-point residue from making a weapon miss its exact cooldown boundary. */
 const COOLDOWN_EPSILON_SECONDS = 1e-9;
@@ -45,7 +46,7 @@ export function checkAttackEligibility(world: World, attackerId: EntityId, targe
   if (target === undefined || !isAlive(target)) {
     return { allowed: false, reason: 'invalid-target' };
   }
-  if (attacker.owner === target.owner) {
+  if (!areHostile(attacker.owner, target.owner)) {
     return { allowed: false, reason: 'same-owner' };
   }
   if (!attacker.stats.attack.targetCategories.includes(attackTargetCategory(target))) {

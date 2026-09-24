@@ -18,5 +18,5 @@ export const MATCH_SETUP: MatchSetupConfig = {
     { type: 'tank', count: 1 },
     { type: 'rocket', count: 1 },
   ],
-  factions: { player: 'meridian', ai: 'ember' },
+  factions: { player: 'meridian', ai: 'ember', ai2: 'ember' },
 };

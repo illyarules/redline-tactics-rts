@@ -93,7 +93,7 @@ export function recordProducedUnits(
   for (const event of events) {
     if (seen.has(event.unitId)) continue;
     seen.add(event.unitId);
-    state.unitsProduced[event.owner] += 1;
+    state.unitsProduced[event.owner === 'player' ? 'player' : 'ai'] += 1;
   }
 }
 
@@ -112,7 +112,7 @@ export function recordCombatDestructions(
     if (seen.has(event.targetId)) continue;
     seen.add(event.targetId);
     if (event.entityKind === 'unit') {
-      state.unitsLost[event.owner] += 1;
+      state.unitsLost[event.owner === 'player' ? 'player' : 'ai'] += 1;
     }
   }
   return state.result;
@@ -139,7 +139,9 @@ export function resolveMatchOutcome(
 export function countAliveBuildings(entities: readonly ReadonlyEntity[]): OwnerCounts {
   const counts = { player: 0, ai: 0 };
   for (const entity of entities) {
-    if (entity.kind === 'building' && isAlive(entity)) counts[entity.owner] += 1;
+    if (entity.kind === 'building' && isAlive(entity)) {
+      counts[entity.owner === 'player' ? 'player' : 'ai'] += 1;
+    }
   }
   return counts;
 }

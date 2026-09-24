@@ -7,7 +7,7 @@ import { issueAttackMoveOrders } from './attackMove';
 import { isAlive } from './entities';
 import { fogTargetPredicate, isEntityVisibleToPlayer, type FogState } from './fog';
 import type { Vec2 } from './geometry';
-import type { EntityId } from './ids';
+import type { EntityId, PlayerId } from './ids';
 import type { MapGrid } from './map';
 import { isCompleted } from './prerequisites';
 import type { World } from './world';
@@ -18,15 +18,15 @@ export type AiDefenseIntent =
   | { readonly kind: 'defend'; readonly unitId: EntityId; readonly targetId: EntityId }
   | { readonly kind: 'rally'; readonly unitId: EntityId; readonly target: Vec2 };
 
-export function observeAiDefense({ world, grid, fog }: AiDefenseContext, config: AiConfig = AI_CONFIG) {
-  const base = world.buildings('ai').find((b) => b.type === 'hq' && isCompleted(b));
+export function observeAiDefense({ world, grid, fog }: AiDefenseContext, config: AiConfig = AI_CONFIG, owner: PlayerId = 'ai', opponent: PlayerId = 'player') {
+  const base = world.buildings(owner).find((b) => b.type === 'hq' && isCompleted(b));
   const distance = (p: Vec2) => base === undefined ? Infinity : Math.hypot(p.x - base.position.x, p.y - base.position.y);
   const nearest = (a: { position: Vec2; id: string }, b: { position: Vec2; id: string }) =>
     distance(a.position) - distance(b.position) || a.id.localeCompare(b.id);
-  const threats = base === undefined ? [] : world.units('player').filter((u) =>
-    isAlive(u) && u.stats.attack !== null && isEntityVisibleToPlayer(fog, 'ai', u) &&
+  const threats = base === undefined ? [] : world.units(opponent).filter((u) =>
+    isAlive(u) && u.stats.attack !== null && isEntityVisibleToPlayer(fog, owner, u) &&
     distance(u.position) <= config.baseThreatRadiusTiles * grid.tileSizePixels).slice().sort(nearest);
-  const defenders = base === undefined ? [] : world.units('ai').filter((u) =>
+  const defenders = base === undefined ? [] : world.units(owner).filter((u) =>
     isAlive(u) && u.type !== 'worker' && u.stats.attack !== null &&
     distance(u.position) <= config.defenderSelectionRadiusTiles * grid.tileSizePixels)
     .slice().sort(nearest).slice(0, config.maximumDefenders);
@@ -34,12 +34,12 @@ export function observeAiDefense({ world, grid, fog }: AiDefenseContext, config:
 }
 
 // eslint-disable-next-line complexity -- Defense planning prioritizes mutually exclusive recovery conditions.
-export function planAiDefense(ai: AiState, context: AiDefenseContext, config: AiConfig = AI_CONFIG): readonly AiDefenseIntent[] {
-  const { base, threats, defenders } = observeAiDefense(context, config);
+export function planAiDefense(ai: AiState, context: AiDefenseContext, config: AiConfig = AI_CONFIG, owner: PlayerId = 'ai'): readonly AiDefenseIntent[] {
+  const { base, threats, defenders } = observeAiDefense(context, config, owner);
   const active = ai.state === 'defend' && base !== undefined;
   // AI offense uses Attack-Move; explicit AI attacks belong to defense. Release old assignments
   // when selection changes or strategy exits, so consecutive ticks cannot accumulate defenders.
-  const intents: AiDefenseIntent[] = context.world.units('ai').filter((u) => isAlive(u) &&
+  const intents: AiDefenseIntent[] = context.world.units(owner).filter((u) => isAlive(u) &&
     u.order?.kind === 'Attack' && u.order.source === 'explicit' &&
     (!active || !defenders.some((d) => d.id === u.id))).map((u) => ({ kind: 'release', unitId: u.id }));
   if (!active || base === undefined) return intents;
@@ -59,22 +59,22 @@ export function planAiDefense(ai: AiState, context: AiDefenseContext, config: Ai
   return intents;
 }
 
-export function executeAiDefenseIntent(ai: AiState, context: AiDefenseContext, intent: AiDefenseIntent, config: AiConfig = AI_CONFIG): boolean {
-  const valid = planAiDefense(ai, context, config).some((p) => p.unitId === intent.unitId &&
+export function executeAiDefenseIntent(ai: AiState, context: AiDefenseContext, intent: AiDefenseIntent, config: AiConfig = AI_CONFIG, owner: PlayerId = 'ai'): boolean {
+  const valid = planAiDefense(ai, context, config, owner).some((p) => p.unitId === intent.unitId &&
     (p.kind === 'release' && intent.kind === 'release' ? true : p.kind === 'defend' && intent.kind === 'defend' ? p.targetId === intent.targetId :
       p.kind === 'rally' && intent.kind === 'rally' && p.target.x === intent.target.x && p.target.y === intent.target.y));
   if (!valid) return false;
   if (intent.kind === 'release') { stopAttacking(context.world, intent.unitId); return true; }
   return intent.kind === 'defend'
-    ? issueAttackOrders(context.world, 'ai', [intent.unitId], intent.targetId, fogTargetPredicate(context.fog)).length > 0
-    : issueAttackMoveOrders(context.world, context.grid, 'ai', [intent.unitId], intent.target).length > 0;
+    ? issueAttackOrders(context.world, owner, [intent.unitId], intent.targetId, fogTargetPredicate(context.fog)).length > 0
+    : issueAttackMoveOrders(context.world, context.grid, owner, [intent.unitId], intent.target).length > 0;
 }
 
-export function executeAiDefenseDecisions(ai: AiState, step: AiStepResult, context: AiDefenseContext, readout?: { latestAction: string }): void {
+export function executeAiDefenseDecisions(ai: AiState, step: AiStepResult, context: AiDefenseContext, readout?: { latestAction: string }, owner: PlayerId = 'ai'): void {
   for (const decision of step.intents) {
     const state = { ...ai, state: decision.state };
-    for (const intent of planAiDefense(state, context)) {
-      if (executeAiDefenseIntent(state, context, intent) && readout) readout.latestAction = intent.kind + ' ' + intent.unitId;
+    for (const intent of planAiDefense(state, context, AI_CONFIG, owner)) {
+      if (executeAiDefenseIntent(state, context, intent, AI_CONFIG, owner) && readout) readout.latestAction = intent.kind + ' ' + intent.unitId;
     }
   }
 }
