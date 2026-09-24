@@ -229,7 +229,7 @@ describe('audio config', () => {
     expect(AUDIO_CONFIG.matchMusic.tracks).toEqual([]);
     expect(AUDIO_CONFIG.soundEffects).toEqual({});
     expect(AUDIO_CONFIG.settings.defaultVolumePercent).toBe(30);
-    expect(AUDIO_CONFIG.settings.defaultSoundEnabled).toBe(false);
+    expect(AUDIO_CONFIG.settings.defaultSoundEnabled).toBe(true);
   });
 });
 

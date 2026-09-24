@@ -1,6 +1,6 @@
 /**
  * Covers the match exit/resume lifecycle end to end: the live-match quit confirmation (Save and
- * Quit / Quit Without Saving / Cancel) and the title screen's Resume Game / New Game choice, backed
+ * Quit / Quit Without Saving / Cancel) and the title screen's single Start Game action, backed
  * by the same local snapshot every other persistence test reads and writes.
  */
 import { expect, test } from '@playwright/test';
@@ -26,7 +26,7 @@ test('Cancel leaves the live match active and untouched', async ({ page }) => {
   await expect(page.getByTestId('tactical-hud')).toBeVisible();
 });
 
-test('Save and Quit returns to the main menu and makes Resume Game available', async ({ page }) => {
+test('Save and Quit returns to the start page and Start Game resumes the save', async ({ page }) => {
   await clearSnapshot(page);
   await startMatch(page);
 
@@ -36,13 +36,16 @@ test('Save and Quit returns to the main menu and makes Resume Game available', a
 
   await expect(page.getByTestId('title-screen')).toBeVisible();
   await expect(page.getByTestId('game-canvas')).toBeHidden();
-  await expect(page.getByTestId('title-resume')).toBeVisible();
-  await expect(page.getByTestId('title-new-game')).toBeVisible();
+  await expect(page.getByTestId('title-start-game')).toBeVisible();
   const saved = await readSnapshot(page);
   expect(saved.entities.length).toBeGreaterThan(0);
+
+  await page.getByTestId('title-start-game').click();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+  await expect(page.getByTestId('game-mode-selection')).toHaveCount(0);
 });
 
-test('Quit Without Saving returns to the main menu and removes Resume Game', async ({ page }) => {
+test('Quit Without Saving returns to the start page and removes the save', async ({ page }) => {
   await seedSnapshot(page, persistenceScenario());
   await startMatch(page);
 
@@ -51,8 +54,7 @@ test('Quit Without Saving returns to the main menu and removes Resume Game', asy
   await page.getByTestId('quit-confirm-discard').click();
 
   await expect(page.getByTestId('title-screen')).toBeVisible();
-  await expect(page.getByTestId('title-resume')).toHaveCount(0);
-  await expect(page.getByTestId('title-new-game')).toBeVisible();
+  await expect(page.getByTestId('title-start-game')).toBeVisible();
   expect(await page.evaluate((key) => window.localStorage.getItem(key), SNAPSHOT_STORAGE_KEY)).toBeNull();
 });
 
@@ -60,8 +62,8 @@ test('Resume Game restores the saved match', async ({ page }) => {
   await seedSnapshot(page, persistenceScenario());
   await page.goto('/');
 
-  await expect(page.getByTestId('title-resume')).toBeVisible();
-  await page.getByTestId('title-resume').click();
+  await expect(page.getByTestId('title-start-game')).toBeVisible();
+  await page.getByTestId('title-start-game').click();
 
   await expect(page.getByTestId('game-canvas')).toBeVisible();
   // `persistenceScenario` pre-selects its one friendly Infantry, so a genuine restore shows it
@@ -69,45 +71,26 @@ test('Resume Game restores the saved match', async ({ page }) => {
   await expect(page.getByTestId('selection-panel')).toContainText('Infantry');
 });
 
-test('New Game from a menu with a save requires confirmation before starting clean', async ({ page }) => {
+test('Start Game with a save resumes immediately without opening mode selection', async ({ page }) => {
   await seedSnapshot(page, persistenceScenario());
   await page.goto('/');
 
-  await expect(page.getByTestId('title-resume')).toBeVisible();
-  await page.getByTestId('title-new-game').click();
-
-  const confirm = page.getByTestId('title-new-game-confirm');
-  await expect(confirm).toBeVisible();
-  await expect(page.getByTestId('title-screen')).toBeVisible();
-  await expect(page.getByTestId('game-canvas')).toBeHidden();
-
-  // Cancelling the confirmation leaves the saved match untouched and resumable.
-  await page.getByTestId('title-new-game-confirm-cancel').click();
-  await expect(confirm).toBeHidden();
-  await expect(page.getByTestId('title-resume')).toBeVisible();
-
-  await page.getByTestId('title-new-game').click();
-  await page.getByTestId('title-new-game-confirm-accept').click();
-  await selectMapAndStart(page);
-
-  await expect(page.getByTestId('title-screen')).not.toBeAttached();
-  await expect(page.getByTestId('tactical-hud')).toBeVisible();
-  // A fresh default match selects its HQ, not the seeded scenario's Infantry.
-  await expect(page.getByTestId('selection-panel')).toContainText('HQ');
-  await expect(page.getByTestId('selection-panel')).not.toContainText('Infantry');
+  await page.getByTestId('title-start-game').click();
+  await expect(page.getByTestId('game-mode-selection')).toHaveCount(0);
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+  await expect(page.getByTestId('selection-panel')).toContainText('Infantry');
 });
 
-test('With no saved match the title screen only offers New Game', async ({ page }) => {
+test('With no saved match Start Game opens mode selection', async ({ page }) => {
   await clearSnapshot(page);
   await page.goto('/');
 
   await expect(page.getByTestId('title-screen')).toBeVisible();
-  await expect(page.getByTestId('title-new-game')).toBeVisible();
-  await expect(page.getByTestId('title-resume')).toHaveCount(0);
+  await expect(page.getByTestId('title-start-game')).toBeVisible();
 
-  await page.getByTestId('title-new-game').click();
-  // Nothing to lose, so New Game starts immediately with no confirmation dialog.
-  await expect(page.getByTestId('title-new-game-confirm')).toHaveCount(0);
+  await page.getByTestId('title-start-game').click();
+  await expect(page.getByTestId('game-mode-selection')).toBeVisible();
+  await page.getByTestId('game-mode-single').click();
   await selectMapAndStart(page);
   await expect(page.getByTestId('tactical-hud')).toBeVisible();
 });

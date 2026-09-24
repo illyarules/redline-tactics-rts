@@ -2,17 +2,22 @@ import { expect, test } from '@playwright/test';
 import { clearSnapshot } from './helpers/storage';
 import { selectMapAndStart } from './helpers/match';
 
-test('shows only New Game with no saved match, and starts a match', async ({ page }) => {
+test('starts through mode and map selection with multiplayer disabled', async ({ page }) => {
   await clearSnapshot(page);
   await page.goto('/');
 
   const titleScreen = page.getByTestId('title-screen');
-  const newGameButton = page.getByTestId('title-new-game');
+  const startGameButton = page.getByTestId('title-start-game');
   await expect(titleScreen).toBeVisible();
-  await expect(newGameButton).toBeVisible();
-  await expect(page.getByTestId('title-resume')).toHaveCount(0);
+  await expect(startGameButton).toBeVisible();
+  await expect(page.getByTestId('title-quick-audio-toggle')).toHaveCount(0);
 
-  await newGameButton.click();
+  await startGameButton.click();
+  await expect(page.getByTestId('game-mode-selection')).toBeVisible();
+  await expect(page.getByTestId('game-mode-single')).toBeEnabled();
+  await expect(page.getByTestId('game-mode-multiplayer')).toBeDisabled();
+  await expect(page.getByTestId('mode-quick-audio-toggle')).toHaveAttribute('aria-label', 'Mute audio');
+  await page.getByTestId('game-mode-single').click();
   await expect(page.getByTestId('map-selection')).toBeVisible();
   await selectMapAndStart(page);
 

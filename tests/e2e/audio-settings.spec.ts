@@ -67,14 +67,19 @@ test('menu quick toggle persists and preserves playback position', async ({ page
   await clearSnapshot(page);
   await page.goto('/');
 
-  const quickToggle = page.getByTestId('title-quick-audio-toggle');
-  const icon = page.getByTestId('title-quick-audio-icon');
-  await expectQuickToggle(quickToggle, 'Unmute audio');
-  const mutedIcon = await icon.getAttribute('src');
+  await expect(page.getByTestId('title-quick-audio-toggle')).toHaveCount(0);
+  await page.getByTestId('title-start-game').click();
+  const quickToggle = page.getByTestId('mode-quick-audio-toggle');
+  const icon = page.getByTestId('mode-quick-audio-icon');
+  await expectQuickToggle(quickToggle, 'Mute audio');
+  const enabledIcon = await icon.getAttribute('src');
 
   await quickToggle.click();
+  await expect(quickToggle).toHaveAttribute('aria-label', 'Unmute audio');
+  await expect(icon).not.toHaveAttribute('src', enabledIcon ?? '');
+  expect((await audioProbe(page)).volumes).toEqual([0, 0]);
+  await quickToggle.click();
   await expect(quickToggle).toHaveAttribute('aria-label', 'Mute audio');
-  await expect(icon).not.toHaveAttribute('src', mutedIcon ?? '');
   expect((await audioProbe(page)).volumes).toEqual([0.3, 0.3]);
   await page.evaluate(() => {
     const probe = (window as unknown as { __audioProbe: { players: HTMLAudioElement[] } }).__audioProbe;
@@ -83,18 +88,14 @@ test('menu quick toggle persists and preserves playback position', async ({ page
   const beforeToggle = await audioProbe(page);
 
   await quickToggle.click();
-  await expect(quickToggle).toHaveAttribute('aria-label', 'Unmute audio');
-  expect((await audioProbe(page)).volumes).toEqual([0, 0]);
-
   await quickToggle.click();
-  await expect(quickToggle).toHaveAttribute('aria-label', 'Mute audio');
   const afterToggle = await audioProbe(page);
   expect(afterToggle.volumes).toEqual([0.3, 0.3]);
   expect(afterToggle.instanceCount).toBe(beforeToggle.instanceCount);
   expect(afterToggle.currentTimes).toEqual(beforeToggle.currentTimes);
   expect(afterToggle.playCalls.slice(beforeToggle.playCalls.length)).toEqual([{ player: 0, currentTime: 18 }]);
 
-  await page.getByTestId('title-new-game').click();
+  await page.getByTestId('game-mode-single').click();
   await selectMapAndStart(page);
   await page.keyboard.press('Escape');
   await openPauseAudio(page);
@@ -105,10 +106,14 @@ test('menu quick toggle persists and preserves playback position', async ({ page
   await page.keyboard.press('Escape');
   await page.getByTestId('pause-return-title').click();
   await page.getByTestId('quit-confirm-discard').click();
-  await expect(page.getByTestId('title-quick-audio-toggle')).toHaveAttribute('aria-label', 'Unmute audio');
+  await expect(page.getByTestId('title-quick-audio-toggle')).toHaveCount(0);
+  await page.getByTestId('title-start-game').click();
+  await expect(page.getByTestId('mode-quick-audio-toggle')).toHaveAttribute('aria-label', 'Unmute audio');
 
   await page.reload();
-  await expect(page.getByTestId('title-quick-audio-toggle')).toHaveAttribute('aria-label', 'Unmute audio');
+  await expect(page.getByTestId('title-quick-audio-toggle')).toHaveCount(0);
+  await page.getByTestId('title-start-game').click();
+  await expect(page.getByTestId('mode-quick-audio-toggle')).toHaveAttribute('aria-label', 'Unmute audio');
   await expect(page.getByTestId('title-settings')).not.toBeAttached();
 });
 
@@ -118,10 +123,12 @@ test('saved mute is applied before startup playback', async ({ page }) => {
   await clearSnapshot(page);
   await page.goto('/');
 
-  await expect(page.getByTestId('title-quick-audio-toggle')).toHaveAttribute('aria-label', 'Unmute audio');
+  await expect(page.getByTestId('title-quick-audio-toggle')).toHaveCount(0);
   expect((await audioProbe(page)).playCalls).toEqual([]);
   expect((await audioProbe(page)).volumes).toEqual([0, 0]);
-  await page.getByTestId('title-new-game').click();
+  await page.getByTestId('title-start-game').click();
+  await expect(page.getByTestId('mode-quick-audio-toggle')).toHaveAttribute('aria-label', 'Unmute audio');
+  await page.getByTestId('game-mode-single').click();
   await selectMapAndStart(page);
   await page.keyboard.press('Escape');
   await openPauseAudio(page);
@@ -134,17 +141,18 @@ test('match screen omits the quick toggle while pause settings keep the match in
   await page.goto('/');
   const firstMenuSource = (await audioProbe(page)).sources[0];
   expect(firstMenuSource).toMatch(/(?:Strategic%20Horizon|Forge%20Protocol|Tactical%20Pulse).*\.mp3/);
-  await page.getByTestId('title-new-game').click();
+  await page.getByTestId('title-start-game').click();
+  await page.getByTestId('game-mode-single').click();
   await selectMapAndStart(page);
 
   await expect(page.getByTestId('match-quick-audio-toggle')).not.toBeAttached();
-  await expect(page.getByTestId('title-quick-audio-toggle')).not.toBeAttached();
+  await expect(page.getByTestId('mode-quick-audio-toggle')).not.toBeAttached();
   const beforeToggle = await audioProbe(page);
   expect(beforeToggle.sources).toEqual(['', '']);
   await page.keyboard.press('Escape');
   await openPauseAudio(page);
   await page.getByTestId('pause-sound-toggle').click();
-  await expect(page.getByTestId('pause-sound-toggle')).toHaveText('Sound: Enabled');
+  await expect(page.getByTestId('pause-sound-toggle')).toHaveText('Sound: Muted');
   await expect(page.getByTestId('pause-master-volume')).toHaveValue('30');
   const afterToggle = await audioProbe(page);
   expect(afterToggle.instanceCount).toBe(beforeToggle.instanceCount);

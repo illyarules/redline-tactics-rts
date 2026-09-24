@@ -1,31 +1,17 @@
-import { ConfirmDialog } from './confirmDialog';
-import type { AudioManager } from '../audio/AudioManager';
-import { QuickAudioToggle } from './quickAudioToggle';
-
 /**
- * The first screen a player sees. It is deliberately HTML instead of a Babylon scene: loading the
- * match only after Start keeps the title screen cheap and makes its supplied concept render crisp.
- *
- * When a saved match exists, both Resume Game and New Game are offered; New Game confirms before
- * discarding the save. With no saved match there is nothing to lose, so only New Game is shown and
- * it starts immediately.
+ * The first screen a player sees. It deliberately exposes one action only: an existing save is
+ * resumed by Start Game, while a fresh session continues to mode selection.
  */
 const OPEN_FIELD_RENDER = new URL('../../assets/concepts/open-field-map-render.png', import.meta.url).href;
 
 export class TitleScreen {
   private readonly root: HTMLDivElement;
-  private readonly mainPanel: HTMLElement;
-  private readonly newGameConfirm: ConfirmDialog | null;
-  private readonly quickAudioToggle: QuickAudioToggle;
 
   public constructor(
     container: HTMLElement,
     title: string,
     description: string,
-    hasSavedMatch: boolean,
-    onResume: () => void,
-    onNewGame: () => void,
-    audio: AudioManager,
+    onStart: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.dataset.testid = 'title-screen';
@@ -35,82 +21,35 @@ export class TitleScreen {
       backgroundPosition: 'center', backgroundSize: 'cover', color: '#e7f5ff',
     });
 
-    this.mainPanel = document.createElement('section');
-    Object.assign(this.mainPanel.style, {
-      width: 'min(420px, calc(100vw - 48px))', padding: '38px 34px', textAlign: 'center',
+    const panel = document.createElement('section');
+    Object.assign(panel.style, {
+      width: 'min(560px, calc(100vw - 48px))', padding: '44px 38px', textAlign: 'center',
       background: 'linear-gradient(180deg, rgba(9, 22, 30, 0.9), rgba(6, 13, 19, 0.94))',
       border: '1px solid rgba(130, 214, 255, 0.45)', borderRadius: '8px',
       boxShadow: '0 18px 70px rgba(0, 0, 0, 0.55)',
     });
-    this.mainPanel.innerHTML = `<div style="font:600 12px/1.2 system-ui,sans-serif;letter-spacing:.22em;color:#83d6ff">TACTICAL COMMAND</div>
+    panel.innerHTML = `<div style="font:600 12px/1.2 system-ui,sans-serif;letter-spacing:.22em;color:#83d6ff">TACTICAL COMMAND</div>
       <h1 style="margin:10px 0 8px;font:700 clamp(38px,7vw,58px)/1 system-ui,sans-serif;letter-spacing:-.045em">${title}</h1>
       <p style="margin:0 0 28px;color:#b8cad5;font:15px/1.5 system-ui,sans-serif">${description}</p>`;
-
-    this.newGameConfirm = hasSavedMatch
-      ? new ConfirmDialog(
-          this.root,
-          'title-new-game-confirm',
-          'Start a new game?',
-          'Starting a new game discards your saved match and its progress. This cannot be undone.',
-          [
-            {
-              label: 'Start New Game',
-              testId: 'title-new-game-confirm-accept',
-              primary: true,
-              onClick: () => {
-                this.newGameConfirm?.hide();
-                onNewGame();
-              },
-            },
-            {
-              label: 'Cancel',
-              testId: 'title-new-game-confirm-cancel',
-              onClick: () => this.newGameConfirm?.hide(),
-            },
-          ],
-          70,
-        )
-      : null;
-
-    const actions = document.createElement('div');
-    Object.assign(actions.style, { display: 'grid', gap: '10px' });
-    if (hasSavedMatch) {
-      actions.append(this.button('Resume Game', onResume, 'title-resume', true));
-    }
-    actions.append(
-      this.button(
-        'New Game',
-        () => (hasSavedMatch ? this.newGameConfirm?.show() : onNewGame()),
-        'title-new-game',
-        !hasSavedMatch,
-      ),
-    );
-    this.mainPanel.append(actions);
-    this.root.append(this.mainPanel);
-    this.quickAudioToggle = new QuickAudioToggle(this.root, audio, 'title');
+    panel.append(this.startButton(onStart));
+    this.root.append(panel);
     container.append(this.root);
   }
 
-  public destroy(): void {
-    this.newGameConfirm?.destroy();
-    this.quickAudioToggle.destroy();
-    this.root.remove();
-  }
+  public destroy(): void { this.root.remove(); }
 
-  private button(label: string, onClick: () => void, testId: string, primary: boolean): HTMLButtonElement {
+  private startButton(onStart: () => void): HTMLButtonElement {
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = label;
-    button.dataset.testid = testId;
+    button.textContent = 'Start Game';
+    button.dataset.testid = 'title-start-game';
     Object.assign(button.style, {
-      minWidth: '190px', padding: '13px 22px',
-      border: `1px solid ${primary ? '#9ee6ff' : 'rgba(159, 210, 255, 0.4)'}`, borderRadius: '4px',
-      background: primary ? 'linear-gradient(180deg, #2d91bd, #176181)' : '#163545',
-      color: primary ? '#f2fbff' : '#e3f5ff', cursor: 'pointer',
-      font: '600 14px/1 system-ui,sans-serif', letterSpacing: '.08em', textTransform: 'uppercase',
-      boxShadow: primary ? '0 0 24px rgba(65, 199, 255, 0.28)' : 'none',
+      width: '100%', padding: '15px 22px', border: '1px solid #9ee6ff', borderRadius: '4px',
+      background: 'linear-gradient(180deg, #2d91bd, #176181)', color: '#f2fbff', cursor: 'pointer',
+      font: '600 14px/1 system-ui,sans-serif', letterSpacing: '.12em', textTransform: 'uppercase',
+      boxShadow: '0 0 24px rgba(65, 199, 255, 0.28)',
     });
-    button.addEventListener('click', onClick);
+    button.addEventListener('click', onStart);
     return button;
   }
 }

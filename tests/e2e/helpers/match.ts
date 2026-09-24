@@ -22,11 +22,9 @@ export async function selectMapAndStart(page: Page, mapId = 'open-field'): Promi
 export async function startMatch(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByTestId('title-screen')).toBeVisible();
-  const resumeButton = page.getByTestId('title-resume');
-  if (await resumeButton.isVisible()) {
-    await resumeButton.click();
-  } else {
-    await page.getByTestId('title-new-game').click();
+  await page.getByTestId('title-start-game').click();
+  if (await page.getByTestId('game-mode-selection').isVisible()) {
+    await page.getByTestId('game-mode-single').click();
     await selectMapAndStart(page);
   }
   await expect(page.getByTestId('game-canvas')).toBeVisible();
@@ -37,7 +35,7 @@ export async function startMatch(page: Page): Promise<void> {
 export async function saveAndResume(page: Page): Promise<void> {
   await page.reload();
   await expect(page.getByTestId('title-screen')).toBeVisible();
-  await page.getByTestId('title-resume').click();
+  await page.getByTestId('title-start-game').click();
   await expect(page.getByTestId('game-canvas')).toBeVisible();
 }
 

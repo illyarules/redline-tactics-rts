@@ -36,7 +36,7 @@ test('wins through real attack controls, restores terminal, and plays again clea
 
   // A terminal snapshot opens frozen with its report instead of silently becoming a live match.
   await page.reload();
-  await page.getByTestId('title-resume').click();
+  await page.getByTestId('title-start-game').click();
   await expect(page.getByTestId('match-result-victory')).toBeVisible();
 
   await page.getByTestId('match-result-play-again').click();
@@ -67,14 +67,15 @@ test('wins through real attack controls, restores terminal, and plays again clea
     [SNAPSHOT_STORAGE_KEY, terminalJson] as const,
   );
   await page.reload();
-  await page.getByTestId('title-resume').click();
+  await page.getByTestId('title-start-game').click();
   await expect(page.getByTestId('match-result-victory')).toBeVisible();
   await page.getByTestId('match-result-quit').click();
   await expect(page.getByTestId('title-screen')).toBeVisible();
   expect(await page.evaluate((key) => localStorage.getItem(key), SNAPSHOT_STORAGE_KEY)).toBeNull();
 
   // Starting again from title creates one clean live scene after all prior disposal paths.
-  await page.getByTestId('title-new-game').click();
+  await page.getByTestId('title-start-game').click();
+  await page.getByTestId('game-mode-single').click();
   await selectMapAndStart(page);
   await expect(page.getByTestId('tactical-hud')).toBeVisible();
   await expect(page.getByTestId('match-result-overlay')).toBeHidden();

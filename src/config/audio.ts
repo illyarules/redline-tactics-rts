@@ -24,6 +24,6 @@ export const AUDIO_CONFIG = {
   settings: {
     storageKey: 'mini-command:audio-settings',
     defaultVolumePercent: 30,
-    defaultSoundEnabled: false,
+    defaultSoundEnabled: true,
   },
 } as const;

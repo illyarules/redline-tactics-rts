@@ -12,6 +12,7 @@ import { mapConfigById } from './config/map';
 import type { MapConfig } from './config/types';
 import type { WorldSnapshot } from './core/snapshot';
 import { MapSelectionScreen } from './ui/mapSelectionScreen';
+import { GameModeScreen } from './ui/gameModeScreen';
 
 // Initialize Vercel Analytics
 inject();
@@ -37,6 +38,7 @@ const physicalPixelRatio = window.devicePixelRatio || 1;
 engine.setHardwareScalingLevel(Math.max(1, physicalPixelRatio / RENDER_CONFIG.maxDevicePixelRatio));
 let scene: MatchScene | null = null;
 let titleScreen: TitleScreen | null = null;
+let gameModeScreen: GameModeScreen | null = null;
 let mapSelection: MapSelectionScreen | null = null;
 const audio = new AudioManager();
 const framePacer = new FramePacer(
@@ -72,23 +74,37 @@ const showTitle = (): void => {
   scene = null;
   canvas.style.display = 'none';
   titleScreen?.destroy();
+  gameModeScreen?.destroy();
+  gameModeScreen = null;
   mapSelection?.destroy();
   mapSelection = null;
   titleScreen = new TitleScreen(
     container,
     GAME_TITLE,
     'Establish your base, secure crystal fields, and outmaneuver the Ember Collective in fast, readable RTS battles.',
-    loadSnapshot() !== null,
-    resumeMatch,
-    showMapSelection,
-    audio,
+    () => (loadSnapshot() === null ? showGameModeSelection() : resumeMatch()),
   );
+};
+
+const showGameModeSelection = (): void => {
+  audio.enterMainMenu();
+  scene?.dispose();
+  scene = null;
+  canvas.style.display = 'none';
+  titleScreen?.destroy();
+  titleScreen = null;
+  mapSelection?.destroy();
+  mapSelection = null;
+  gameModeScreen?.destroy();
+  gameModeScreen = new GameModeScreen(container, audio, showMapSelection);
 };
 
 const startMatch = (map: MapConfig, snapshot: WorldSnapshot | null): void => {
   audio.enterMatch();
   titleScreen?.destroy();
   titleScreen = null;
+  gameModeScreen?.destroy();
+  gameModeScreen = null;
   mapSelection?.destroy();
   mapSelection = null;
   canvas.style.display = 'block';
@@ -121,11 +137,13 @@ const showMapSelection = (): void => {
   canvas.style.display = 'none';
   titleScreen?.destroy();
   titleScreen = null;
+  gameModeScreen?.destroy();
+  gameModeScreen = null;
   mapSelection?.destroy();
   mapSelection = new MapSelectionScreen(
     container,
     MAP_CATALOG,
-    showTitle,
+    showGameModeSelection,
     (entry) => startNewMatch(entry.config),
   );
 };

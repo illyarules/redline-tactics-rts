@@ -3,20 +3,20 @@ import type { AudioManager, AudioSettings } from '../audio/AudioManager';
 const AUDIO_ENABLED_ICON = new URL('../assets/audio/ui/audio-enabled.png', import.meta.url).href;
 const AUDIO_MUTED_ICON = new URL('../assets/audio/ui/audio-muted.png', import.meta.url).href;
 
-/** Compact global mute control shared by the title and live-match overlays. */
+/** Compact global mute control shared by menu and live-match overlays. */
 export class QuickAudioToggle {
   private readonly root: HTMLButtonElement;
   private readonly icon: HTMLImageElement;
   private readonly unsubscribe: () => void;
 
-  public constructor(container: HTMLElement, audio: AudioManager, context: 'title' | 'match') {
+  public constructor(container: HTMLElement, audio: AudioManager, context: 'mode' | 'match') {
     this.root = document.createElement('button');
     this.root.type = 'button';
     this.root.className = 'settings-control quick-audio-toggle';
     this.root.dataset.testid = `${context}-quick-audio-toggle`;
     this.root.dataset.quickAudioToggle = 'true';
     Object.assign(this.root.style, {
-      position: 'fixed', top: context === 'title' ? '28px' : '68px', right: '24px',
+      position: 'fixed', top: context === 'mode' ? '28px' : '68px', right: '24px',
       width: '64px', height: '64px', padding: '3px', border: '0', borderRadius: '10px',
       background: 'transparent', cursor: 'pointer', zIndex: '30', touchAction: 'manipulation',
       transition: 'filter 120ms ease, transform 120ms ease',

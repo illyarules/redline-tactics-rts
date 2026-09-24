@@ -5,7 +5,8 @@ import { saveAndResume, selectMapAndStart } from './helpers/match';
 test('selects Trident Basin and resumes both AI participants on the saved map', async ({ page }) => {
   await clearSnapshot(page);
   await page.goto('/');
-  await page.getByTestId('title-new-game').click();
+  await page.getByTestId('title-start-game').click();
+  await page.getByTestId('game-mode-single').click();
 
   const picker = page.getByTestId('map-selection');
   await expect(picker).toBeVisible();
