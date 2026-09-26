@@ -68,7 +68,13 @@ test('menu quick toggle persists and preserves playback position', async ({ page
   await page.goto('/');
 
   await expect(page.getByTestId('title-quick-audio-toggle')).toHaveCount(0);
+  expect((await audioProbe(page)).sources).toEqual(['', '']);
+  expect((await audioProbe(page)).playCalls).toEqual([]);
+  await page.mouse.click(20, 20);
+  expect((await audioProbe(page)).sources).toEqual(['', '']);
+  expect((await audioProbe(page)).playCalls).toEqual([]);
   await page.getByTestId('title-start-game').click();
+  expect((await audioProbe(page)).sources[0]).toMatch(/(?:Strategic%20Horizon|Forge%20Protocol|Tactical%20Pulse).*\.mp3/);
   const quickToggle = page.getByTestId('mode-quick-audio-toggle');
   const icon = page.getByTestId('mode-quick-audio-icon');
   await expectQuickToggle(quickToggle, 'Mute audio');
@@ -139,9 +145,12 @@ test('match screen omits the quick toggle while pause settings keep the match in
   await installAudioProbe(page);
   await clearSnapshot(page);
   await page.goto('/');
+  expect((await audioProbe(page)).sources).toEqual(['', '']);
+  await page.mouse.click(20, 20);
+  expect((await audioProbe(page)).sources).toEqual(['', '']);
+  await page.getByTestId('title-start-game').click();
   const firstMenuSource = (await audioProbe(page)).sources[0];
   expect(firstMenuSource).toMatch(/(?:Strategic%20Horizon|Forge%20Protocol|Tactical%20Pulse).*\.mp3/);
-  await page.getByTestId('title-start-game').click();
   await page.getByTestId('game-mode-single').click();
   await selectMapAndStart(page);
 
@@ -164,6 +173,8 @@ test('match screen omits the quick toggle while pause settings keep the match in
   await page.getByTestId('pause-return-title').click();
   await page.getByTestId('quit-confirm-discard').click();
   await expect(page.getByTestId('title-screen')).toBeVisible();
+  expect((await audioProbe(page)).sources).toEqual(['', '']);
+  await page.getByTestId('title-start-game').click();
   const returnedMenuSource = (await audioProbe(page)).sources[0];
   expect(returnedMenuSource).toMatch(/(?:Strategic%20Horizon|Forge%20Protocol|Tactical%20Pulse).*\.mp3/);
   expect(returnedMenuSource).not.toBe(firstMenuSource);

@@ -69,7 +69,7 @@ window.addEventListener('resize', () => {
 });
 
 const showTitle = (): void => {
-  audio.enterMainMenu();
+  audio.stopAllMusic();
   scene?.dispose();
   scene = null;
   canvas.style.display = 'none';
