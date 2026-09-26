@@ -13,6 +13,7 @@ import type { MapConfig } from './config/types';
 import type { WorldSnapshot } from './core/snapshot';
 import { MapSelectionScreen } from './ui/mapSelectionScreen';
 import { GameModeScreen } from './ui/gameModeScreen';
+import { detectCurrentDeviceSupport } from './platform/deviceSupport';
 
 // Initialize Vercel Analytics
 inject();
@@ -41,6 +42,7 @@ let titleScreen: TitleScreen | null = null;
 let gameModeScreen: GameModeScreen | null = null;
 let mapSelection: MapSelectionScreen | null = null;
 const audio = new AudioManager();
+const deviceSupport = detectCurrentDeviceSupport();
 const framePacer = new FramePacer(
   RENDER_CONFIG.targetFramesPerSecond,
   RENDER_CONFIG.maxDeltaSeconds,
@@ -83,10 +85,12 @@ const showTitle = (): void => {
     GAME_TITLE,
     'Establish your base, secure crystal fields, and outmaneuver the Ember Collective in fast, readable RTS battles.',
     () => (loadSnapshot() === null ? showGameModeSelection() : resumeMatch()),
+    deviceSupport.supported,
   );
 };
 
 const showGameModeSelection = (): void => {
+  if (!deviceSupport.supported) return;
   audio.enterMainMenu();
   scene?.dispose();
   scene = null;
@@ -100,6 +104,10 @@ const showGameModeSelection = (): void => {
 };
 
 const startMatch = (map: MapConfig, snapshot: WorldSnapshot | null): void => {
+  if (!deviceSupport.supported) {
+    showTitle();
+    return;
+  }
   audio.enterMatch();
   titleScreen?.destroy();
   titleScreen = null;
@@ -131,6 +139,7 @@ const resumeMatch = (): void => {
 };
 
 const showMapSelection = (): void => {
+  if (!deviceSupport.supported) return;
   audio.enterMainMenu();
   scene?.dispose();
   scene = null;
