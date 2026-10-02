@@ -26,6 +26,12 @@ what it collected back to the HQ or a Resource Depot, deposits it as Credits, an
 field runs dry, at which point it goes idle. A mixed selection still sends any non-Worker units a
 normal Move to the same point.
 
+Left-click a currently visible crystal deposit to inspect its remaining Credits. The readout updates
+as Workers gather and shows `0` and `Depleted` when the field is empty. The crystals retain their
+original low profile when depleted, and the deposit remains clickable for inspection. Resource
+amounts persist with the match. The exact amount is not shown while the field is outside current
+vision.
+
 Selecting a lone friendly Worker opens a small build menu next to its readout, with one button per
 building role. A button is disabled with a tooltip explaining why when its prerequisites are unmet or
 its cost is unaffordable right now — Barracks needs an HQ, the Factory needs a completed Barracks
@@ -141,6 +147,7 @@ can click. A health bar appears above an entity while it is selected and wheneve
 | Left-drag ground | Select friendly units in the rectangle |
 | Shift + left-click/drag | Toggle a friendly unit or drag selection |
 | Left-click open ground | Clear the selection |
+| Left-click a visible crystal deposit | Show remaining Credits or depleted status |
 | Right-click ground | Move the selected friendly units |
 | Right-click a visible enemy | Order selected combat units to attack it |
 | Right-click a resource field | Send the selected Worker(s) to gather it |

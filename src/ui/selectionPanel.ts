@@ -84,6 +84,14 @@ export class SelectionPanel {
     this.root.style.display = 'block';
   }
 
+  public updateResourceField(remaining: number, total: number): void {
+    this.nameLine.textContent = 'Crystal Deposit';
+    this.healthLine.textContent = `${Math.floor(remaining)} / ${total} Credits remaining`;
+    this.healthLine.style.color = remaining > 0 ? '#8feaff' : '#f2a177';
+    this.detailLine.textContent = remaining > 0 ? 'Resource field' : 'Depleted';
+    this.root.style.display = 'block';
+  }
+
   public destroy(): void {
     this.root.remove();
   }

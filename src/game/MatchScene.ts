@@ -76,6 +76,7 @@ import {
   type MatchLifecycleState,
 } from '../core/matchLifecycle';
 import { areHostile } from '../core/teams';
+import { cellVisibility } from '../core/fog';
 
 /**
  * The single gameplay scene. It builds the map grid and the world from typed config, renders both in
@@ -158,6 +159,7 @@ export class MatchScene {
   private saveElapsedSeconds = 0;
   private paused = false;
   private terminalSnapshotSaved = false;
+  private selectedFieldId: string | null = null;
 
   // eslint-disable-next-line complexity -- Construction wires independent scene systems and guarded restore state.
   public constructor(
@@ -217,6 +219,7 @@ export class MatchScene {
     this.materials = createMaterialLibrary(this.scene);
     this.models = createModelLibrary(this.scene, this.materials);
     this.mapView = new MapView(this.scene, this.grid, this.space, this.materials);
+    this.syncResourceFields();
     this.fogView = new FogView(this.scene, this.grid, this.space);
     this.fogView.update(this.fog, PLAYER_ID);
     this.mapView.updateFog(this.fog, PLAYER_ID);
@@ -261,6 +264,12 @@ export class MatchScene {
       },
       (ids, target) => {
         issueAttackMoveOrders(this.world, this.grid, PLAYER_ID, ids, target);
+        this.showSelection();
+      },
+      this.grid,
+      this.fog,
+      (fieldId) => {
+        this.selectedFieldId = fieldId;
         this.showSelection();
       },
     );
@@ -451,9 +460,7 @@ export class MatchScene {
     }
     issueRetaliationOrders(this.world, hits, this.canTarget);
     this.combatEffects.update(activeDeltaSeconds);
-    for (const field of this.grid.resourceFields) {
-      this.mapView.setFieldFraction(field.id, this.resourceFieldState.remaining(field.id) / field.credits);
-    }
+    this.syncResourceFields();
     stepSeparation(this.world, this.grid, activeDeltaSeconds);
     // The selected entity keeps moving and taking damage, so the markers and the readout follow it.
     this.selection.refresh();
@@ -625,9 +632,22 @@ export class MatchScene {
     });
     this.slotMarker.update(entities);
     this.routeDebug.update(entities);
-    this.selectionPanel.update(entities);
+    const field = entities.length === 0
+      ? this.grid.resourceFields.find((candidate) => candidate.id === this.selectedFieldId)
+      : undefined;
+    if (field !== undefined && cellVisibility(this.fog, PLAYER_ID, field.center.tx, field.center.ty) === 'visible') {
+      this.selectionPanel.updateResourceField(this.resourceFieldState.remaining(field.id), field.credits);
+    } else {
+      this.selectionPanel.update(entities);
+    }
     this.buildMenu.update(entities, this.world, this.economy);
     this.productionMenu.update(entities, this.world, this.economy, PLAYER_ID);
+  }
+
+  private syncResourceFields(): void {
+    for (const field of this.grid.resourceFields) {
+      this.mapView.setFieldFraction(field.id, this.resourceFieldState.remaining(field.id) / field.credits);
+    }
   }
 
   /** Maps only confirmed core hits into renderer-safe cues, then removes a confirmed dead entity once. */

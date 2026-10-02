@@ -11,6 +11,9 @@ import type { World } from '../core/world';
 import { projectToScreen } from './screenProjection';
 import type { SceneSpace } from './sceneSpace';
 import { areHostile } from '../core/teams';
+import { inspectResourceField } from '../core/resourceFieldInspection';
+import type { MapGrid } from '../core/map';
+import type { FogState } from '../core/fog';
 
 interface PointerPoint { readonly x: number; readonly y: number; }
 interface DragState { readonly start: PointerPoint; readonly additive: boolean; }
@@ -45,6 +48,9 @@ export class SelectionController {
     private readonly onMove: (selected: readonly EntityId[], target: Vec2) => void,
     private readonly onAttack: (selected: readonly EntityId[], targetId: EntityId) => void,
     private readonly onAttackMove: (selected: readonly EntityId[], target: Vec2) => void,
+    private readonly grid: MapGrid,
+    private readonly fog: FogState,
+    private readonly onFieldSelection: (fieldId: string | null) => void,
   ) {
     this.dragBox = document.createElement('div');
     Object.assign(this.dragBox.style, {
@@ -106,11 +112,9 @@ export class SelectionController {
       if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
       const point = this.canvasPoint(event);
       if (this.isDrag(point, drag.start)) {
+        this.onFieldSelection(null);
         this.setSelection(updateSelection(this.selected, this.unitsInScreenRect(drag.start, point), drag.additive));
-      } else {
-        const id = this.pickAt(point.x, point.y);
-        this.setSelection(updateSelection(this.selected, id === null ? [] : [id], drag.additive));
-      }
+      } else this.selectAt(point, drag.additive);
     };
 
     canvas.addEventListener('pointerdown', this.onPointerDown);
@@ -154,6 +158,15 @@ export class SelectionController {
     if (next.length === this.selected.length && next.every((id, index) => id === this.selected[index])) return;
     this.selected = [...next];
     this.onChange(this.selected);
+  }
+
+  private selectAt(point: PointerPoint, additive: boolean): void {
+    const id = this.pickAt(point.x, point.y);
+    this.scene.createPickingRayToRef(point.x, point.y, this.identity, this.ray, this.camera);
+    const ground = id === null ? this.groundPoint() : null;
+    const field = ground === null ? null : inspectResourceField(this.grid, this.fog, this.player, ground);
+    this.onFieldSelection(field?.id ?? null);
+    this.setSelection(updateSelection(this.selected, id === null ? [] : [id], additive));
   }
 
   private canvasPoint(event: PointerEvent): PointerPoint {
