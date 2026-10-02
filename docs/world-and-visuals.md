@@ -1,6 +1,13 @@
 # World and visuals
 
-## The map
+## Battlefields
+
+The battlefield selector offers Open Field (1v1) and Trident Basin (1v2). Both have typed definitions
+in `src/config/map.ts`; `src/config/maps.ts` supplies menu descriptions and thumbnails. The selected
+map determines starts, resources, terrain, routes and the number of AI controllers, and is saved
+with the match. The player uses Meridian and the AI commanders use Ember.
+
+### Open Field
 
 "Open Field" is a 64 x 64 grid defined entirely as typed data in `src/config/map.ts`:
 
@@ -21,18 +28,27 @@
 The scenery is intentionally asymmetric, while connectivity and equal access to each side's home
 field preserve gameplay fairness. One tile is 30 world pixels; that is a rendering value only.
 
+### Trident Basin
+
+An 80 × 80 battlefield with the human base in the southwest and allied AI bases in the northeast
+and southeast. Three home fields each contain 4,200 Credits; a contested central-west field contains
+2,400. Passable forest pockets and blocking rock ridges shape northern, southern and central routes.
+There are no water barriers. Each AI has its own economy and controller; victory requires destroying
+all buildings belonging to both AI owners. Both maps use 30 world pixels per tile.
+
 ## Visual direction
 
-The approved concept in `assets/concepts/open-field-map-render-v2.png` is art direction only; it is
-not used as a runtime texture.
+Battlefield meshes and ground textures are generated from map data. The image
+`assets/concepts/open-field-map-render.png` is used as the mode-selection background, and the
+Open Field and Trident Basin minimap reference images are used as battlefield-selection thumbnails.
 
 A perspective 3D field seen from a high angled top-down camera: steep enough that the battlefield
 still reads like a map and units never hide behind each other, shallow enough that a building shows
 the sides that give it its silhouette. North is up, exactly as the map data reads. The field is
 muted olive green so that the two factions — the player in blue, the AI in orange — and the cyan
 Credits crystals are the only saturated things on screen. Every model is original geometry: nothing
-is imported, sampled or traced from any other game, and the concept image in `assets/concepts/` is
-reference for the direction only, never a texture.
+is imported, sampled or traced from any other game. Menu reference images are separate from the
+procedurally rendered battlefield.
 
 **Nothing on the field is an asset file.** Units and buildings are boxes and cylinders assembled in
 `src/game/models/`, and most roles are merged into a single mesh per faction that `EntitiesView`
@@ -41,7 +57,7 @@ clones per entity, so a crowded field costs a handful of shapes each rather than
 tone — and `src/game/materials.ts` caches one material per colour, so two parts painted the same
 tone share one draw state.
 
-- **Worker** — a small four-wheeled utility vehicle: lit cab in front, open bed carrying crystal.
+- **Worker** — a compact four-wheeled tractor with an engine hood, semi-enclosed cab and front scoop.
 - **Infantry** — one entity, three soldiers: a compact asymmetric triangle of low-poly figures (helmet,
   torso and legs, one carrying a rifle) sharing the entity's single health pool, order and selection
   ring. Legs and rifle arm swing in a small procedural walk cycle while the squad moves, with a tiny

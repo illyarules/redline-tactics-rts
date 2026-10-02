@@ -3,46 +3,47 @@
 ## High concept
 
 Redline Tactics is an original 3D browser RTS about establishing a forward base, securing Credits,
-producing a combined-arms force, and eliminating the enemy base. A match has a ten-minute active-time
+producing a combined-arms force, and eliminating the enemy bases. A match has a fifteen-minute active-time
 limit and should be understandable without a tutorial.
 
 This MVP borrows only genre-level ideas. Its factions, names, silhouettes, colors, map, numbers, interface, and audiovisual identity must be original.
 
 ## MVP promise
 
-The player can open the game, play a fixed skirmish as the Meridian Directorate against the Ember
-Collective AI, and reach a clear victory, defeat, or draw report. There is no faction selection,
+The player can open the desktop game, choose Open Field (1v1) or Trident Basin (1v2), play as the
+Meridian Directorate against Ember Collective AI, and reach a victory, defeat, or draw report. There is no faction selection,
 campaign, or multiplayer.
 
 ## Match rules
 
-- One human player and one AI opponent.
-- Both begin with an HQ, one Worker, one Infantry, one Tank, one Rocket, and starting Credits.
+- One human player and one AI opponent on Open Field, or two allied AI opponents on Trident Basin.
+- Each participant begins with an HQ, one Worker, one Infantry, one Tank, one Rocket, and starting Credits.
 - Workers construct buildings and gather Credits from neutral resource fields.
 - Buildings unlock and produce units.
 - Eliminating every opposing building wins; losing every player-owned building causes defeat.
 - Incomplete construction sites count as surviving buildings. Units alone cannot keep a side alive.
 - If both sides lose their final building in one simulation frame, Defeat takes precedence.
-- If neither side is eliminated within ten minutes of active simulation time, the match is a Draw.
+- If neither side is eliminated within fifteen minutes of active simulation time, the match is a Draw.
+- In 1v2, every building belonging to both AI owners must be eliminated; enemy statistics are aggregated.
 - The match may be paused or restarted and is automatically persisted in local browser storage.
 
 Suggested starting balance values are provisional and live in config, not game logic.
 
 ## Match continuity
 
-An active or completed single-player match resumes after a browser page reload, using a versioned
-snapshot saved locally in the browser. `New Match` and `Play Again` clear the local snapshot before
-creating a fresh match; quitting a completed report to the title also clears it.
+After a reload, Start Game resumes a valid active or completed match from a local schema-13 snapshot,
+including the selected map and the second AI controller on Trident Basin. `New Match` and `Play Again`
+open battlefield selection; `Start Match` clears the old save and creates the selected match.
+Quitting a completed report to the title also clears its save.
 
 - The save exists only in the current browser profile/device: no login, cloud save, cross-device
   sync, multiplayer state, or server storage exists.
 - Saved data uses a versioned schema so future changes can tell an old save apart from a current one.
-- An incompatible or corrupted saved snapshot is safely discarded and replaced with a fresh match
-  rather than blocking play.
+- An incompatible or corrupted saved snapshot is not resumed; the player can start a fresh match.
 
 ## Battlefield
 
-The current build uses one fixed asymmetric 64 × 64 tile map, Open Field.
+The current build offers two maps. Open Field is an asymmetric 64 × 64 battlefield:
 
 - A starting base area sits at the west and east edges.
 - One finite home resource field sits near each base; there are no contested fields.
@@ -51,6 +52,11 @@ The current build uses one fixed asymmetric 64 × 64 tile map, Open Field.
 - A connected rocky ridge spans the north. Rock is impassable to ground units and invalid for
   building placement, but open routes preserve access between every strategic location.
 - The full map is larger than the viewport and supports camera pan and zoom.
+
+Trident Basin is an 80 × 80 battlefield with the human base in the southwest and two allied AI
+bases in the northeast and southeast. Three home fields contain 4,200 Credits each, and a central-west
+contested field contains 2,400. Forest pockets are passable; broken rock ridges shape three connected
+approaches. There are no water barriers. Both maps are typed definitions in `src/config/map.ts`.
 
 Placeholder visuals should use original geometric silhouettes and a clear palette. The player uses cool cyan/blue; AI uses warm amber/red. Faction identity is communicated by shape and accent, not copied iconography.
 
@@ -81,12 +87,12 @@ These values remain provisional until the dedicated balance pass is complete.
 The only resource is **Credits**.
 
 - A Worker gathers from a resource field, carries a fixed load, returns it to an HQ or Resource Depot, deposits it, and repeats.
-- Each of the two resource fields contains 3,000 Credits.
+- Open Field has two 3,000-Credit home fields; Trident Basin has three 4,200-Credit home fields and one 2,400-Credit contested field.
 - Costs are paid when construction or production begins.
 - Cancelling before completion refunds 75% to discourage free scouting/queue manipulation.
 - No power grid, upkeep, supply cap, repairs, veterancy, or secondary resource in MVP.
 
-Current configured values:
+Base configured values before faction modifiers:
 
 | Item | Cost | Build time |
 |---|---:|---:|
@@ -167,13 +173,13 @@ not require the footprint to be explored.
 
 - Left-click selects one friendly unit/building.
 - Left-drag box-selects friendly units.
-- Shift + click/drag adds to selection.
+- Shift + click/drag toggles selection.
 - Control groups are not implemented.
 - Right-click ground issues Move.
 - Right-click enemy issues Attack.
-- Attack-move is activated with `A`, then left-clicked on the ground.
+- Attack-move is activated with `Q`, then left-clicked on the ground. `A` pans the camera.
 - `Escape` cancels placement/order mode or opens the pause overlay.
-- Edge pan or WASD moves the camera; mouse wheel zooms within fixed limits.
+- Edge pan, WASD or arrow keys move the camera; mouse wheel or +/− zoom within fixed limits.
 
 Selection markers, health bars for damaged/selected entities, destination markers, attack tracers,
 impact flashes, and destruction effects make issued orders and combat results readable.
@@ -210,7 +216,8 @@ HQ's last visible coordinates and may attack-move toward that stale location.
 
 ## AI
 
-One deliberately simple state-machine AI uses the same costs, production rules, and commands as the player.
+Each AI commander has an independent state machine and uses the same costs, production rules, and
+commands as the player. The two AI commanders on Trident Basin belong to the same enemy team.
 
 States:
 
@@ -241,10 +248,15 @@ fields, and the current camera rectangle. Minimap navigation and orders are not 
 
 ## Screens and flow
 
-1. Title screen with Start Match. The player's faction is currently fixed to Meridian.
-2. Match with an always-visible compact controls hint.
-3. Pause overlay with Resume, New Match, and Return to Title.
-4. Victory/defeat/draw report with active time, units produced/lost, Play Again, and Quit to Title.
+1. Title screen with Start Game: resume a valid save or open mode selection. Phones and tablets are blocked.
+2. Mode selection with Single Game and disabled Multiplayer, followed by battlefield selection and Start Match.
+3. Match with an always-visible compact controls hint. The player's faction is fixed to Meridian.
+4. Pause with Resume, New Match, Settings, and Quit to Main Menu. Quit confirms Save and Quit, Quit Without Saving, or Cancel.
+5. Victory/defeat/draw report with active time, units produced/lost, Play Again, and Quit to Title.
+
+The mode screen offers a persistent audio mute toggle; Pause settings expose audio controls. The
+start page is silent, and menu music starts after entering mode selection. Entering a match switches
+the audio manager to its configured match playlist.
 
 ## MVP completion checklist
 
@@ -257,7 +269,7 @@ The MVP is complete when a new player can, without developer tools:
 - Discover the map through fog of war.
 - Face an AI that gathers, builds, produces, defends, and attacks.
 - Win by eliminating every enemy building, lose when every owned building is eliminated, or draw at
-  the ten-minute active-time limit.
+  the fifteen-minute active-time limit.
 - Read essential state in the HUD/read-only minimap and restart cleanly.
 
 ## Explicitly out of scope

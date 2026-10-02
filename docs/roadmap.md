@@ -3,11 +3,11 @@
 This backlog begins after the MVP tasks in [`implementation-plan.md`](../implementation-plan.md).
 Items are grouped by dependency rather than promised release dates.
 
-The completed MVP baseline is desktop-only: one fixed Open Field map with its v2 road, passable
-southwest forest and blocking northern ridge, a fixed Meridian-versus-Ember matchup, a read-only
-minimap, ground units only and no defensive weapons.
-Phones and tablets are currently unsupported because core controls require a mouse and keyboard and
-the interface is not laid out for a mobile viewport.
+The current desktop game has selectable Open Field (1v1) and Trident Basin (1v2 against allied AI),
+a fixed Meridian-versus-Ember matchup, a fifteen-minute active-time limit, local saves, a read-only
+minimap, ground units only and no defensive weapons. Start Game resumes a valid save or opens mode
+selection; Multiplayer is disabled. Phones and tablets are blocked at entry because touch controls
+and mobile layouts are not implemented.
 
 ## Maps and environment
 
@@ -15,9 +15,12 @@ the interface is not laid out for a mobile viewport.
 - [ ] Add further map detail: water, shores and ruins.
 - [x] Define Open Field forest/rock passability (forest currently has no vision modifier).
 - [ ] Add map themes: Open Field, forest and river-crossing maps.
-- [ ] Add map and player-faction selection before a match starts.
-- [ ] Move each map's starts, resource fields, obstacles and theme into a dedicated typed definition.
-- [ ] Update AI scouting, construction and pathfinding to use the selected map.
+- [x] Add battlefield selection before a fresh match starts.
+- [x] Add Trident Basin with two independent allied AI controllers and map-aware save/resume.
+- [x] Define each map's starts, resources, terrain regions and lanes as typed data in `src/config/map.ts`.
+- [x] Update AI scouting, construction and pathfinding to use the selected map.
+- [ ] Add player-faction selection before a match starts.
+- [ ] Add a dedicated theme model for further map themes.
 
 ## Combat expansion
 
@@ -62,7 +65,7 @@ playable on a touch-only device.
 
 ## Recommended order
 
-1. Add map environment, map selection and faction selection.
+1. Expand map environments and add faction selection; battlefield selection is already implemented.
 2. Add defensive structures and aircraft.
 3. Add mobile layouts and touch controls once the expanded desktop interaction model is stable.
 4. Begin multiplayer only after the single-player simulation and expanded combat rules are stable.

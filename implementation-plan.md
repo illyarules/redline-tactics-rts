@@ -4,10 +4,13 @@
 
 This is the original incremental build plan, not the authoritative description of the current game.
 The plan is considered implemented. Later decisions superseded some early acceptance wording: the
-current MVP has a fixed player faction and a read-only minimap, while faction/map selection and
-minimap navigation belong to the post-MVP backlog. The disabled Move/Attack buttons in the tactical
+current game has two selectable maps, a fixed player faction and a read-only minimap. Faction selection
+and minimap navigation remain in the backlog. The disabled Move/Attack buttons in the tactical
 HUD are visual shortcuts, not missing commands: Move and explicit Attack use right-click, Attack-Move
-uses `A` plus left-click, and the working Build/Produce actions live in contextual panels.
+uses `Q` plus left-click, and the working Build/Produce actions live in contextual panels.
+
+The numbered tasks below preserve historical acceptance criteria. The current match limit is fifteen
+minutes, and Trident Basin adds a 1v2 match against two allied AI controllers after the original MVP.
 
 For current behavior use [`docs/gameplay.md`](./docs/gameplay.md) and the source code. In particular,
 Open Field currently has two resource fields, a passable southwest forest and a blocking northern

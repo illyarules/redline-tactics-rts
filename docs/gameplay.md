@@ -2,12 +2,16 @@
 
 ## Current state
 
-The application boots a single Babylon.js scene that renders the fixed battlefield, "Open Field", in
-three dimensions and lets you look around it from a high angled RTS camera. The game title, the
-controls card and the selection readout sit in an HTML layer above the canvas, so no camera movement
-can scale them. Gameplay systems are added incrementally by the tasks in the implementation plan.
+The desktop-only game opens on a title screen with Start Game. A valid saved match resumes directly;
+otherwise Start Game opens mode selection. Single Game opens battlefield selection, while Multiplayer
+is disabled. Open Field is a 64 × 64 1v1 map; Trident Basin is an 80 × 80 1v2 map against two allied
+AI commanders. Select a battlefield and press Start Match. Phones and tablets cannot enter a match.
 
-Both bases stand on the map. Each player starts with an HQ and one of each mobile role — Worker,
+The selected battlefield renders in a Babylon.js scene under a high angled RTS camera. Menus,
+controls and selection readouts sit in an HTML layer above the canvas. The player faction is fixed
+to Meridian; both AI owners use Ember. Faction selection is not implemented.
+
+Each participant starts with an HQ and one of each mobile role — Worker,
 Infantry, Tank and Rocket — and the view opens on the player's own base. The starting units support selection and direct right-click movement. Combat is active; the AI gathers Credits, builds its opening base, trains a deterministic army, scouts and launches attacks.
 
 Open Field's forest tiles are normal passable ground for movement and construction and apply no
@@ -41,15 +45,15 @@ panel shows queue progress and capacity, explains full queues or insufficient Cr
 player cancel any paid entry for the normal 75% refund. Factory production pauses without a completed
 Power Plant and resumes from the same progress when power returns.
 
-An active or completed match survives a browser reload on the same device: units mid-route resume
+An active or completed match can be resumed through Start Game after a browser reload on the same device: units mid-route resume
 their route, the selection is restored, and a completed match reopens on its frozen battlefield with
-the same battle report. From Pause, `New Match` clears that save and starts fresh immediately, while
+the same battle report. From Pause, `New Match` opens battlefield selection, while
 `Quit to Main Menu` opens a confirmation instead of leaving right away: `Save and Quit` persists the
 match before returning to the title screen, `Quit Without Saving` discards it, and `Cancel` returns to
-the unchanged live match. `Play Again` from the battle report clears the save and starts fresh the same
-way `New Match` does; `Quit to Title` there clears a completed match so it cannot be resumed. The title
-screen itself offers `Resume Game` and `New Game` whenever a save exists — `New Game` confirms before
-discarding it — or only `New Game`, which starts immediately, when there is none. Local saves are not
+the unchanged live match. `Play Again` also opens battlefield selection. The prior save is cleared
+when `Start Match` starts the selected battlefield; `Quit to Title` from the report clears the
+completed save. The title screen's `Start Game` resumes a valid save or opens mode selection when
+none exists. Local saves are not
 synchronized, transferable, or backed by any server — see `implementation-plan.md`'s Task 12.5 for
 scope.
 
@@ -80,7 +84,7 @@ each must finish before the next starts. The opening Worker alternates gathering
 waiting for real income when necessary. Placement stays within a configured base radius, excludes
 resource tiles, and prefers a field-adjacent Depot. The existing HQ production predicate can advance
 the strategic state before the foundation finishes, so this economic plan continues alongside later
-states; recovery actions remain deferred.
+states. Each AI controller follows this plan independently on Trident Basin.
 
 Military planning in `core/aiMilitary.ts` shares the strategic cadence. After the opening is complete,
 it pays for Infantry → Tank → Rocket in a strict repeating cycle, up to nine living plus queued units.
@@ -92,22 +96,24 @@ Only currently AI-visible HQ information updates remembered coordinates. Scout s
 base is unknown; a remembered base and three combat units permit Attack. The army and reinforcements
 use Attack-Move toward the remembered location, which can be stale after fog loss. Matching routes
 and existing engagements continue; idle units within the configured arrival radius need no new route.
-Acquisition, retaliation, explicit target commands and pursuit apply the same fog predicate to both
-players. Dedicated defense and recovery execution remain Task 28.
+Acquisition, retaliation, explicit target commands and pursuit apply the same fog predicate to all
+participants. Defense and recovery are implemented as described below.
 
-Schema-12 `WorldSnapshot` persists state, completed build-order index, exact decision remainder,
-production-cycle index, last-known base coordinates and the match lifecycle clock/statistics/result.
-Schema 11 and other old or invalid saves start fresh, preventing pre-terrain routes or entities from
-being restored onto the blocking ridge. Queues, positions, orders and Credits remain solely in
+Schema-13 `WorldSnapshot` persists the map ID, world and fog state, both AI controllers where present,
+completed build-order indices, exact decision remainders, production-cycle indices, last-known base
+coordinates and the match lifecycle clock/statistics/result. Older or invalid saves are not resumed;
+the entry flow allows a fresh match. Queues, positions, orders and Credits remain solely in
 world/economy data. The development-only AI readout shows strategy, cycle, army threshold, discovery
 status and the latest military action.
 
-Eliminating every AI-owned building ends the match in Victory; losing every player-owned building
+Eliminating every AI-owned building across the enemy team ends the match in Victory; losing every player-owned building
 ends it in Defeat. An HQ loss alone is not terminal while another owned structure remains, incomplete
 sites count as surviving buildings, and units alone cannot keep a side alive. If both sides lose their
-final building in one simulation frame, Defeat wins deterministically.
+final building in one simulation frame, Defeat wins deterministically. On Trident Basin, destroying
+one AI base is not enough while the other AI still has a building. The two AI owners are allied and
+cannot target each other. Enemy production and loss totals are aggregated in the battle report.
 
-The HUD counts down ten minutes of active simulation time from 10:00. Pause and terminal rendering do
+The HUD counts down fifteen minutes of active simulation time from 15:00. Pause and terminal rendering do
 not advance it. Confirmed deaths and the resulting surviving-building counts are processed before the
 deadline, so eliminating the final enemy building exactly at 00:00 still wins; otherwise the match is
 a Draw. The battlefield then freezes: simulation, AI decisions, camera, selection, placement, map
@@ -127,9 +133,10 @@ can click. A health bar appears above an entity while it is selected and wheneve
 
 | Input | Action |
 |---|---|
-| `W` `A` `S` `D` | Pan the camera |
+| `W` `A` `S` `D` or arrow keys | Pan the camera |
 | Pointer at a screen edge | Pan the camera |
-| Mouse wheel | Zoom in and out |
+| Mouse wheel or `+` / `−` | Zoom in and out |
+| `Q`, then left-click ground | Attack-Move with selected combat units |
 | Left-click an entity | Select one of your units or buildings |
 | Left-drag ground | Select friendly units in the rectangle |
 | Shift + left-click/drag | Toggle a friendly unit or drag selection |
@@ -144,17 +151,18 @@ can click. A health bar appears above an entity while it is selected and wheneve
 | Right-click, or `Escape`, during placement | Cancel placement; nothing is spent |
 | `` ` `` (backtick) | Toggle entity debug labels (type and id) |
 | `Escape` | Open or close Pause during a live match |
-| `Play Again` (battle report) | Clear the completed save and start a fresh match |
+| `New Match` (Pause) or `Play Again` (battle report) | Open battlefield selection |
 | `Quit to Title` (battle report) | Clear the completed save and return to the title screen |
 | `Quit to Main Menu` (Pause) | Open a confirmation instead of leaving immediately |
 | `Save and Quit` (quit confirmation) | Persist the match, then return to the title screen |
 | `Quit Without Saving` (quit confirmation) | Discard the match, then return to the title screen |
 | `Cancel` (quit confirmation) | Close the confirmation; the live match is unchanged |
-| `Resume Game` (title screen) | Restore the saved match, when one exists |
-| `New Game` (title screen) | Start fresh; confirms first when a saved match would be discarded |
+| `Start Game` (title screen) | Resume a valid save, otherwise open mode selection |
+| `Single Game` (mode selection) | Open battlefield selection |
+| `Start Match` (battlefield selection) | Clear the prior save and start on the selected map |
 
 A compact one-line version of this list sits in the bottom-left corner in game. Attack-Move is
-available by pressing `A` and then left-clicking passable ground.
+available by pressing `Q` and then left-clicking passable ground; `A` pans the camera.
 
 The match opens zoomed in close, between the player's HQ and the resource field it will work first,
 so the base, its opening squad and the Credits are all on screen from the first frame.

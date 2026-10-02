@@ -10,7 +10,7 @@ Marked in the source as `TODO(post-MVP)`:
   that this is never an empty void.
 
 TODO(post-MVP): wire the decorative Move and Attack HUD buttons to explicit command modes, and add
-minimap navigation. The same orders are already available through right-click and the `A` hotkey.
+minimap navigation. The same orders are already available through right-click and the `Q` hotkey.
 Grass and small stones remain painted detail; models remain static low-poly geometry.
 
 Deliberate simplifications from the economy and construction tasks (13–17), none of them tagged

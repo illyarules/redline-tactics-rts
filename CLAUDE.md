@@ -18,12 +18,12 @@ The first milestone is a complete, playable single-player match. Prefer a modest
 
 ## Hard scope limits
 
-- Single-player skirmish against one AI opponent only.
+- Single-player skirmish against one AI on Open Field or two allied AIs on Trident Basin.
 - No gameplay backend, server, accounts, database, cloud sync, lobby, multiplayer, ranking, or map
   editor. Vercel Web Analytics is the only current networked integration.
 - Local browser persistence through `localStorage` is limited to the current browser/device. No
   gameplay state or personal match data is persisted to a backend or synchronized between devices.
-- One fixed map, two original factions, one resource, four unit roles, five building roles.
+- Two selectable maps, two original factions (player fixed to Meridian), one resource, four unit roles, five building roles.
 - Use original placeholder shapes, colors, icons, names, and sounds. Do not import or imitate assets from Command & Conquer or any other commercial game.
 - Do not add a feature unless the current implementation task explicitly asks for it.
 

@@ -14,7 +14,7 @@ Five code areas, each with one responsibility. Imports may only flow **downward*
 Rules that keep the boundaries useful:
 
 - **`core/` must never import Babylon, `game/` or `ui/`.** It is plain TypeScript so that rules can be
-  tested without a browser or a running game loop. `tests/architecture.test.ts` enforces this.
+  tested without a browser or a running game loop. `tests/unit/architecture.test.ts` enforces this.
 - `core/` owns the authoritative entity state. Meshes in `game/` display that state and relay input;
   they do not decide costs, damage, prerequisites or victory.
 - `config/` holds numbers and content records only, so balance can change without touching behavior.
@@ -24,7 +24,7 @@ Rules that keep the boundaries useful:
 - Player intent is expressed as typed commands (`Move`, `Attack`, `AttackMove`, `Build`, `Produce`)
   defined in `core/orders.ts`.
 
-Current combat controls: idle combat units defend themselves; press `A`, then left-click passable
+Current combat controls: idle combat units defend themselves; press `Q`, then left-click passable
 ground to issue Attack-Move. Those units pause for acquired enemies and resume toward the destination.
 
 AI strategy and cadence live in `core/ai.ts`. `core/aiEconomy.ts` reads world facts to create typed
@@ -33,8 +33,9 @@ bounded deterministic placement search. `MatchScene` only orchestrates these mod
 simulation steps; economic rules do not live in the renderer. `core/aiMilitary.ts` plans typed production
 and scouting/attack intents, then validates them before using normal queue and Attack-Move APIs.
 Opening construction has spending priority; military commands share strategic cadence and retain
-matching routes. `ai.ts` records HQ coordinates only under current AI fog visibility. Schema 12 saves
+matching routes. `ai.ts` records HQ coordinates only under current AI fog visibility. Schema 13 saves
 that memory and the production-cycle index alongside existing strategy timing and build progress.
+The snapshot also identifies the map and includes the second AI controller on Trident Basin.
 Orders, queues and positions stay in the world snapshot. Core attack execution, automatic targeting
 and retaliation accept the shared renderer-free fog predicate for both players.
 
