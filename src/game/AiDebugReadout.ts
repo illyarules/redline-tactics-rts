@@ -40,7 +40,7 @@ export class AiDebugReadout {
       .map((player) => `${player.toUpperCase()} ${Math.floor(economy.balance(player)).toLocaleString()}`)
       .join(' · ');
     this.root.style.whiteSpace = 'pre-line';
-    this.root.textContent = `AI ${ai.state.toUpperCase()}\nCREDITS ${credits}\nNEXT ${ai.decisionRemainingSeconds.toFixed(1)}s\nBUILD ${next === undefined ? 'base complete' : BUILDING_CONFIG[next].name}\nCYCLE ${ai.productionCycleIndex + 1}: ${AI_CONFIG.productionCycle[ai.productionCycleIndex]}\nARMY ${aiArmy(world).length}/${AI_CONFIG.minimumAttackArmyUnits}\nBASE ${ai.lastKnownPlayerBasePosition === null ? 'unknown' : 'last seen'}\nMILITARY ${military.latestAction}\nDEFENSE ${defense.threats.length || 'base secure'}${ai.state === 'defend' ? ` · ${defense.defenders.length}/${AI_CONFIG.maximumDefenders}` : ''}\nRECOVERY ${status}\nRESPONSE ${latestAction}\nLAST ${transition}`;
+    this.root.textContent = `AI ${ai.state.toUpperCase()}\nCREDITS ${credits}\nNEXT ${ai.decisionRemainingSeconds.toFixed(1)}s\nBUILD ${next === undefined ? 'base complete' : BUILDING_CONFIG[next].name}\nPREF ${AI_CONFIG.productionCycle[ai.productionCycleIndex]}\nARMY ${aiArmy(world).length}/${AI_CONFIG.minimumAttackArmyUnits}\nBASE ${ai.lastKnownPlayerBasePosition === null ? 'unknown' : 'last seen'}\nMILITARY ${military.latestAction}\nDEFENSE ${defense.threats.length || 'base secure'}${ai.state === 'defend' ? ` · ${defense.defenders.length}/${AI_CONFIG.maximumDefenders}` : ''}\nRECOVERY ${status}\nRESPONSE ${latestAction}\nLAST ${transition}`;
   }
 
   public dispose(): void { this.root.remove(); }

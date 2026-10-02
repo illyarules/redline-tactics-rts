@@ -1,5 +1,24 @@
 # Build log
 
+## Parallel AI military production
+
+AI military production now begins as soon as a completed combat producer is operational, alongside
+the remaining base build order. Before Factory production is available, Barracks may train the three
+Infantry squads needed for an attack. Once a powered Factory is operational, normal composition keeps
+two Infantry squads and directs later slots to rotating Tank and Rocket production; emergency defense
+may exceed that cap. Unavailable types do not block another producer. Every eligible producer may queue
+during the same strategic tick, while only living and queued combat units count toward the nine-unit
+reinforcement target.
+
+Normal development reserves the full cost of the next build-order structure that has not yet started,
+so early units spend only surplus Credits. Construction still executes first on a shared decision tick,
+defense may override the reserve, and Worker replacement remains ahead of routine military spending.
+The three-unit attack threshold is composition-independent, so three Infantry are a valid first army.
+
+Focused tests cover simultaneous producers, Factory variety, unavailable producers, early Infantry,
+the exact construction reserve boundary, arbitrary three-unit attacks and the normal-income simulation.
+The development readout labels its saved production cursor as a preference rather than a strict cycle.
+
 ## AI military production, scouting and attacks (Task 27)
 
 Added typed Infantry → Tank → Rocket production, a nine-unit living-plus-queued target and a

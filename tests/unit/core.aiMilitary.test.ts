@@ -41,19 +41,62 @@ function queueNext(c: ReturnType<typeof setup>) {
   const intent = planAiMilitary(c.ai, c).find((p) => p.kind === 'produce');
   return intent !== undefined && executeAiMilitaryIntent(c.ai, c, intent);
 }
+function executeDecision(c: ReturnType<typeof setup>) {
+  executeAiMilitaryDecisions(c.ai, {
+    evaluations: 1,
+    transition: null,
+    intents: [{ kind: 'none', state: c.ai.state }],
+  }, c);
+}
 describe('AI military', () => {
-  it('cycles Infantry/Tank/Rocket through owned producers with normal costs', () => {
+  it('uses every operational producer and rotates only multi-option production', () => {
     const c = setup();
     c.economy.earn('ai', 10000);
     const before = c.economy.balance('ai');
-    for (let i = 0; i < 3; i++) expect(queueNext(c)).toBe(true);
-    expect(c.barracks.productionQueue.map((q) => q.unitType)).toEqual(['infantry']);
+    executeDecision(c);
+    executeDecision(c);
+    expect(c.barracks.productionQueue.map((q) => q.unitType)).toEqual(['infantry', 'infantry']);
     expect(c.factory.productionQueue.map((q) => q.unitType)).toEqual(['tank', 'rocket']);
     expect(c.ai.productionCycleIndex).toBe(0);
-    expect(c.economy.balance('ai')).toBe(before - AI_CONFIG.productionCycle.reduce((n, u) => n + resolveUnitStats(u, 'ember').cost, 0));
+    expect(c.economy.balance('ai')).toBe(before - resolveUnitStats('infantry', 'ember').cost * 2 -
+      resolveUnitStats('tank', 'ember').cost - resolveUnitStats('rocket', 'ember').cost);
+  });
+  it('caps normal Infantry at two once an operational Factory can provide vehicles', () => {
+    const c = setup();
+    c.economy.earn('ai', 10_000);
+    executeDecision(c);
+    executeDecision(c);
+    executeDecision(c);
+    expect(c.barracks.productionQueue.map((item) => item.unitType)).toEqual(['infantry', 'infantry']);
+    expect(c.factory.productionQueue.map((item) => item.unitType)).toEqual(['tank', 'rocket', 'tank']);
+  });
+  it('allows a third Infantry without a Factory, then waits for vehicle production', () => {
+    const c = setup();
+    c.world.remove(c.factory.id);
+    c.world.remove(c.power.id);
+    c.economy.earn('ai', 10_000);
+    const infantry = Array.from({ length: AI_CONFIG.minimumAttackArmyUnits }, (_, index) => c.world.createUnit({
+      type: 'infantry' as const,
+      owner: 'ai' as const,
+      faction: 'ember' as const,
+      position: c.grid.tileCenter(20 + index, 40),
+    }));
+    expect(planAiMilitary(c.ai, c).some((intent) => intent.kind === 'produce' && intent.unitType === 'infantry')).toBe(false);
+    c.world.remove(infantry[0]!.id);
+    expect(planAiMilitary(c.ai, c).some((intent) => intent.kind === 'produce' && intent.unitType === 'infantry')).toBe(true);
+  });
+  it('allows emergency Infantry above the normal composition cap while defending', () => {
+    const c = setup();
+    c.economy.earn('ai', 10_000);
+    c.ai.state = 'defend';
+    for (let index = 0; index < 2; index++) {
+      c.world.createUnit({ type: 'infantry', owner: 'ai', faction: 'ember', position: c.grid.tileCenter(20 + index, 40) });
+    }
+    expect(planAiMilitary(c.ai, c).some((intent) => intent.kind === 'produce' && intent.unitType === 'infantry')).toBe(true);
   });
   it.each(['incomplete', 'unpowered', 'enemy', 'credits', 'full'] as const)('rejects %s production without mutation', (failure) => {
     const c = setup();
+    c.world.remove(c.barracks.id);
     c.ai.productionCycleIndex = 1;
     if (failure === 'incomplete') c.world.setConstructionProgress(c.factory.id, 0);
     if (failure === 'unpowered') c.world.remove(c.power.id);
@@ -64,15 +107,39 @@ describe('AI military', () => {
     if (failure === 'credits') c.economy.spend('ai', c.economy.balance('ai'));
     if (failure === 'full') c.world.setProductionQueue(c.factory.id, Array.from({ length: PRODUCTION_CONFIG.queueCapacity }, () => ({ unitType: 'tank' as const, elapsedSeconds: 0, paidCost: 100 })));
     const before = JSON.stringify([c.world.buildings(), c.economy.balance('ai'), c.ai]);
-    for (let i = 0; i < 10; i++) expect(queueNext(c)).toBe(false);
+    expect(planAiMilitary(c.ai, c).some((intent) => intent.kind === 'produce' && intent.producerId === c.factory.id)).toBe(false);
+    expect(executeAiMilitaryIntent(c.ai, c, { kind: 'produce', producerId: c.factory.id, unitType: 'tank' })).toBe(false);
     expect(JSON.stringify([c.world.buildings(), c.economy.balance('ai'), c.ai])).toBe(before);
   });
-  it('reserves spending until opening completion and rejects forged producer intents', () => {
+  it('produces before opening completion while preserving the next unstarted building cost', () => {
     const c = setup();
-    c.ai.buildOrderIndex = 0;
+    c.world.remove(c.factory.id);
+    c.world.remove(c.power.id);
+    c.ai.buildOrderIndex = 1;
+    c.economy.spend('ai', c.economy.balance('ai') - 349);
     expect(queueNext(c)).toBe(false);
-    c.ai.buildOrderIndex = AI_CONFIG.buildOrder.length;
+    c.economy.earn('ai', 1);
+    expect(queueNext(c)).toBe(true);
+    expect(c.barracks.productionQueue.map((item) => item.unitType)).toEqual(['infantry']);
     expect(executeAiMilitaryIntent(c.ai, c, { kind: 'produce', producerId: c.factory.id, unitType: 'infantry' })).toBe(false);
+  });
+  it('keeps producing available Infantry when another producer is unavailable', () => {
+    const c = setup();
+    c.economy.earn('ai', 10_000);
+    c.world.setConstructionProgress(c.factory.id, 0);
+    executeDecision(c);
+    expect(c.barracks.productionQueue.map((item) => item.unitType)).toEqual(['infantry']);
+    expect(c.factory.productionQueue).toEqual([]);
+  });
+  it('does not count a queued Worker toward the combat reinforcement target', () => {
+    const c = setup();
+    c.economy.earn('ai', 10_000);
+    const hq = c.world.buildings('ai').find((building) => building.type === 'hq')!;
+    c.world.setProductionQueue(hq.id, [{ unitType: 'worker', elapsedSeconds: 0, paidCost: 150 }]);
+    for (let i = 0; i < AI_CONFIG.targetArmyUnits - 1; i++) {
+      c.world.createUnit({ type: 'infantry', owner: 'ai', faction: 'ember', position: c.grid.tileCenter(20 + i, 40) });
+    }
+    expect(planAiMilitary(c.ai, c).some((intent) => intent.kind === 'produce' && intent.unitType !== 'worker')).toBe(true);
   });
   it('chooses the first combat unit and a static map start even if a hidden HQ moves', () => {
     const c = setup();
@@ -132,6 +199,7 @@ describe('AI military', () => {
     for (let i = 0; i < AI_CONFIG.minimumAttackArmyUnits; i++) c.world.createUnit({ type: 'infantry', owner: 'ai', faction: 'ember', position: c.grid.tileCenter(20 + i, 40) });
     expect(planAiMilitary(c.ai, c).some((p) => p.kind === 'attack')).toBe(false);
     c.ai.lastKnownPlayerBasePosition = c.grid.tileCenter(5, 30);
+    expect(planAiMilitary(c.ai, c).some((p) => p.kind === 'produce')).toBe(true);
     const attack = planAiMilitary(c.ai, c).find((p) => p.kind === 'attack')!;
     expect(executeAiMilitaryIntent(c.ai, c, attack)).toBe(true);
     const combatUnits = () => c.world.units('ai').filter((unit) => unit.stats.attack !== null);
@@ -168,7 +236,7 @@ describe('AI military', () => {
     expect(enemy.health).toBe(enemy.stats.maxHealth);
   });
   // eslint-disable-next-line complexity -- This integration scenario intentionally exercises its complete strategic sequence.
-  it('completes an ordinary economy, produces all three types and launches within bounded strategic ticks', () => {
+  it('completes an ordinary economy, produces an arbitrary attack group and launches within bounded strategic ticks', () => {
     const grid = createMapGrid(MAP_CONFIG);
     const world = createWorld({ tileSizePixels: grid.tileSizePixels });
     populateStartingEntities(world, grid);
@@ -191,11 +259,13 @@ describe('AI military', () => {
       executeAiEconomyDecisions(ai, decision, context);
       executeAiMilitaryDecisions(ai, decision, context, readout);
       if (launchedAt === null && readout.latestAction.startsWith('attack')) launchedAt = t;
-      if (launchedAt !== null && ['infantry', 'tank', 'rocket'].every((type) => world.units('ai').some((u) => u.type === type))) break;
+      if (launchedAt !== null && ai.buildOrderIndex === AI_CONFIG.buildOrder.length) break;
       stepAttackMoveOrders(world, grid, 0.25, fogTargetPredicate(fog));
     }
     expect(ai.buildOrderIndex).toBe(AI_CONFIG.buildOrder.length);
-    expect(new Set(world.units('ai').map((u) => u.type))).toEqual(new Set(['worker', 'infantry', 'tank', 'rocket']));
+    expect(world.units('ai').filter((unit) => unit.stats.attack !== null).length).toBeGreaterThanOrEqual(
+      AI_CONFIG.minimumAttackArmyUnits,
+    );
     expect(readyAt).not.toBeNull();
     expect(launchedAt).not.toBeNull();
     expect(launchedAt! - readyAt!).toBeLessThanOrEqual(3 * AI_CONFIG.decisionIntervalSeconds);

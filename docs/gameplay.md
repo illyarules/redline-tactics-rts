@@ -94,10 +94,15 @@ resource tiles, and prefers a field-adjacent Depot. The existing HQ production p
 the strategic state before the foundation finishes, so this economic plan continues alongside later
 states. Each AI controller follows this plan independently on Trident Basin.
 
-Military planning in `core/aiMilitary.ts` shares the strategic cadence. After the opening is complete,
-it pays for Infantry → Tank → Rocket in a strict repeating cycle, up to nine living plus queued units.
-Barracks must be completed; Factories must also be powered. Blocked requests wait without cancelling
-paid queues or advancing the cycle. This spending policy protects construction and keeps gathering active.
+Military planning in `core/aiMilitary.ts` shares the strategic cadence. Combat production begins as
+soon as a producer is operational instead of waiting for the whole opening to finish. Before a Factory
+is available, the Barracks may train up to three Infantry squads so the first attack cannot stall. Once
+a completed, powered Factory is available, normal production retains two Infantry squads and spends
+later army slots on Tanks and Rockets; defense may temporarily exceed this Infantry cap. Every eligible
+producer can queue one unit per decision tick, up to nine living plus queued combat units. Unavailable
+types are skipped, Workers do not count toward the army target, and normal development reserves the
+cost of the next unstarted building. Defense may spend that reserve. Any three completed combat units —
+including three Infantry — can form the first attack group.
 
 The first living AI combat unit scouts the map's published player-start tile using Attack-Move.
 Only currently AI-visible HQ information updates remembered coordinates. Scout stays active while the
@@ -111,7 +116,7 @@ Schema-13 `WorldSnapshot` persists the map ID, world and fog state, both AI cont
 completed build-order indices, exact decision remainders, production-cycle indices, last-known base
 coordinates and the match lifecycle clock/statistics/result. Older or invalid saves are not resumed;
 the entry flow allows a fresh match. Queues, positions, orders and Credits remain solely in
-world/economy data. The development-only AI readout shows strategy, cycle, army threshold, discovery
+world/economy data. The development-only AI readout shows strategy, production preference, army threshold, discovery
 status and the latest military action.
 
 Eliminating every AI-owned building across the enemy team ends the match in Victory; losing every player-owned building
