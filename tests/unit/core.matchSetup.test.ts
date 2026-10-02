@@ -10,7 +10,6 @@ import { createWorld, type World } from '../../src/core/world';
 import {
   FACTION_IDS,
   PLAYER_IDS,
-  UNIT_TYPE_IDS,
   type PlayerId,
 } from '../../src/core/ids';
 import { UNIT_CONFIG } from '../../src/config/units';
@@ -40,15 +39,14 @@ describe('starting entities', () => {
     }
   });
 
-  it('gives both players the configured opening units of their faction', () => {
+  it('starts every participant with only a Worker', () => {
     const { world } = newMatch();
 
+    expect(world.units('player').map((unit) => unit.type)).toEqual(['worker']);
+    expect(world.units('ai').map((unit) => unit.type)).toEqual(['worker']);
     for (const player of ['player', 'ai'] as PlayerId[]) {
-      const units = world.units(player);
-      expect(units).toHaveLength(4);
-      expect(units.map((unit) => unit.type)).toEqual(['worker', 'infantry', 'tank', 'rocket']);
-      expect(units.every((unit) => unit.faction === MATCH_SETUP.factions[player])).toBe(true);
-      expect(units.every((unit) => unit.status === 'idle' && unit.order === null)).toBe(true);
+      expect(world.units(player).every((unit) => unit.faction === MATCH_SETUP.factions[player])).toBe(true);
+      expect(world.units(player).every((unit) => unit.status === 'idle' && unit.order === null)).toBe(true);
     }
   });
 
@@ -171,9 +169,8 @@ describe('nearbyFreeTiles', () => {
 });
 
 describe('starting unit presets', () => {
-  it('opens with one of each mobile role', () => {
-    expect(MATCH_SETUP.startingUnits.map((group) => group.type)).toEqual([...UNIT_TYPE_IDS]);
-    expect(MATCH_SETUP.startingUnits.every((group) => group.count === 1)).toBe(true);
+  it('opens every side with one Worker and no combat units', () => {
+    expect(MATCH_SETUP.startingUnits).toEqual([{ type: 'worker', count: 1 }]);
   });
 
   it('names a known faction for both sides', () => {

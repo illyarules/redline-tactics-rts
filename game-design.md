@@ -17,7 +17,7 @@ campaign, or multiplayer.
 ## Match rules
 
 - One human player and one AI opponent on Open Field, or two allied AI opponents on Trident Basin.
-- Each participant begins with an HQ, one Worker, one Infantry, one Tank, one Rocket, and starting Credits.
+- Every participant begins with an HQ, one Worker and starting Credits; combat units must be produced.
 - Workers construct buildings and gather Credits from neutral resource fields.
 - Buildings unlock and produce units.
 - Eliminating every opposing building wins; losing every player-owned building causes defeat.

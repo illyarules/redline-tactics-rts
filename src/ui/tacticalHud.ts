@@ -41,6 +41,7 @@ export class TacticalHud {
     economy: Economy,
     fog: FogState,
     player: PlayerId,
+    revealAll = false,
   ): void {
     this.creditsValue.textContent = Math.floor(economy.balance(player)).toLocaleString();
     const powered = isPowerAvailable(world, player);
@@ -56,21 +57,21 @@ export class TacticalHud {
     ctx.fillRect(0, 0, 180, 180);
     for (let ty = 0; ty < grid.heightTiles; ty++) {
       for (let tx = 0; tx < grid.widthTiles; tx++) {
-        const visibility = cellVisibility(fog, player, tx, ty);
+        const visibility = revealAll ? 'visible' : cellVisibility(fog, player, tx, ty);
         if (visibility === 'hidden') continue;
         ctx.fillStyle = visibility === 'visible' ? '#26382f' : '#16221f';
         ctx.fillRect(tx * tileWidth, ty * tileHeight, tileWidth, tileHeight);
       }
     }
     for (const field of grid.resourceFields) for (const tile of field.tiles) {
-      const visibility = cellVisibility(fog, player, tile.tx, tile.ty);
+      const visibility = revealAll ? 'visible' : cellVisibility(fog, player, tile.tx, tile.ty);
       if (visibility === 'hidden') continue;
       const p = grid.tileCenter(tile.tx, tile.ty);
       ctx.fillStyle = visibility === 'visible' ? '#65d5df' : '#2e696b';
       ctx.fillRect(p.x * sx, p.y * sy, 2, 2);
     }
     for (const entity of world.entities()) {
-      if (!isEntityVisibleToPlayer(fog, player, entity)) continue;
+      if (!revealAll && !isEntityVisibleToPlayer(fog, player, entity)) continue;
       ctx.fillStyle = entity.owner === 'player' ? '#73b5fa' : '#eb9953';
       const size = entity.kind === 'building' ? 7 : 3;
       ctx.fillRect(entity.position.x * sx - size / 2, entity.position.y * sy - size / 2, size, size);

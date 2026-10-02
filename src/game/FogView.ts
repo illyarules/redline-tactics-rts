@@ -62,6 +62,11 @@ export class FogView {
     this.texture.update(false);
   }
 
+  /** Hides only the rendered veil; authoritative visibility remains untouched. */
+  public setEnabled(enabled: boolean): void {
+    this.mesh.setEnabled(enabled);
+  }
+
   public dispose(): void {
     this.mesh.dispose();
     this.material.dispose();

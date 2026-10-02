@@ -3,8 +3,8 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * The suite drives the app through its ordinary `/` route. Fixtures live entirely under
  * `tests/e2e/fixtures/` and are seeded as local match snapshots before navigation — the app never
- * has a test-only mode to opt into, so this could just as well point at a production build; the dev
- * server is used only because it starts faster for local iteration.
+ * needs a test-only simulation hook. The optional `?debug=no-fog` development query changes only
+ * rendering and is available to tests that need an unobstructed observer view.
  */
 const PORT = 5183;
 

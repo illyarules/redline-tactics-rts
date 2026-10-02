@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clearSnapshot } from './helpers/storage';
+import { clearSnapshot, readSnapshot } from './helpers/storage';
 import { selectMapAndStart } from './helpers/match';
 
 test('starts through mode and map selection with multiplayer disabled', async ({ page }) => {
@@ -24,4 +24,18 @@ test('starts through mode and map selection with multiplayer disabled', async ({
   await expect(titleScreen).not.toBeAttached();
   await expect(page.getByTestId('game-canvas')).toBeVisible();
   await expect(page.getByTestId('tactical-hud')).toBeVisible();
+  await expect(page.getByTestId('ai-debug-readout')).toContainText('CREDITS AI 900');
+
+  await page.reload();
+  const snapshot = await readSnapshot(page);
+  expect(
+    snapshot.entities
+      .filter((entity) => entity.kind === 'unit' && entity.owner === 'player')
+      .map((entity) => entity.type),
+  ).toEqual(['worker']);
+  expect(
+    snapshot.entities
+      .filter((entity) => entity.kind === 'unit' && entity.owner === 'ai')
+      .map((entity) => entity.type),
+  ).toEqual(['worker']);
 });

@@ -48,8 +48,10 @@ describe('map catalog and Trident Basin', () => {
     populateStartingEntities(world, grid);
     for (const owner of ['player', 'ai', 'ai2'] as const) {
       expect(world.buildings(owner).filter((building) => building.type === 'hq')).toHaveLength(1);
-      expect(world.units(owner)).toHaveLength(4);
     }
+    expect(world.units('player').map((unit) => unit.type)).toEqual(['worker']);
+    expect(world.units('ai').map((unit) => unit.type)).toEqual(['worker']);
+    expect(world.units('ai2').map((unit) => unit.type)).toEqual(['worker']);
     const economy = createEconomy(undefined, undefined, ['player', 'ai', 'ai2']);
     const firstBefore = economy.balance('ai');
     const secondBefore = economy.balance('ai2');

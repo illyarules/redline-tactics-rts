@@ -14,6 +14,7 @@ import type { WorldSnapshot } from './core/snapshot';
 import { MapSelectionScreen } from './ui/mapSelectionScreen';
 import { GameModeScreen } from './ui/gameModeScreen';
 import { detectCurrentDeviceSupport } from './platform/deviceSupport';
+import { readDebugOptions } from './game/debugOptions';
 
 // Initialize Vercel Analytics
 inject();
@@ -43,6 +44,7 @@ let gameModeScreen: GameModeScreen | null = null;
 let mapSelection: MapSelectionScreen | null = null;
 const audio = new AudioManager();
 const deviceSupport = detectCurrentDeviceSupport();
+const debugOptions = readDebugOptions(window.location.search, import.meta.env.DEV);
 const framePacer = new FramePacer(
   RENDER_CONFIG.targetFramesPerSecond,
   RENDER_CONFIG.maxDeltaSeconds,
@@ -116,7 +118,17 @@ const startMatch = (map: MapConfig, snapshot: WorldSnapshot | null): void => {
   mapSelection?.destroy();
   mapSelection = null;
   canvas.style.display = 'block';
-  scene = new MatchScene(engine, canvas, container, showMapSelection, showTitle, audio, map, snapshot);
+  scene = new MatchScene(
+    engine,
+    canvas,
+    container,
+    showMapSelection,
+    showTitle,
+    audio,
+    map,
+    snapshot,
+    debugOptions.noFog,
+  );
   framePacer.reset();
 };
 

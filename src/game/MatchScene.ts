@@ -153,6 +153,9 @@ export class MatchScene {
   private readonly autoTargeting = createAutoTargetingState();
   private readonly isVisibleToHuman = (entity: ReadonlyEntity): boolean =>
     isEntityVisibleToPlayer(this.fog, PLAYER_ID, entity);
+  /** Observer-mode visibility affects drawing only; every command still uses real fog. */
+  private readonly isVisibleToObserver = (entity: ReadonlyEntity): boolean =>
+    this.debugNoFog || this.isVisibleToHuman(entity);
   private readonly canTarget = (observer: ReadonlyUnit, candidate: ReadonlyEntity): boolean =>
     areHostile(observer.owner, candidate.owner) && fogTargetPredicate(this.fog)(observer, candidate);
   private hudElapsedSeconds = Number.POSITIVE_INFINITY;
@@ -172,6 +175,7 @@ export class MatchScene {
     audio: AudioManager,
     mapConfig: MapConfig,
     snapshot: WorldSnapshot | null,
+    private readonly debugNoFog = false,
   ) {
     this.scene = new Scene(engine);
     this.scene.clearColor = Color4.FromColor3(color3(FIELD_TONES.sky), 1);
@@ -221,8 +225,11 @@ export class MatchScene {
     this.mapView = new MapView(this.scene, this.grid, this.space, this.materials);
     this.syncResourceFields();
     this.fogView = new FogView(this.scene, this.grid, this.space);
-    this.fogView.update(this.fog, PLAYER_ID);
-    this.mapView.updateFog(this.fog, PLAYER_ID);
+    this.fogView.setEnabled(!this.debugNoFog);
+    if (!this.debugNoFog) {
+      this.fogView.update(this.fog, PLAYER_ID);
+      this.mapView.updateFog(this.fog, PLAYER_ID);
+    }
     for (const mesh of this.mapView.shadowCasters()) {
       this.shadows.addShadowCaster(mesh);
     }
@@ -234,7 +241,7 @@ export class MatchScene {
       this.materials,
       (mesh: Mesh) => this.shadows.addShadowCaster(mesh),
     );
-    this.entitiesView.sync(this.world, [], 0, this.isVisibleToHuman);
+    this.entitiesView.sync(this.world, [], 0, this.isVisibleToObserver);
     this.combatEffects = new CombatEffectsView(this.scene, this.space, this.materials);
 
     this.selectionMarker = new SelectionMarker(this.scene, this.materials, this.space);
@@ -286,7 +293,10 @@ export class MatchScene {
     // so no camera movement can scale them and they stay crisp at any zoom.
     this.hud = new TacticalHud(overlayContainer, this.grid.name);
     this.hud.updateTimer(this.lifecycle.elapsedActiveSeconds);
-    this.titleBanner = new TitleBanner(overlayContainer, GAME_TITLE);
+    this.titleBanner = new TitleBanner(
+      overlayContainer,
+      this.debugNoFog ? `${GAME_TITLE} · DEBUG NO FOG` : GAME_TITLE,
+    );
     this.controlsOverlay = new ControlsOverlay(overlayContainer);
     this.selectionPanel = new SelectionPanel(overlayContainer);
     this.buildMenu = new BuildMenu(overlayContainer, (buildingType) => {
@@ -339,7 +349,7 @@ export class MatchScene {
     this.debugLabels = new DebugLabelsView(overlayContainer, this.scene, canvas, this.space);
     this.aiDebug = import.meta.env.DEV ? new AiDebugReadout(overlayContainer) : null;
     const primaryAi = this.ais.get('ai');
-    if (primaryAi !== undefined) this.aiDebug?.update(primaryAi, this.world, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
+    if (primaryAi !== undefined) this.aiDebug?.update(primaryAi, this.world, this.economy, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
 
     // eslint-disable-next-line complexity -- Keyboard shortcuts have intentionally ordered modal and match-state handling.
     this.onKeyDown = (event) => {
@@ -431,8 +441,10 @@ export class MatchScene {
     recordProducedUnits(this.lifecycle, stepProduction(this.world, this.grid, activeDeltaSeconds));
     stepAttackCooldowns(this.world, activeDeltaSeconds);
     if (stepFogVisibility(this.fog, this.world, this.grid, activeDeltaSeconds)) {
-      this.fogView.update(this.fog, PLAYER_ID);
-      this.mapView.updateFog(this.fog, PLAYER_ID);
+      if (!this.debugNoFog) {
+        this.fogView.update(this.fog, PLAYER_ID);
+        this.mapView.updateFog(this.fog, PLAYER_ID);
+      }
     }
     for (const owner of this.aiPlayers) {
       const ai = this.ais.get(owner);
@@ -464,10 +476,10 @@ export class MatchScene {
     stepSeparation(this.world, this.grid, activeDeltaSeconds);
     // The selected entity keeps moving and taking damage, so the markers and the readout follow it.
     this.selection.refresh();
-    this.entitiesView.sync(this.world, this.selection.selectedIds(), activeDeltaSeconds, this.isVisibleToHuman);
+    this.entitiesView.sync(this.world, this.selection.selectedIds(), activeDeltaSeconds, this.isVisibleToObserver);
     this.showSelection();
     this.placement.update();
-    this.debugLabels.update(this.world, (id) => this.entitiesView.modelHeightOf(id), this.isVisibleToHuman);
+    this.debugLabels.update(this.world, (id) => this.entitiesView.modelHeightOf(id), this.isVisibleToObserver);
 
     this.hudElapsedSeconds += activeDeltaSeconds;
     if (this.hudElapsedSeconds >= RENDER_CONFIG.hudUpdateIntervalSeconds) {
@@ -478,9 +490,10 @@ export class MatchScene {
         this.economy,
         this.fog,
         PLAYER_ID,
+        this.debugNoFog,
       );
       const ai = this.ais.get('ai');
-      if (ai !== undefined) this.aiDebug?.update(ai, this.world, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
+      if (ai !== undefined) this.aiDebug?.update(ai, this.world, this.economy, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
       this.hudElapsedSeconds = 0;
     }
 
@@ -686,9 +699,9 @@ export class MatchScene {
   private finishTerminalFrame(deltaSeconds: number): void {
     this.combatEffects.update(deltaSeconds);
     this.selection.refresh();
-    this.entitiesView.sync(this.world, this.selection.selectedIds(), deltaSeconds, this.isVisibleToHuman);
+    this.entitiesView.sync(this.world, this.selection.selectedIds(), deltaSeconds, this.isVisibleToObserver);
     this.showSelection();
-    this.debugLabels.update(this.world, (id) => this.entitiesView.modelHeightOf(id), this.isVisibleToHuman);
+    this.debugLabels.update(this.world, (id) => this.entitiesView.modelHeightOf(id), this.isVisibleToObserver);
     this.enterTerminalState();
     this.saveNow();
     this.scene.render();
@@ -778,7 +791,7 @@ export class MatchScene {
 
   /**
    * Where the match opens: between the player's HQ and the resource field it will work first, so the
-   * base, its opening squad and the Credits are all on screen from the first frame. Falls back to
+   * base, its Worker and the Credits are all on screen from the first frame. Falls back to
    * the HQ alone, then to the map centre, if a map ever ships without one of them.
    */
   private openingFocus(): Vec2 | null {

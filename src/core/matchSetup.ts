@@ -1,8 +1,8 @@
 /**
  * The opening position: what stands on the map the moment a match begins.
  *
- * Both players are set up by the same code from the same config, so neither side can start with a
- * hidden advantage, and a test can assert the whole opening without starting the renderer.
+ * Every participant is set up from the same typed config, and tests can assert the whole opening
+ * without starting the renderer.
  * Pure TypeScript: this module must not import Babylon, `game/` or `ui/`.
  */
 import { MATCH_SETUP } from '../config/match';
@@ -16,7 +16,7 @@ import type { World } from './world';
 const SPAWN_SEARCH_RADIUS_TILES = 12;
 
 /**
- * Creates each player's HQ on its start footprint and the configured opening units around its rally
+ * Creates each player's HQ on its start footprint and its configured opening units around its rally
  * point. Returns everything created, in creation order.
  */
 export function populateStartingEntities(

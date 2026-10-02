@@ -11,8 +11,9 @@ The selected battlefield renders in a Babylon.js scene under a high angled RTS c
 controls and selection readouts sit in an HTML layer above the canvas. The player faction is fixed
 to Meridian; both AI owners use Ember. Faction selection is not implemented.
 
-Each participant starts with an HQ and one of each mobile role — Worker,
-Infantry, Tank and Rocket — and the view opens on the player's own base. The starting units support selection and direct right-click movement. Combat is active; the AI gathers Credits, builds its opening base, trains a deterministic army, scouts and launches attacks.
+Every participant starts with an HQ and one Worker, so every combat unit must come through normal
+production. The view opens on the player's base and nearby Credits field. Combat is active; the AI
+gathers Credits, builds its opening base, trains a deterministic army, scouts and launches attacks.
 
 Open Field's forest tiles are normal passable ground for movement and construction and apply no
 speed, combat, or vision modifier. The northern mountain ridge is `rock`: existing ground units
@@ -157,6 +158,11 @@ can click. A health bar appears above an entity while it is selected and wheneve
 | Left-click a valid (green) placement | Confirm it: spend Credits, send the Worker to build |
 | Right-click, or `Escape`, during placement | Cancel placement; nothing is spent |
 | `` ` `` (backtick) | Toggle entity debug labels (type and id) |
+
+During local development, open `/?debug=no-fog` to reveal the entire battlefield and all entities
+for observation. This is a visual-only mode: selection, targeting, combat, AI knowledge, resource
+inspection, fog persistence and every other gameplay rule continue to use authoritative fog of war.
+The development AI status panel reports the current Credits balance for every AI commander.
 | `Escape` | Open or close Pause during a live match |
 | `New Match` (Pause) or `Play Again` (battle report) | Open battlefield selection |
 | `Quit to Title` (battle report) | Clear the completed save and return to the title screen |
@@ -172,7 +178,7 @@ A compact one-line version of this list sits in the bottom-left corner in game. 
 available by pressing `Q` and then left-clicking passable ground; `A` pans the camera.
 
 The match opens zoomed in close, between the player's HQ and the resource field it will work first,
-so the base, its opening squad and the Credits are all on screen from the first frame.
+so the base, its Worker and the Credits are all on screen from the first frame.
 
 ### AI base defense and recovery (Task 28)
 
