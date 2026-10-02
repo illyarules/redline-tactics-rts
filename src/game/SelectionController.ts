@@ -46,6 +46,7 @@ export class SelectionController {
     private readonly entityIdOfMesh: (mesh: AbstractMesh) => EntityId | null,
     private readonly onChange: (selected: readonly EntityId[]) => void,
     private readonly onMove: (selected: readonly EntityId[], target: Vec2) => void,
+    private readonly onFriendlyTarget: (selected: readonly EntityId[], targetId: EntityId) => void,
     private readonly onAttack: (selected: readonly EntityId[], targetId: EntityId) => void,
     private readonly onAttackMove: (selected: readonly EntityId[], target: Vec2) => void,
     private readonly grid: MapGrid,
@@ -85,7 +86,9 @@ export class SelectionController {
         : this.entityIdOfMesh(hit.pickedMesh);
       if (targetId !== null) {
         const target = this.world.get(targetId);
-        if (
+        if (target !== undefined && target.owner === this.player) {
+          this.onFriendlyTarget(this.selected, targetId);
+        } else if (
           target !== undefined &&
           areHostile(target.owner, this.player) &&
           this.isVisibleToPlayer(target)

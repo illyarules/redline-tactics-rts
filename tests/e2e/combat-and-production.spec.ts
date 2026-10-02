@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { buildProductionScenario, combatScenario, productionMenuScenario, SCREEN } from './fixtures/scenarios';
-import { pollSnapshot, startMatch } from './helpers/match';
-import { clearSnapshot, seedSnapshot } from './helpers/storage';
+import { pollSnapshot, saveAndResume, startMatch } from './helpers/match';
+import { clearSnapshot, readSnapshot, seedSnapshot } from './helpers/storage';
+import type { BuildingSnapshot } from '../../src/core/snapshot';
 
 test('combat applies damage to the targeted enemy', async ({ page }) => {
   await clearSnapshot(page);
@@ -56,6 +57,42 @@ test('placing a building starts construction and queuing a unit shows in the que
   await produceWorker.click();
   await expect(productionMenu).toContainText('Queue 1/3');
   await expect(productionMenu).not.toContainText('Queue 2/3');
+});
+
+test('a Worker resumes an interrupted construction site without paying again', async ({ page }) => {
+  await clearSnapshot(page);
+  await seedSnapshot(page, buildProductionScenario());
+  await startMatch(page);
+
+  await page.getByTestId('build-barracks').click();
+  await page.mouse.click(SCREEN.clearBuildSite.x, SCREEN.clearBuildSite.y);
+  const started = await pollSnapshot(page, (snapshot) => {
+    const site = snapshot.entities.find((entity): entity is BuildingSnapshot =>
+      entity.kind === 'building' && entity.owner === 'player' && entity.type === 'barracks');
+    return site !== undefined && site.constructionProgress > 0
+      ? { progress: site.constructionProgress, credits: snapshot.credits.player }
+      : undefined;
+  });
+
+  await page.mouse.click(SCREEN.clearDestination.x, SCREEN.clearDestination.y, { button: 'right' });
+  await page.waitForTimeout(500);
+  await saveAndResume(page);
+  const interrupted = await readSnapshot(page);
+  const pausedSite = interrupted.entities.find((entity): entity is BuildingSnapshot =>
+    entity.kind === 'building' && entity.owner === 'player' && entity.type === 'barracks');
+  expect(pausedSite?.constructionProgress).toBeGreaterThanOrEqual(started.progress);
+
+  await page.mouse.click(SCREEN.clearBuildSite.x, SCREEN.clearBuildSite.y, { button: 'right' });
+  const resumedProgress = await pollSnapshot(page, (snapshot) => {
+    const site = snapshot.entities.find((entity): entity is BuildingSnapshot =>
+      entity.kind === 'building' && entity.owner === 'player' && entity.type === 'barracks');
+    return site !== undefined && site.constructionProgress > (pausedSite?.constructionProgress ?? 1)
+      ? site.constructionProgress
+      : undefined;
+  }, { timeoutMs: 30_000 });
+
+  expect(resumedProgress).toBeGreaterThan(pausedSite?.constructionProgress ?? 1);
+  expect((await readSnapshot(page)).credits.player).toBe(started.credits);
 });
 
 test('production controls retain identity while their state changes and cancel normally', async ({ page }) => {

@@ -41,9 +41,10 @@ pointer, snapped to the grid, green while its full footprint is in bounds, on pa
 clear of every other building, red otherwise. Left-click on a green footprint spends the cost once and
 sends the Worker to the site; right-click or Escape cancels without spending anything. A site under
 construction stands shorter and a little translucent, rising to full height as the assigned Worker
-finishes it — building progress only advances while that Worker is actually there. Losing every
-Power Plant pauses whatever in the tech chain needs power (the HUD's power line turns red); completing
-a new one resumes it immediately.
+finishes it — building progress only advances while that Worker is actually there. If another order
+interrupts the Worker, select a Worker and right-click the unfinished friendly building to resume
+from its existing progress without paying again. Losing every Power Plant pauses whatever in the tech
+chain needs power (the HUD's power line turns red); completing a new one resumes it immediately.
 
 Selecting a completed HQ, Barracks, or Factory opens its production panel. HQs queue Workers,
 Barracks queue Infantry, and Factories queue Tanks or Rockets. Each building has a configured FIFO
@@ -152,6 +153,7 @@ can click. A health bar appears above an entity while it is selected and wheneve
 | Right-click ground | Move the selected friendly units |
 | Right-click a visible enemy | Order selected combat units to attack it |
 | Right-click a resource field | Send the selected Worker(s) to gather it |
+| Right-click an unfinished friendly building | Send the selected Worker to resume construction |
 | Build menu button (Worker selected) | Start placing that building |
 | Production panel button (completed producer selected) | Queue the named unit |
 | Cancel in a production queue | Cancel that entry for a 75% refund |
@@ -159,10 +161,6 @@ can click. A health bar appears above an entity while it is selected and wheneve
 | Right-click, or `Escape`, during placement | Cancel placement; nothing is spent |
 | `` ` `` (backtick) | Toggle entity debug labels (type and id) |
 
-During local development, open `/?debug=no-fog` to reveal the entire battlefield and all entities
-for observation. This is a visual-only mode: selection, targeting, combat, AI knowledge, resource
-inspection, fog persistence and every other gameplay rule continue to use authoritative fog of war.
-The development AI status panel reports the current Credits balance for every AI commander.
 | `Escape` | Open or close Pause during a live match |
 | `New Match` (Pause) or `Play Again` (battle report) | Open battlefield selection |
 | `Quit to Title` (battle report) | Clear the completed save and return to the title screen |
@@ -173,6 +171,11 @@ The development AI status panel reports the current Credits balance for every AI
 | `Start Game` (title screen) | Resume a valid save, otherwise open mode selection |
 | `Single Game` (mode selection) | Open battlefield selection |
 | `Start Match` (battlefield selection) | Clear the prior save and start on the selected map |
+
+During local development, open `/?debug=no-fog` to reveal the entire battlefield and all entities
+for observation. This is a visual-only mode: selection, targeting, combat, AI knowledge, resource
+inspection, fog persistence and every other gameplay rule continue to use authoritative fog of war.
+The development AI status panel reports the current Credits balance for every AI commander.
 
 A compact one-line version of this list sits in the bottom-left corner in game. Attack-Move is
 available by pressing `Q` and then left-clicking passable ground; `A` pans the camera.

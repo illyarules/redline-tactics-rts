@@ -16,7 +16,7 @@ import type { AiPlayerId, BuildingTypeId, EntityId, PlayerId, UnitTypeId } from 
 import { issueAttackOrders, stepAttackOrders, type AttackHitEvent } from '../core/attack';
 import { issueAttackMoveOrders, stepAttackMoveOrders } from '../core/attackMove';
 import { createAutoTargetingState, issueRetaliationOrders, stepAutomaticTargeting } from '../core/autoCombat';
-import { startConstruction, stepConstruction } from '../core/construction';
+import { resumeConstruction, startConstruction, stepConstruction } from '../core/construction';
 import { stepAttackCooldowns } from '../core/combat';
 import { createEconomy, type Economy } from '../core/economy';
 import { fogTargetPredicate, isEntityVisibleToPlayer, createFogState, stepFogVisibility, updateFogVisibility, type FogState } from '../core/fog';
@@ -260,6 +260,10 @@ export class MatchScene {
       () => this.showSelection(),
       (ids, target) => {
         this.issueRightClickOrders(ids, target);
+        this.showSelection();
+      },
+      (ids, targetId) => {
+        this.resumeConstruction(ids, targetId);
         this.showSelection();
       },
       (ids, targetId) => {
@@ -758,6 +762,16 @@ export class MatchScene {
     }
     startConstruction(this.world, this.grid, this.economy, PLAYER_ID, worker.faction, buildingType, topLeft, workerId);
     this.showSelection();
+  }
+
+  /** A right-click with selected Workers resumes a friendly paused construction site. */
+  private resumeConstruction(ids: readonly EntityId[], buildingId: EntityId): void {
+    const worker = ids
+      .map((id) => this.world.unit(id))
+      .find((unit) => unit?.owner === PLAYER_ID && unit.type === 'worker');
+    if (worker !== undefined) {
+      resumeConstruction(this.world, this.grid, PLAYER_ID, buildingId, worker.id);
+    }
   }
 
   /**

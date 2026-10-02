@@ -6,7 +6,7 @@
  */
 import { BUILDING_CONFIG } from '../config/buildings';
 import type { Economy } from './economy';
-import { isAlive, type ReadonlyUnit } from './entities';
+import { isAlive, type ReadonlyBuilding, type ReadonlyUnit } from './entities';
 import { tileRectContains, type TileCoord, type TileRect } from './geometry';
 import type { BuildingTypeId, EntityId, FactionId, PlayerId } from './ids';
 import type { MapGrid } from './map';
@@ -108,6 +108,53 @@ export function startConstruction(
   world.setStatus(worker.id, route === null ? 'constructing' : 'moving');
 
   return building.id;
+}
+
+/**
+ * Assigns a Worker to an existing paused construction site without spending Credits or changing
+ * its accumulated progress. Returns false without changing either entity when the site or Worker is
+ * invalid, another Worker is already assigned, or no approach to the footprint is reachable.
+ */
+export function resumeConstruction(
+  world: World,
+  grid: MapGrid,
+  player: PlayerId,
+  buildingId: EntityId,
+  workerId: EntityId,
+): boolean {
+  const building = world.building(buildingId);
+  const worker = world.unit(workerId);
+  if (!isResumableSite(building, player) || !isAvailableBuilder(worker, player)) {
+    return false;
+  }
+
+  const currentWorker = assignedWorker(world, building.id);
+  if (currentWorker !== undefined && currentWorker.id !== worker.id) {
+    return false;
+  }
+
+  const config = BUILDING_CONFIG[building.type];
+  const siteTile: TileCoord = {
+    tx: building.topLeft.tx + Math.floor(config.footprint.width / 2),
+    ty: building.topLeft.ty + Math.floor(config.footprint.height / 2),
+  };
+  const route = routeToSite(grid, worker.position, siteTile, (tile) => isUnderBuilding(world, tile));
+  if (route === undefined) {
+    return false;
+  }
+
+  world.setOrder(worker.id, buildOrder(building.type, building.topLeft, building.id, route));
+  world.setStatus(worker.id, route === null ? 'constructing' : 'moving');
+  return true;
+}
+
+function isResumableSite(building: ReadonlyBuilding | undefined, player: PlayerId): building is ReadonlyBuilding {
+  return building !== undefined && building.owner === player && isAlive(building) &&
+    building.status === 'constructing' && building.constructionProgress < 1;
+}
+
+function isAvailableBuilder(worker: ReadonlyUnit | undefined, player: PlayerId): worker is ReadonlyUnit {
+  return worker !== undefined && worker.owner === player && worker.type === 'worker' && isAlive(worker);
 }
 
 /** Advances every in-progress construction site by `deltaSeconds`, driven by its assigned Worker. */

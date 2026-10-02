@@ -76,10 +76,8 @@ build/production). Keep it small, fast (well under 3 minutes total), and stable.
   the task as complete — passing tests alone do not confirm the UI renders and behaves as intended.
 - No unrelated features, dependencies, or cleanup are included.
 - Any controls or visible behavior introduced by the task are briefly documented in the project README once it exists.
-- Before reporting a task complete, inspect `artifacts/` and remove temporary screenshots, traces,
-  and other files generated for that task. Keep only artifacts intentionally needed as project
-  references or deliverables. Do not delete pre-existing or unrelated files without confirming
-  their ownership and purpose.
+- After completing each task, delete every file and subdirectory inside `artifacts/` so the directory
+  is empty before reporting the task complete.
 
 ## Gameplay priorities
 

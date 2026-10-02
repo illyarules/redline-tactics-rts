@@ -28,6 +28,7 @@ export const CONTROL_HINTS: readonly ControlHint[] = [
   { input: 'Right-click enemy', action: 'Explicitly attack that enemy', short: 'right-click attack' },
   { input: 'Q, then left-click ground', action: 'Attack-Move selected combat units', short: 'Q attack-move' },
   { input: 'Right-click a resource field', action: 'Send the selected Worker to gather it', short: 'right-click gather' },
+  { input: 'Right-click an unfinished building', action: 'Send the selected Worker to resume construction', short: 'right-click resume' },
   { input: 'Build menu button', action: 'Start placing that building (select a Worker)', short: 'build menu' },
   { input: 'Left-click ground', action: 'Clear the selection, or confirm a placement', short: 'click ground clears' },
   { input: 'Escape', action: 'Pause the match (or cancel an in-progress building placement)', short: 'esc pause' },

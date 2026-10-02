@@ -5,6 +5,7 @@ import { createEconomy } from '../../src/core/economy';
 import {
   cancelConstruction,
   checkConstructionStart,
+  resumeConstruction,
   startConstruction,
   stepConstruction,
 } from '../../src/core/construction';
@@ -132,6 +133,42 @@ describe('stepConstruction', () => {
 
     expect(world.building(id)!.constructionProgress).toBe(progressBeforeInterrupt);
     expect(world.building(id)!.status).toBe('constructing');
+  });
+
+  it('resumes an interrupted site from existing progress without charging again', () => {
+    const { grid, world, economy, worker } = setup();
+    const balanceBefore = economy.balance('player');
+    const id = startConstruction(world, grid, economy, 'player', 'meridian', 'barracks', SITE_TOP_LEFT, worker.id)!;
+    runConstruction(world, 3);
+    const pausedProgress = world.building(id)!.constructionProgress;
+    const paidBalance = economy.balance('player');
+
+    world.setOrder(worker.id, null);
+    world.setStatus(worker.id, 'idle');
+    expect(resumeConstruction(world, grid, 'player', id, worker.id)).toBe(true);
+    runConstruction(world, 2);
+
+    expect(world.building(id)!.constructionProgress).toBeGreaterThan(pausedProgress);
+    expect(economy.balance('player')).toBe(paidBalance);
+    expect(paidBalance).toBe(balanceBefore - BUILDING_CONFIG.barracks.cost);
+  });
+
+  it('rejects completed, enemy, and already-assigned construction targets', () => {
+    const { grid, world, economy, worker } = setup();
+    const completed = world.buildings('player')[0]!;
+    expect(resumeConstruction(world, grid, 'player', completed.id, worker.id)).toBe(false);
+
+    const enemy = world.createBuilding({
+      type: 'barracks', owner: 'ai', faction: 'ember', topLeft: { tx: 20, ty: 30 },
+      status: 'constructing', constructionProgress: 0.5,
+    });
+    expect(resumeConstruction(world, grid, 'player', enemy.id, worker.id)).toBe(false);
+
+    const id = startConstruction(world, grid, economy, 'player', 'meridian', 'barracks', SITE_TOP_LEFT, worker.id)!;
+    const secondWorker = world.createUnit({
+      type: 'worker', owner: 'player', faction: 'meridian', position: grid.tileCenter(10, 31),
+    });
+    expect(resumeConstruction(world, grid, 'player', id, secondWorker.id)).toBe(false);
   });
 });
 
