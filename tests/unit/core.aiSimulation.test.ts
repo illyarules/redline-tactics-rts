@@ -136,4 +136,25 @@ describe('AI simulation boundaries', () => {
     expect(queuedUnits(simulation)).toBeGreaterThan(0);
     expect(simulation.world.units('ai').filter((unit) => unit.stats.attack !== null).length).toBeGreaterThan(armyBefore);
   });
+
+  it('launches a Last Stand instead of freezing when Worker recovery is impossible', () => {
+    const simulation = createSimulation();
+    for (const worker of simulation.world.units('ai').filter((unit) => unit.type === 'worker')) {
+      simulation.world.remove(worker.id);
+    }
+    simulation.economy.spend('ai', simulation.economy.balance('ai') - 20);
+    const units = [20, 21].map((tx) => simulation.world.createUnit({
+      type: 'infantry' as const,
+      owner: 'ai' as const,
+      faction: 'ember' as const,
+      position: simulation.grid.tileCenter(tx, 40),
+    }));
+
+    stepSimulation(simulation, AI_CONFIG.decisionIntervalSeconds + STEP_SECONDS);
+
+    expect(units.map((unit) => unit.order)).toEqual([
+      expect.objectContaining({ kind: 'AttackMove' }),
+      expect.objectContaining({ kind: 'AttackMove' }),
+    ]);
+  });
 });

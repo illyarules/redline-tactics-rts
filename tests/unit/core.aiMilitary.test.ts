@@ -41,12 +41,12 @@ function queueNext(c: ReturnType<typeof setup>) {
   const intent = planAiMilitary(c.ai, c).find((p) => p.kind === 'produce');
   return intent !== undefined && executeAiMilitaryIntent(c.ai, c, intent);
 }
-function executeDecision(c: ReturnType<typeof setup>) {
+function executeDecision(c: ReturnType<typeof setup>, readout?: { latestAction: string }) {
   executeAiMilitaryDecisions(c.ai, {
     evaluations: 1,
     transition: null,
     intents: [{ kind: 'none', state: c.ai.state }],
-  }, c);
+  }, c, readout);
 }
 describe('AI military', () => {
   it('uses every operational producer and rotates only multi-option production', () => {
@@ -215,6 +215,69 @@ describe('AI military', () => {
     c.world.remove(reinforcement.id);
     c.world.remove(combatUnits()[0]!.id);
     expect(executeAiMilitaryIntent(c.ai, c, attack)).toBe(false);
+  });
+  it('launches every surviving combat unit with 20 Credits and reports Last Stand', () => {
+    const c = setup();
+    for (const worker of c.world.units('ai').filter((unit) => unit.type === 'worker')) c.world.remove(worker.id);
+    c.economy.spend('ai', c.economy.balance('ai') - 20);
+    const infantry = c.world.createUnit({
+      type: 'infantry', owner: 'ai', faction: 'ember', position: c.grid.tileCenter(20, 40),
+    });
+    const tank = c.world.createUnit({
+      type: 'tank', owner: 'ai', faction: 'ember', position: c.grid.tileCenter(21, 40),
+    });
+    const enemy = c.world.createUnit({
+      type: 'infantry', owner: 'player', faction: 'meridian', position: c.grid.tileCenter(22, 40),
+    });
+    c.world.setOrder(infantry.id, attackOrder(enemy.id));
+    c.ai.lastKnownPlayerBasePosition = c.grid.tileCenter(5, 30);
+    const readout = { latestAction: '' };
+
+    expect(planAiMilitary(c.ai, c)).toEqual([{
+      kind: 'lastStand', unitIds: [infantry.id, tank.id], target: c.ai.lastKnownPlayerBasePosition,
+    }]);
+    executeDecision(c, readout);
+
+    expect(readout.latestAction).toBe('last stand 2');
+    expect([infantry.order, tank.order]).toEqual([
+      expect.objectContaining({ kind: 'AttackMove', target: c.ai.lastKnownPlayerBasePosition }),
+      expect.objectContaining({ kind: 'AttackMove', target: c.ai.lastKnownPlayerBasePosition }),
+    ]);
+    expect(planAiMilitary(c.ai, c)).toEqual([]);
+  });
+  it('waits for an affordable or already queued Worker instead of launching Last Stand', () => {
+    const c = setup();
+    for (const worker of c.world.units('ai').filter((unit) => unit.type === 'worker')) c.world.remove(worker.id);
+    c.world.createUnit({ type: 'infantry', owner: 'ai', faction: 'ember', position: c.grid.tileCenter(20, 40) });
+
+    expect(planAiMilitary(c.ai, c)).toEqual([
+      expect.objectContaining({ kind: 'produce', unitType: 'worker' }),
+    ]);
+
+    const hq = c.world.buildings('ai').find((building) => building.type === 'hq')!;
+    c.world.setProductionQueue(hq.id, [{ unitType: 'worker', elapsedSeconds: 0, paidCost: 150 }]);
+    c.economy.spend('ai', c.economy.balance('ai') - 20);
+    expect(planAiMilitary(c.ai, c).some((intent) => intent.kind === 'lastStand')).toBe(false);
+  });
+  it('falls back to the opponent start and persists Last Stand after the AI HQ is destroyed', () => {
+    const c = setup();
+    const infantry = c.world.createUnit({
+      type: 'infantry', owner: 'ai', faction: 'ember', position: c.grid.tileCenter(20, 40),
+    });
+    const hq = c.world.buildings('ai').find((building) => building.type === 'hq')!;
+    c.world.remove(hq.id);
+    const start = c.grid.startFor('player')!.hqTopLeft;
+    const target = c.grid.tileCenter(start.tx, start.ty);
+    const intent = planAiMilitary(c.ai, c).find((candidate) => candidate.kind === 'lastStand')!;
+
+    expect(intent).toEqual({ kind: 'lastStand', unitIds: [infantry.id], target });
+    expect(executeAiMilitaryIntent(c.ai, c, intent)).toBe(true);
+    const snapshot = serializeWorld(c.world, [], c.economy, createResourceFieldState(c.grid), c.fog, c.grid, c.ai);
+    const restored = restoreWorld(snapshot, c.grid);
+
+    const restoredInfantry = restored.world.units('ai').find((unit) => unit.type === 'infantry');
+    expect(restoredInfantry?.order).toMatchObject({ kind: 'AttackMove', target });
+    expect(planAiMilitary(restored.ai!, { world: restored.world, grid: c.grid, economy: restored.economy })).toEqual([]);
   });
   it.each(['ai', 'player'] as const)('blocks hidden explicit attacks, acquisition, retaliation and pursuit for %s', (owner) => {
     const c = setup();

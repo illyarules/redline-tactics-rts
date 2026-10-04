@@ -5,7 +5,7 @@ import type { AiConfig } from '../config/types';
 import type { AiState, AiStepResult } from './ai';
 import { issueAttackMoveOrders } from './attackMove';
 import type { Economy } from './economy';
-import { isAlive, type ReadonlyBuilding } from './entities';
+import { isAlive, type ReadonlyBuilding, type ReadonlyUnit } from './entities';
 import { resolveUnitStats } from './factionStats';
 import type { Vec2 } from './geometry';
 import type { EntityId, PlayerId, UnitTypeId } from './ids';
@@ -22,7 +22,7 @@ export interface AiMilitaryContext {
 }
 export type AiMilitaryIntent =
   | { readonly kind: 'produce'; readonly producerId: EntityId; readonly unitType: UnitTypeId }
-  | { readonly kind: 'scout' | 'attack'; readonly unitIds: readonly EntityId[]; readonly target: Vec2 };
+  | { readonly kind: 'scout' | 'attack' | 'lastStand'; readonly unitIds: readonly EntityId[]; readonly target: Vec2 };
 
 /** Debug-only history is transient, never a second copy of orders or queues. */
 export interface AiMilitaryReadout { latestAction: string }
@@ -48,6 +48,41 @@ interface CombatProductionSelection {
 function queuedCombatUnits(world: World, owner: PlayerId): number {
   return world.buildings(owner).reduce((total, building) => total + building.productionQueue
     .filter((item) => resolveUnitStats(item.unitType, building.faction).attack !== null).length, 0);
+}
+
+function hasQueuedWorker(world: World, owner: PlayerId): boolean {
+  return world.buildings(owner).some((building) => isAlive(building) &&
+    building.productionQueue.some((item) => item.unitType === 'worker'));
+}
+
+function completedHq(world: World, owner: PlayerId): ReadonlyBuilding | undefined {
+  return world.buildings(owner).find((building) =>
+    building.type === 'hq' && isAlive(building) && isCompleted(building));
+}
+
+function unitsNeedingAttackMove(
+  units: readonly ReadonlyUnit[],
+  target: Vec2,
+  grid: MapGrid,
+  config: AiConfig,
+  preserveExplicitAttacks = true,
+): readonly EntityId[] {
+  return units.filter((unit) =>
+    !(unit.order?.kind === 'AttackMove' && unit.order.target.x === target.x && unit.order.target.y === target.y) &&
+    (!preserveExplicitAttacks || unit.order?.kind !== 'Attack') &&
+    !(unit.order === null && Math.hypot(unit.position.x - target.x, unit.position.y - target.y) <=
+      config.commandArrivalRadiusTiles * grid.tileSizePixels)).map((unit) => unit.id);
+}
+
+function shouldLaunchLastStand(context: AiMilitaryContext, owner: PlayerId): boolean {
+  const { world, economy } = context;
+  if (aiArmy(world, owner).length === 0) return false;
+  const hq = completedHq(world, owner);
+  if (hq === undefined) return true;
+  if (world.units(owner).some((unit) => isAlive(unit) && unit.type === 'worker') || hasQueuedWorker(world, owner)) {
+    return false;
+  }
+  return !checkProductionRequest(world, economy, owner, hq.id, 'worker').allowed;
 }
 
 function infantryForceSize(world: World, owner: PlayerId): number {
@@ -103,8 +138,7 @@ function combatProductionChoiceFor(
 ): CombatProductionChoice | null {
   const { world, economy } = context;
   const hasWorker = world.units(owner).some((unit) => isAlive(unit) && unit.type === 'worker');
-  const workerQueued = world.buildings(owner).some((building) =>
-    building.productionQueue.some((item) => item.unitType === 'worker'));
+  const workerQueued = hasQueuedWorker(world, owner);
   if (!hasWorker && !workerQueued) return null;
   if (aiArmy(world, owner).length + queuedCombatUnits(world, owner) >= config.targetArmyUnits) return null;
   const producer = world.building(producerId);
@@ -127,7 +161,7 @@ function planCombatProduction(
 ): readonly AiMilitaryIntent[] {
   const { world, economy } = context;
   const workers = world.units(owner).filter((unit) => isAlive(unit) && unit.type === 'worker');
-  const workerQueued = world.buildings(owner).some((building) => building.productionQueue.some((item) => item.unitType === 'worker'));
+  const workerQueued = hasQueuedWorker(world, owner);
   if (workers.length === 0 && !workerQueued) {
     const hq = world.buildings(owner).find((building) =>
       building.type === 'hq' && isCompleted(building) && checkProductionRequest(world, economy, owner, building.id, 'worker').allowed);
@@ -164,9 +198,18 @@ export function planAiMilitary(
   owner: PlayerId = 'ai',
   opponent: PlayerId = 'player',
 ): readonly AiMilitaryIntent[] {
-  if (!world.buildings(owner).some((b) => b.type === 'hq' && isCompleted(b))) return [];
-  const intents = [...planCombatProduction(ai, { world, grid, economy }, config, owner)];
+  const context = { world, grid, economy };
   const army = aiArmy(world, owner); // World creation order is deterministic, including after restore.
+  if (shouldLaunchLastStand(context, owner)) {
+    const start = grid.startFor(opponent);
+    const target = ai.lastKnownPlayerBasePosition ??
+      (start === undefined ? null : grid.tileCenter(start.hqTopLeft.tx, start.hqTopLeft.ty));
+    if (target === null) return [];
+    const unitIds = unitsNeedingAttackMove(army, target, grid, config, false);
+    return unitIds.length === 0 ? [] : [{ kind: 'lastStand', unitIds, target: { ...target } }];
+  }
+  if (completedHq(world, owner) === undefined) return [];
+  const intents = [...planCombatProduction(ai, { world, grid, economy }, config, owner)];
   const attacking = ai.state === 'attack' && ai.lastKnownPlayerBasePosition !== null &&
     army.length >= config.minimumAttackArmyUnits;
   const start = grid.startFor(opponent);
@@ -175,11 +218,7 @@ export function planAiMilitary(
       ? grid.tileCenter(start.hqTopLeft.tx, start.hqTopLeft.ty) : null;
   if (target !== null) {
     const selected = attacking ? army : army.slice(0, 1);
-    const unitIds = selected.filter((u) =>
-      !(u.order?.kind === 'AttackMove' && u.order.target.x === target.x && u.order.target.y === target.y) &&
-      u.order?.kind !== 'Attack' &&
-      !(u.order === null && Math.hypot(u.position.x - target.x, u.position.y - target.y) <=
-        config.commandArrivalRadiusTiles * grid.tileSizePixels)).map((u) => u.id);
+    const unitIds = unitsNeedingAttackMove(selected, target, grid, config);
     if (unitIds.length > 0) intents.push({ kind: attacking ? 'attack' : 'scout', unitIds, target: { ...target } });
   }
   return intents;
@@ -214,7 +253,8 @@ export function executeAiMilitaryDecisions(ai: AiState, step: AiStepResult, cont
     const decisionAi = { ...ai, state: step.intents[tick]?.state ?? ai.state };
     for (const intent of planAiMilitary(decisionAi, context, AI_CONFIG, owner)) {
       if (executeAiMilitaryIntent(decisionAi, context, intent, AI_CONFIG, owner) && readout !== undefined) {
-        readout.latestAction = intent.kind === 'produce' ? 'queue ' + intent.unitType : intent.kind + ' ' + intent.unitIds.length;
+        readout.latestAction = intent.kind === 'produce' ? 'queue ' + intent.unitType :
+          intent.kind === 'lastStand' ? 'last stand ' + intent.unitIds.length : intent.kind + ' ' + intent.unitIds.length;
       }
     }
     ai.productionCycleIndex = decisionAi.productionCycleIndex;

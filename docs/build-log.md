@@ -1,5 +1,17 @@
 # Build log
 
+## AI Last Stand
+
+An AI that can no longer restore its economy now commits every surviving combat unit to a Last Stand.
+It waits instead when a living Worker can still gather, a replacement Worker is already queued, or the
+HQ can afford and accept a replacement immediately. Otherwise, even fewer than three units Attack-Move
+to the last player HQ position legitimately remembered through fog; without that memory they use the
+published opponent start. Losing the AI HQ also triggers the same behavior instead of freezing survivors.
+
+The mode grants no Credits or units, uses normal orders, keeps valid routes across later decisions and
+snapshot restoration, and appears as `last stand N` in the development military readout. Focused planner,
+executor, persistence and simulation tests cover recovery gates, both target sources and HQ loss.
+
 ## Parallel AI military production
 
 AI military production now begins as soon as a completed combat producer is operational, alongside

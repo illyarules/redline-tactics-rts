@@ -110,7 +110,12 @@ base is unknown; a remembered base and three combat units permit Attack. The arm
 use Attack-Move toward the remembered location, which can be stale after fog loss. Matching routes
 and existing engagements continue; idle units within the configured arrival radius need no new route.
 Acquisition, retaliation, explicit target commands and pursuit apply the same fog predicate to all
-participants. Defense and recovery are implemented as described below.
+participants. If the AI has combat survivors but no living or queued Worker and cannot immediately
+afford and queue a replacement, it launches a Last Stand without waiting for the usual three-unit
+threshold. Every available combat unit Attack-Moves toward the last legitimately remembered HQ
+position, falling back to the published opponent start when the base was never seen. Destruction of
+the AI HQ triggers the same response. Last Stand grants no Credits or units and preserves matching
+orders across decisions and saves. Defense and recovery are implemented as described below.
 
 Schema-13 `WorldSnapshot` persists the map ID, world and fog state, both AI controllers where present,
 completed build-order indices, exact decision remainders, production-cycle indices, last-known base
