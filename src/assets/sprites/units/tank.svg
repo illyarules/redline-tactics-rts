@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <!--
     Tank: a tracked chassis carrying a round turret, seen from directly above, facing up (-Y).
-    Original artwork for Mini Command.
+    Original artwork for Redline Tactics.
   -->
   <g stroke="{{outline}}" stroke-width="2.2" stroke-linejoin="round">
     <rect x="2" y="7" width="12.5" height="50" rx="4" fill="{{metalDark}}"/>

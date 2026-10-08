@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72">
   <!--
     Barracks: a low, asymmetric billet hall opening onto a muster apron.
-    Plan view, three tiles square. Original artwork for Mini Command.
+    Plan view, three tiles square. Original artwork for Redline Tactics.
   -->
   <!-- The wide apron breaks the "app icon" silhouette and grounds the building on the field. -->
   <path d="M8 47 L57 47 L68 58 L61 69 L16 69 L4 59 Z" fill="{{shell}}" opacity="0.55"/>

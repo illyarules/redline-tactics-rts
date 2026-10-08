@@ -9,6 +9,7 @@ test('blocks the game entry flow on mobile devices', async ({ page }) => {
 
   const startButton = page.getByTestId('title-start-game');
   await expect(page.getByTestId('title-screen')).toBeVisible();
+  await expect(page.getByTestId('title-metadata-footer')).toBeVisible();
   await expect(page.getByTestId('unsupported-device-warning')).toContainText(
     'Mobile devices are not supported yet',
   );

@@ -11,7 +11,6 @@ test('starts through mode and map selection with multiplayer disabled', async ({
   await expect(titleScreen).toBeVisible();
   await expect(startGameButton).toBeVisible();
   await expect(page.getByTestId('title-quick-audio-toggle')).toHaveCount(0);
-
   await startGameButton.click();
   await expect(page.getByTestId('game-mode-selection')).toBeVisible();
   await expect(page.getByTestId('game-mode-single')).toBeEnabled();

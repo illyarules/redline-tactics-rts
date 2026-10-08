@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
   <!--
     HQ: a compact command building with one large roof, a clear entrance, service annex and mast.
-    Plan view, four tiles square. Original artwork for Mini Command.
+    Plan view, four tiles square. Original artwork for Redline Tactics.
   -->
   <!-- A quiet pad makes the building sit on the ground without becoming a UI frame. -->
   <rect x="8" y="14" width="78" height="70" rx="8" fill="{{shell}}" opacity="0.32"/>

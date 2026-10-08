@@ -15,6 +15,7 @@ import { MapSelectionScreen } from './ui/mapSelectionScreen';
 import { GameModeScreen } from './ui/gameModeScreen';
 import { detectCurrentDeviceSupport } from './platform/deviceSupport';
 import { readDebugOptions } from './game/debugOptions';
+import { BUILD_METADATA } from './buildMetadata';
 
 // Initialize Vercel Analytics
 inject();
@@ -87,7 +88,11 @@ const showTitle = (): void => {
     GAME_TITLE,
     'Establish your base, secure crystal fields, and outmaneuver the Ember Collective in fast, readable RTS battles.',
     () => (loadSnapshot() === null ? showGameModeSelection() : resumeMatch()),
-    deviceSupport.supported,
+    {
+      gameStartSupported: deviceSupport.supported,
+      version: BUILD_METADATA.version,
+      buildId: BUILD_METADATA.buildId,
+    },
   );
 };
 

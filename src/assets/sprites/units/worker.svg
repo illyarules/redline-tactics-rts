@@ -2,7 +2,7 @@
   <!--
     Worker: a small rounded utility vehicle seen from directly above, facing up (-Y).
     A lit cab at the front and an open cargo bed carrying Credits crystal behind it.
-    Original artwork for Mini Command.
+    Original artwork for Redline Tactics.
   -->
   <g stroke="{{outline}}" stroke-width="2.3" stroke-linejoin="round" fill="{{metalDark}}">
     <rect x="1" y="13" width="12" height="14" rx="4.5"/>

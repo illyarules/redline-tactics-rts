@@ -39,6 +39,8 @@ The title screen offers Start Game. With a valid save it resumes that match, inc
 battle report. Without a save it opens mode selection: Single Game leads to battlefield selection;
 Multiplayer is disabled. Choose Open Field (64 × 64, 1v1) or Trident Basin (80 × 80, 1v2 against two
 allied AI commanders), then Start Match. The player is always Meridian and the AI is Ember.
+The lower title-screen footer shows the application version, current build identifier, developer,
+source repository, bug-report and feedback links.
 
 Eliminate every enemy building before your own structures fall or the fifteen-minute active-time
 limit expires. In 1v2, buildings belonging to either AI keep the enemy team alive. The time limit

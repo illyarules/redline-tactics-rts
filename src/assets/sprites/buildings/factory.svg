@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
   <!--
     Factory: a ribbed assembly hall between two stacks, with a hazard-striped vehicle door.
-    Plan view, four tiles square. Original artwork for Mini Command.
+    Plan view, four tiles square. Original artwork for Redline Tactics.
   -->
   <g stroke="{{outline}}" stroke-width="1.6" stroke-linejoin="round" fill="{{shell}}">
     <rect x="4" y="1.5" width="26" height="22" rx="3"/>

@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72">
   <!--
     Resource Depot: a hopper over an open delivery bay holding a small pile of Credits crystal.
-    Plan view, three tiles square. Original artwork for Mini Command.
+    Plan view, three tiles square. Original artwork for Redline Tactics.
   -->
   <g stroke="{{outline}}" stroke-width="1.5" stroke-linejoin="round" fill="{{shell}}">
     <rect x="14" y="52" width="44" height="17" rx="3"/>

@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72">
   <!--
     Power Plant: a reactor drum between two banks of cooling pipes.
-    Plan view, three tiles square. Original artwork for Mini Command.
+    Plan view, three tiles square. Original artwork for Redline Tactics.
   -->
   <g stroke="{{outline}}" stroke-width="1.5" stroke-linejoin="round" fill="{{shell}}">
     <rect x="1.5" y="16" width="13" height="40" rx="3"/>

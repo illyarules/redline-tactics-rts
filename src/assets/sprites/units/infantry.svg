@@ -3,7 +3,7 @@
     Infantry: a compact soldier silhouette seen from directly above, facing up (-Y).
     Broad shoulders carry the shape; the helmet and its dark visor mark the head and the facing,
     and the rifle to one side is what tells it apart from a vehicle at a glance.
-    Original artwork for Mini Command.
+    Original artwork for Redline Tactics.
   -->
   <g stroke="{{outline}}" stroke-width="2.1" stroke-linejoin="round" fill="{{shell}}">
     <rect x="21" y="48" width="10" height="11" rx="4"/>
