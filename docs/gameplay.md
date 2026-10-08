@@ -27,6 +27,8 @@ what it collected back to the HQ or a Resource Depot, deposits it as Credits, an
 field runs dry, at which point it goes idle. A mixed selection still sends any non-Worker units a
 normal Move to the same point.
 
+Every crystal deposit on both battlefields contains 5,000 Credits.
+
 Left-click a currently visible crystal deposit to inspect its remaining Credits. The readout updates
 as Workers gather and shows `0` and `Depleted` when the field is empty. The crystals retain their
 original low profile when depleted, and the deposit remains clickable for inspection. Resource
@@ -36,7 +38,8 @@ vision.
 Selecting a lone friendly Worker opens a small build menu next to its readout, with one button per
 building role. A button is disabled with a tooltip explaining why when its prerequisites are unmet or
 its cost is unaffordable right now — Barracks needs an HQ, the Factory needs a completed Barracks
-*and* Power Plant. Clicking an enabled button starts placement: the building's footprint follows the
+*and* Power Plant, and the Unmanned Systems Forces Center needs a completed Barracks and Factory.
+Clicking an enabled button starts placement: the building's footprint follows the
 pointer, snapped to the grid, green while its full footprint is in bounds, on passable ground and
 clear of every other building, red otherwise. Left-click on a green footprint spends the cost once and
 sends the Worker to the site; right-click or Escape cancels without spending anything. A site under
@@ -47,7 +50,8 @@ from its existing progress without paying again. Losing every Power Plant pauses
 chain needs power (the HUD's power line turns red); completing a new one resumes it immediately.
 
 Selecting a completed HQ, Barracks, or Factory opens its production panel. HQs queue Workers,
-Barracks queue Infantry, and Factories queue Tanks or Rockets. Each building has a configured FIFO
+Barracks queue Infantry and FPV Drone Operators, and Factories queue Tanks or Rockets. FPV Drone
+Operators stay locked until a completed Unmanned Systems Forces Center exists. Each building has a configured FIFO
 queue: only its front item advances, and completion spawns the unit at a nearby passable tile. The
 panel shows queue progress and capacity, explains full queues or insufficient Credits, and lets the
 player cancel any paid entry for the normal 75% refund. Factory production pauses without a completed
@@ -75,6 +79,11 @@ order to selected combat units: they path into weapon range, fire on their confi
 stop when the target is gone or unreachable. Workers and buildings ignore attack requests. Brief
 tracers, impact flashes, health bars and a loss ring make combat results readable.
 
+FPV Drone Operators cannot attack while mobile. Select them and press `E`, or use the Entrench button,
+to begin a three-second setup. Once entrenched, they deal the same base damage as Rockets and use the
+same armor category as Tanks. Any move or Attack-Move order removes their entrenched state and returns
+their armor to the Infantry category. The AI uses the same setup and cancellation rules.
+
 `src/core/world.ts` holds the authoritative entity state: units and buildings keyed by a stable id,
 each with an owner, faction, resolved stats, position, health, current order and status. It knows
 nothing about Babylon, so entity rules can be tested without starting the game.
@@ -87,7 +96,8 @@ core state and decides nothing.
 cadence in `src/config/ai.ts`, choosing among Develop, Produce, Scout, Attack, Defend, and Recover
 from a small observation of completed infrastructure, combat-unit count, AI visibility, and nearby
 threats. Each decision tick also runs a pure economy plan and a core executor using normal gathering
-and construction APIs. The opening order is Barracks, Power Plant, Factory, then Resource Depot;
+and construction APIs. The opening order is Barracks, Power Plant, Factory, Resource Depot, then
+Unmanned Systems Forces Center;
 each must finish before the next starts. The opening Worker alternates gathering and building,
 waiting for real income when necessary. Placement stays within a configured base radius, excludes
 resource tiles, and prefers a field-adjacent Depot. The existing HQ production predicate can advance
@@ -117,7 +127,7 @@ position, falling back to the published opponent start when the base was never s
 the AI HQ triggers the same response. Last Stand grants no Credits or units and preserves matching
 orders across decisions and saves. Defense and recovery are implemented as described below.
 
-Schema-13 `WorldSnapshot` persists the map ID, world and fog state, both AI controllers where present,
+Schema-14 `WorldSnapshot` persists the map ID, world and fog state, both AI controllers where present,
 completed build-order indices, exact decision remainders, production-cycle indices, last-known base
 coordinates and the match lifecycle clock/statistics/result. Older or invalid saves are not resumed;
 the entry flow allows a fresh match. Queues, positions, orders and Credits remain solely in
@@ -155,6 +165,7 @@ can click. A health bar appears above an entity while it is selected and wheneve
 | Pointer at a screen edge | Pan the camera |
 | Mouse wheel or `+` / `−` | Zoom in and out |
 | `Q`, then left-click ground | Attack-Move with selected combat units |
+| `E`, or Entrench button | Entrench selected FPV Drone Operators; movement cancels it |
 | Left-click an entity | Select one of your units or buildings |
 | Left-drag ground | Select friendly units in the rectangle |
 | Shift + left-click/drag | Toggle a friendly unit or drag selection |

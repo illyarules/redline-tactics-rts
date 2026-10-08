@@ -12,6 +12,7 @@ import type { AttackHitEvent } from './attack';
 import type { EntityId } from './ids';
 import type { World } from './world';
 import { areHostile } from './teams';
+import { canUnitAttack } from './entrenchment';
 
 /** Scene-owned elapsed time for a bounded target scan; target choices themselves live in orders. */
 export interface AutoTargetingState {
@@ -137,7 +138,7 @@ export function nearestValidEnemy(
 }
 
 function isCombatUnit(unit: ReadonlyUnit | undefined): unit is ReadonlyUnit {
-  return unit !== undefined && isAlive(unit) && unit.stats.attack !== null;
+  return unit !== undefined && isAlive(unit) && canUnitAttack(unit);
 }
 
 function mayRetaliate(unit: ReadonlyUnit): boolean {

@@ -35,6 +35,8 @@ export interface UnitConfig {
   /** Body diameter in tiles: both the size the unit is drawn at and its click target. */
   readonly bodySizeTiles: number;
   readonly armor: Exclude<ArmorCategory, 'structure'>;
+  /** Completed buildings required before this unit may be queued. */
+  readonly requires: readonly BuildingTypeId[];
   /** `null` for units that cannot attack. */
   readonly attack: AttackProfile | null;
 }
@@ -245,7 +247,7 @@ export interface PersistenceConfig {
 }
 
 /** Low-frequency, deterministic decision thresholds for the single skirmish AI. */
-export type AiMilitaryUnitType = Extract<UnitTypeId, 'infantry' | 'tank' | 'rocket'>;
+export type AiMilitaryUnitType = Extract<UnitTypeId, 'infantry' | 'fpvOperators' | 'tank' | 'rocket'>;
 
 export interface AiConfig {
   readonly productionCycle: readonly AiMilitaryUnitType[];

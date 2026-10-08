@@ -18,6 +18,7 @@ import { issueAttackMoveOrders, stepAttackMoveOrders } from '../core/attackMove'
 import { createAutoTargetingState, issueRetaliationOrders, stepAutomaticTargeting } from '../core/autoCombat';
 import { resumeConstruction, startConstruction, stepConstruction } from '../core/construction';
 import { stepAttackCooldowns } from '../core/combat';
+import { startEntrenchment, stepEntrenchment } from '../core/entrenchment';
 import { createEconomy, type Economy } from '../core/economy';
 import { fogTargetPredicate, isEntityVisibleToPlayer, createFogState, stepFogVisibility, updateFogVisibility, type FogState } from '../core/fog';
 import type { ReadonlyEntity, ReadonlyUnit } from '../core/entities';
@@ -42,6 +43,7 @@ import { PauseMenu } from '../ui/pauseMenu';
 import { SelectionPanel } from '../ui/selectionPanel';
 import { ProductionMenu } from '../ui/productionMenu';
 import { TacticalHud } from '../ui/tacticalHud';
+import { EntrenchMenu } from '../ui/entrenchMenu';
 import { MatchResultOverlay } from '../ui/matchResultOverlay';
 import type { AudioManager } from '../audio/AudioManager';
 import { TitleBanner } from '../ui/titleBanner';
@@ -144,6 +146,7 @@ export class MatchScene {
   private readonly selectionPanel: SelectionPanel;
   private readonly buildMenu: BuildMenu;
   private readonly productionMenu: ProductionMenu;
+  private readonly entrenchMenu: EntrenchMenu;
   private readonly placement: PlacementController;
   private readonly pauseMenu: PauseMenu;
   private readonly quitConfirm: ConfirmDialog;
@@ -314,6 +317,10 @@ export class MatchScene {
       (unitType) => this.queueSelectedProduction(unitType),
       (queueIndex) => this.cancelSelectedProduction(queueIndex),
     );
+    this.entrenchMenu = new EntrenchMenu(overlayContainer, () => {
+      startEntrenchment(this.world, PLAYER_ID, this.selection.selectedIds());
+      this.showSelection();
+    });
     this.placement = new PlacementController(
       this.scene,
       this.camera,
@@ -373,6 +380,10 @@ export class MatchScene {
         event.preventDefault();
       } else if (!this.paused && !this.placement.isActive() && event.code === 'KeyQ') {
         this.selection.setAttackMoveArmed(true);
+        event.preventDefault();
+      } else if (!this.paused && !this.placement.isActive() && event.code === 'KeyE') {
+        startEntrenchment(this.world, PLAYER_ID, this.selection.selectedIds());
+        this.showSelection();
         event.preventDefault();
       } else if (!this.paused && event.code === DEBUG_LABEL_KEY) {
         this.debugLabels.setEnabled(!this.debugLabels.isEnabled());
@@ -442,6 +453,7 @@ export class MatchScene {
     stepMovement(this.world, activeDeltaSeconds);
     stepGather(this.world, this.grid, this.resourceFieldState, this.economy, activeDeltaSeconds);
     stepConstruction(this.world, activeDeltaSeconds);
+    stepEntrenchment(this.world, activeDeltaSeconds);
     recordProducedUnits(this.lifecycle, stepProduction(this.world, this.grid, activeDeltaSeconds));
     stepAttackCooldowns(this.world, activeDeltaSeconds);
     if (stepFogVisibility(this.fog, this.world, this.grid, activeDeltaSeconds)) {
@@ -531,6 +543,7 @@ export class MatchScene {
     this.selectionPanel.destroy();
     this.buildMenu.destroy();
     this.productionMenu.destroy();
+    this.entrenchMenu.destroy();
     this.placement.dispose();
     this.pauseMenu.destroy();
     this.quitConfirm.destroy();
@@ -659,6 +672,7 @@ export class MatchScene {
     }
     this.buildMenu.update(entities, this.world, this.economy);
     this.productionMenu.update(entities, this.world, this.economy, PLAYER_ID);
+    this.entrenchMenu.update(entities);
   }
 
   private syncResourceFields(): void {

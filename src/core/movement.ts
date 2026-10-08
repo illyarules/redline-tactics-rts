@@ -8,6 +8,7 @@ import { isUnderBuilding } from './matchSetup';
 import { moveOrder } from './orders';
 import { planRoute } from './pathfinding';
 import type { World } from './world';
+import { clearEntrenchment } from './entrenchment';
 
 const FULL_TURN = Math.PI * 2;
 
@@ -57,6 +58,7 @@ export function issueMoveOrders(
     const resolvedTarget = grid.tileCenter(plan.resolvedTarget.tx, plan.resolvedTarget.ty);
     const waypoints = plan.tiles.map((waypointTile) => grid.tileCenter(waypointTile.tx, waypointTile.ty));
     // Copy coordinates so callers cannot change an accepted destination afterward.
+    clearEntrenchment(world, id);
     world.setOrder(id, moveOrder({ x: target.x, y: target.y }, { resolvedTarget, waypoints, waypointIndex: 0 }));
     world.setStatus(id, 'moving');
     accepted.push(id);

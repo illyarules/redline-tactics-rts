@@ -47,6 +47,8 @@ export interface CreateUnitSpec {
   readonly health?: number;
   /** Remaining weapon cooldown when restoring a match. Defaults to a ready weapon. */
   readonly attackCooldownRemainingSeconds?: number;
+  readonly entrenchment?: UnitEntity['entrenchment'];
+  readonly entrenchElapsedSeconds?: number;
 }
 
 export interface CreateBuildingSpec {
@@ -100,6 +102,7 @@ export interface World {
   setFacingRadians(id: EntityId, facingRadians: number): boolean;
   /** Sets a unit weapon's remaining cooldown; non-units are ignored. */
   setAttackCooldown(id: EntityId, remainingSeconds: number): boolean;
+  setEntrenchment(id: EntityId, state: UnitEntity['entrenchment'], elapsedSeconds?: number): boolean;
   setOrder(id: EntityId, order: Order | null): boolean;
   setStatus(id: EntityId, status: EntityStatus): boolean;
   /** Reduces health by `amount`, never below zero and never upwards. */
@@ -158,6 +161,8 @@ export function createWorld(options: WorldOptions): World {
         facingRadians: 0,
         attackCooldownRemainingSeconds: validatedCooldown(spec.attackCooldownRemainingSeconds ?? 0),
         carriedCredits: 0,
+        entrenchment: validatedEntrenchment(spec.type, spec.entrenchment ?? 'mobile'),
+        entrenchElapsedSeconds: validatedEntrenchElapsed(spec.entrenchElapsedSeconds ?? 0),
         health: startingHealth(spec.health, stats.maxHealth),
         order: null,
         status: 'idle',
@@ -266,6 +271,14 @@ export function createWorld(options: WorldOptions): World {
         return false;
       }
       entity.attackCooldownRemainingSeconds = validatedCooldown(remainingSeconds);
+      return true;
+    },
+
+    setEntrenchment(id, state, elapsedSeconds = 0) {
+      const entity = live(id);
+      if (entity === undefined || entity.kind !== 'unit' || entity.type !== 'fpvOperators') return false;
+      entity.entrenchment = validatedEntrenchment(entity.type, state);
+      entity.entrenchElapsedSeconds = validatedEntrenchElapsed(elapsedSeconds);
       return true;
     },
 
@@ -394,6 +407,21 @@ function validatedCooldown(value: number): number {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`Attack cooldown must be a non-negative number, got ${value}`);
   }
+  return value;
+}
+
+function validatedEntrenchment(
+  type: UnitTypeId,
+  state: UnitEntity['entrenchment'],
+): UnitEntity['entrenchment'] {
+  if (!['mobile', 'entrenching', 'entrenched'].includes(state)) {
+    throw new Error(`Unknown entrenchment state "${state}"`);
+  }
+  return type === 'fpvOperators' ? state : 'mobile';
+}
+
+function validatedEntrenchElapsed(value: number): number {
+  if (!Number.isFinite(value) || value < 0) throw new Error(`Entrenchment elapsed time must be non-negative, got ${value}`);
   return value;
 }
 

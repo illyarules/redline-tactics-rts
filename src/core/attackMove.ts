@@ -11,6 +11,7 @@ import { planRoute } from './pathfinding';
 import { MOVEMENT_CONFIG } from '../config/movement';
 import type { CanTargetEntity } from './autoCombat';
 import type { World } from './world';
+import { clearEntrenchment } from './entrenchment';
 import type { AttackHitEvent } from './attack';
 
 /** Routes selected combat units to a destination they may interrupt to fight. */
@@ -45,6 +46,7 @@ export function issueAttackMoveOrders(
       waypoints: plan.tiles.map((tile) => grid.tileCenter(tile.tx, tile.ty)),
       waypointIndex: 0,
     };
+    clearEntrenchment(world, unit.id);
     world.setOrder(unit.id, attackMoveOrder({ x: target.x, y: target.y }, route));
     world.setStatus(unit.id, 'moving');
     accepted.push(unit.id);

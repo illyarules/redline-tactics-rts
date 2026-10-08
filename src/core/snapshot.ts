@@ -58,7 +58,7 @@ import {
  * Bumped whenever a saved shape stops matching what `restoreWorld` expects, so an old save from a
  * prior version is discarded instead of misread.
  */
-export const SNAPSHOT_SCHEMA_VERSION = 13;
+export const SNAPSHOT_SCHEMA_VERSION = 14;
 
 /**
  * The persisted shape of an `Order`. Structurally identical to `core/orders.ts`'s `Order` union —
@@ -83,6 +83,8 @@ export interface UnitSnapshot extends EntitySnapshotBase {
   readonly facingRadians: number;
   readonly attackCooldownRemainingSeconds: number;
   readonly carriedCredits: number;
+  readonly entrenchment?: import('./entities').UnitEntity['entrenchment'];
+  readonly entrenchElapsedSeconds?: number;
 }
 
 export interface BuildingSnapshot extends EntitySnapshotBase {
@@ -155,6 +157,8 @@ export function serializeWorld(
             facingRadians: entity.facingRadians,
             attackCooldownRemainingSeconds: entity.attackCooldownRemainingSeconds,
             carriedCredits: entity.carriedCredits,
+            entrenchment: entity.entrenchment,
+            entrenchElapsedSeconds: entity.entrenchElapsedSeconds,
           }
         : {
             ...base,
@@ -254,6 +258,8 @@ export function restoreWorld(
             position: entitySnapshot.position,
             health: entitySnapshot.health,
             attackCooldownRemainingSeconds: entitySnapshot.attackCooldownRemainingSeconds,
+            entrenchment: entitySnapshot.entrenchment ?? 'mobile',
+            entrenchElapsedSeconds: entitySnapshot.entrenchElapsedSeconds ?? 0,
           })
         : world.createBuilding({
             type: entitySnapshot.type,

@@ -36,4 +36,5 @@ test('shows the current keyboard shortcuts in the controls hint', async ({ page 
   await expect(hint).toContainText('W A S D / ↑ ← ↓ → pan');
   await expect(hint).toContainText('+ / − zoom');
   await expect(hint).toContainText('Q attack-move');
+  await expect(hint).toContainText('E entrench');
 });

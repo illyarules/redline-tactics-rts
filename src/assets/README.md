@@ -39,3 +39,6 @@ and they are not part of any build. Delete them if the 2D direction is not comin
 The repository's `assets/concepts/` folder, outside `src/`, holds visual reference for the art
 direction. It is reference only: no concept image is loaded, rendered or sampled by the game, and
 nothing is traced from one.
+
+The approved FPV Drone Operators and Unmanned Systems Forces Center concept sheets in that folder
+guide the original primitive models assembled in `game/models/units.ts` and `game/models/buildings.ts`.

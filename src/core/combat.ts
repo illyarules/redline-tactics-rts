@@ -7,6 +7,7 @@ import { isAlive, isUnit, type ReadonlyEntity, type ReadonlyUnit } from './entit
 import type { EntityId } from './ids';
 import type { World } from './world';
 import { areHostile } from './teams';
+import { canUnitAttack, effectiveArmor } from './entrenchment';
 
 /** Prevents binary floating-point residue from making a weapon miss its exact cooldown boundary. */
 const COOLDOWN_EPSILON_SECONDS = 1e-9;
@@ -14,6 +15,7 @@ const COOLDOWN_EPSILON_SECONDS = 1e-9;
 export type AttackIneligibleReason =
   | 'invalid-attacker'
   | 'invalid-target'
+  | 'not-entrenched'
   | 'same-owner'
   | 'unsupported-target-category'
   | 'out-of-range'
@@ -37,11 +39,13 @@ export type AttackResult =
     };
 
 /** Checks ownership, target kind, distance and weapon readiness without changing any state. */
+// eslint-disable-next-line complexity -- Each rejection reason is part of the public command contract.
 export function checkAttackEligibility(world: World, attackerId: EntityId, targetId: EntityId): AttackEligibility {
   const attacker = world.unit(attackerId);
   if (attacker === undefined || !isAlive(attacker) || attacker.stats.attack === null) {
     return { allowed: false, reason: 'invalid-attacker' };
   }
+  if (!canUnitAttack(attacker)) return { allowed: false, reason: 'not-entrenched' };
   const target = world.get(targetId);
   if (target === undefined || !isAlive(target)) {
     return { allowed: false, reason: 'invalid-target' };
@@ -71,7 +75,7 @@ export function calculateAttackDamage(attacker: ReadonlyUnit, target: ReadonlyEn
   if (attacker.type === 'worker' || attacker.stats.attack === null) {
     return 0;
   }
-  return attacker.stats.attack.damage * DAMAGE_TABLE[attacker.type][target.stats.armor];
+  return attacker.stats.attack.damage * DAMAGE_TABLE[attacker.type][effectiveArmor(target)];
 }
 
 /** Applies one legal hit and starts the attacker's weapon cooldown. */

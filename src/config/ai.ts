@@ -4,10 +4,10 @@
 import type { AiConfig } from './types';
 
 export const AI_CONFIG: AiConfig = {
-  productionCycle: ['infantry', 'tank', 'rocket'],
+  productionCycle: ['infantry', 'tank', 'rocket', 'fpvOperators'],
   targetArmyUnits: 9,
   commandArrivalRadiusTiles: 2,
-  buildOrder: ['barracks', 'powerPlant', 'factory', 'resourceDepot'],
+  buildOrder: ['barracks', 'powerPlant', 'factory', 'resourceDepot', 'unmannedSystemsCenter'],
   placementRadiusTiles: 12,
   decisionIntervalSeconds: 1,
   minimumAttackArmyUnits: 3,
