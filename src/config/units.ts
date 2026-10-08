@@ -35,13 +35,13 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     cost: 350,
     buildTimeSeconds: 16,
     maxHealth: 90,
-    speedTilesPerSecond: 2.4,
-    visionRangeTiles: 7,
+    speedTilesPerSecond: 2.15,
+    visionRangeTiles: 8,
     bodySizeTiles: 0.86,
     armor: 'light',
     requires: ['unmannedSystemsCenter'],
-    // The core entrenchment rule gates this weapon; its complete profile intentionally matches Rocket.
-    attack: { damage: 60, cooldownSeconds: 3, rangeTiles: 7, targetCategories: ['unit', 'building'] },
+    // Damage and cadence match Rocket; the deployed drone team sees and reaches slightly farther.
+    attack: { damage: 60, cooldownSeconds: 3, rangeTiles: 7.5, targetCategories: ['unit', 'building'] },
   },
   tank: {
     id: 'tank',

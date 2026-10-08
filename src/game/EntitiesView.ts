@@ -2,6 +2,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
+import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
 import type { Scene } from '@babylonjs/core/scene';
 import { SQUAD_CONFIG } from '../config/squad';
 import { healthFraction, isAlive, type ReadonlyEntity, type ReadonlyUnit } from '../core/entities';
@@ -79,6 +80,7 @@ interface SquadDisplay extends DisplayBase {
   readonly kind: 'squad';
   readonly soldiers: readonly SoldierInstance[];
   readonly animation: SquadAnimationState;
+  readonly entrenchmentCover: readonly Mesh[];
 }
 
 type EntityDisplay = ModelDisplay | SquadDisplay;
@@ -86,8 +88,8 @@ type EntityVisibility = (entity: ReadonlyEntity) => boolean;
 
 const ALWAYS_VISIBLE: EntityVisibility = () => true;
 
-function isInfantry(entity: ReadonlyEntity): entity is ReadonlyUnit & { type: 'infantry' } {
-  return entity.kind === 'unit' && entity.type === 'infantry';
+function isInfantryRole(entity: ReadonlyEntity): entity is ReadonlyUnit & { type: 'infantry' | 'fpvOperators' } {
+  return entity.kind === 'unit' && (entity.type === 'infantry' || entity.type === 'fpvOperators');
 }
 
 export class EntitiesView {
@@ -165,12 +167,13 @@ export class EntitiesView {
   private create(entity: ReadonlyEntity): EntityDisplay {
     const root = new TransformNode(`entity:${entity.id}`, this.scene);
 
-    if (isInfantry(entity)) {
-      const parts = this.soldierKit.partsFor(entity.owner);
+    if (isInfantryRole(entity)) {
+      const parts = this.soldierKit.partsFor(entity.owner, entity.type);
       const soldiers = squadFormationSlots(SQUAD_CONFIG.formation).map((slot, index) =>
         instantiateSoldier(this.scene, parts, root, slot, `entity:${entity.id}:soldier${index}`),
       );
-      const pickableMeshes = soldiers.flatMap((soldier) => soldier.meshes);
+      const entrenchmentCover = entity.type === 'fpvOperators' ? this.createEntrenchmentCover(root, entity.id) : [];
+      const pickableMeshes = [...soldiers.flatMap((soldier) => soldier.meshes), ...entrenchmentCover];
       const barWidth = clamp(this.displayWidth(entity) * 0.9, BAR_MIN_WIDTH, BAR_MAX_WIDTH);
       const bar = this.createBar(entity.id, root, parts.standHeightTiles);
       this.registerPickable(pickableMeshes, entity.id);
@@ -186,6 +189,7 @@ export class EntitiesView {
         modelHeight: parts.standHeightTiles,
         pickableMeshes,
         animation: { walkPhaseRadians: 0, elapsedSeconds: 0 },
+        entrenchmentCover,
       };
     }
 
@@ -215,6 +219,20 @@ export class EntitiesView {
       this.meshOwners.set(mesh.uniqueId, id);
       this.onMeshCreated(mesh);
     }
+  }
+
+  private createEntrenchmentCover(root: TransformNode, id: EntityId): readonly Mesh[] {
+    const cover = [-0.24, 0, 0.24].map((x, index) => {
+      const mesh = CreateBox(`entity:${id}:cover${index}`, { width: 0.25, height: 0.14, depth: 0.16 }, this.scene);
+      mesh.parent = root;
+      mesh.position.set(x, 0.07, 0.32 - Math.abs(x) * 0.18);
+      mesh.rotation.y = x * 0.45;
+      mesh.material = this.materials.surface(0x536057);
+      mesh.isPickable = true;
+      mesh.setEnabled(false);
+      return mesh;
+    });
+    return cover;
   }
 
   private createBar(id: EntityId, root: TransformNode, modelHeight: number): Bar {
@@ -280,6 +298,8 @@ export class EntitiesView {
       : 1;
 
     if (display.kind === 'squad' && entity.kind === 'unit') {
+      const deployed = entity.type === 'fpvOperators' && entity.entrenchment !== 'mobile';
+      for (const cover of display.entrenchmentCover) cover.setEnabled(deployed);
       this.updateSquadAnimation(display, entity, deltaSeconds);
     }
 
@@ -311,7 +331,7 @@ export class EntitiesView {
     if (moving) {
       display.animation.walkPhaseRadians =
         (display.animation.walkPhaseRadians +
-          deltaSeconds * SQUAD_CONFIG.walkCyclesPerSecond * Math.PI * 2) %
+          deltaSeconds * SQUAD_CONFIG.walkCyclesPerSecond * (entity.type === 'fpvOperators' ? 0.82 : 1) * Math.PI * 2) %
         (Math.PI * 2);
     }
     display.animation.elapsedSeconds += deltaSeconds;
@@ -324,7 +344,7 @@ export class EntitiesView {
       soldier.legLeftPivot.rotation.x = pose.legLeftRadians;
       soldier.legRightPivot.rotation.x = pose.legRightRadians;
       soldier.armPivot.rotation.x = pose.armRadians;
-      soldier.bob.position.y = pose.bobTiles;
+      soldier.bob.position.y = pose.bobTiles + (entity.type === 'fpvOperators' && entity.entrenchment !== 'mobile' ? -0.14 : 0);
     });
   }
 

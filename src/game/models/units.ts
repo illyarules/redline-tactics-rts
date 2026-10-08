@@ -98,31 +98,11 @@ const ROCKET: UnitParts = (b, palette) => {
   }
 };
 
-const FPV_OPERATORS: UnitParts = (b, palette) => {
-  // Two compact operators with distinct equipment: controller on the left, drone case on the right.
-  for (const x of [-0.22, 0.22]) {
-    b.box({ size: [0.16, 0.18, 0.14], at: [x, 0.2, 0] }, NEUTRAL_TONES.metalDark)
-      .box({ size: [0.2, 0.24, 0.16], at: [x, 0.4, 0] }, palette.body)
-      .cylinder({ height: 0.14, diameter: 0.17, sides: 8, at: [x, 0.62, 0] }, palette.light)
-      .box({ size: [0.12, 0.04, 0.03], at: [x, 0.61, 0.09] }, NEUTRAL_TONES.glass);
-  }
-  b.box({ size: [0.22, 0.09, 0.14], at: [-0.22, 0.4, 0.17] }, NEUTRAL_TONES.metal)
-    .cylinder({ height: 0.22, diameter: 0.025, at: [-0.28, 0.56, 0.18] }, palette.accent, 'glowing')
-    .cylinder({ height: 0.22, diameter: 0.025, at: [-0.16, 0.56, 0.18] }, palette.accent, 'glowing')
-    .box({ size: [0.3, 0.24, 0.16], at: [0.22, 0.24, -0.18] }, palette.shell);
-  // The small quadcopter is deliberately broad and flat so its role survives the RTS camera.
-  b.box({ size: [0.16, 0.05, 0.16], at: [0, 0.52, -0.3] }, palette.body);
-  for (const x of [-0.13, 0.13]) for (const z of [-0.43, -0.17]) {
-    b.cylinder({ height: 0.025, diameter: 0.11, sides: 8, at: [x, 0.55, z] }, NEUTRAL_TONES.metalDark);
-  }
-};
-
 /** Every unit role except Infantry, which is built by `models/soldier.ts` instead. */
-export type MergedUnitTypeId = Exclude<UnitTypeId, 'infantry'>;
+export type MergedUnitTypeId = Exclude<UnitTypeId, 'infantry' | 'fpvOperators'>;
 
 const UNIT_PARTS: Readonly<Record<MergedUnitTypeId, UnitParts>> = {
   worker: WORKER,
-  fpvOperators: FPV_OPERATORS,
   tank: TANK,
   rocket: ROCKET,
 };

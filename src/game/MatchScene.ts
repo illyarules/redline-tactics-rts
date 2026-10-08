@@ -18,7 +18,7 @@ import { issueAttackMoveOrders, stepAttackMoveOrders } from '../core/attackMove'
 import { createAutoTargetingState, issueRetaliationOrders, stepAutomaticTargeting } from '../core/autoCombat';
 import { resumeConstruction, startConstruction, stepConstruction } from '../core/construction';
 import { stepAttackCooldowns } from '../core/combat';
-import { startEntrenchment, stepEntrenchment } from '../core/entrenchment';
+import { stepEntrenchment, toggleEntrenchment } from '../core/entrenchment';
 import { createEconomy, type Economy } from '../core/economy';
 import { fogTargetPredicate, isEntityVisibleToPlayer, createFogState, stepFogVisibility, updateFogVisibility, type FogState } from '../core/fog';
 import type { ReadonlyEntity, ReadonlyUnit } from '../core/entities';
@@ -318,7 +318,7 @@ export class MatchScene {
       (queueIndex) => this.cancelSelectedProduction(queueIndex),
     );
     this.entrenchMenu = new EntrenchMenu(overlayContainer, () => {
-      startEntrenchment(this.world, PLAYER_ID, this.selection.selectedIds());
+      toggleEntrenchment(this.world, PLAYER_ID, this.selection.selectedIds());
       this.showSelection();
     });
     this.placement = new PlacementController(
@@ -382,7 +382,7 @@ export class MatchScene {
         this.selection.setAttackMoveArmed(true);
         event.preventDefault();
       } else if (!this.paused && !this.placement.isActive() && event.code === 'KeyE') {
-        startEntrenchment(this.world, PLAYER_ID, this.selection.selectedIds());
+        toggleEntrenchment(this.world, PLAYER_ID, this.selection.selectedIds());
         this.showSelection();
         event.preventDefault();
       } else if (!this.paused && event.code === DEBUG_LABEL_KEY) {

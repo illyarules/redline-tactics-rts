@@ -84,6 +84,19 @@ export function persistenceScenario(): WorldSnapshot {
   });
 }
 
+/** One selected FPV team for exercising deploy and pack-up controls without waiting on production. */
+export function fpvEntrenchmentScenario(): WorldSnapshot {
+  return buildSnapshot((world, _economy, grid) => {
+    placeHomeHq(world);
+    placeOpponentHq(world);
+    const operator = world.createUnit({
+      type: 'fpvOperators', owner: 'player', faction: FACTION_OF.player,
+      position: grid.tileCenter(rallyTile(0, 0).tx, rallyTile(0, 0).ty),
+    });
+    return [operator.id];
+  });
+}
+
 /**
  * One friendly Infantry, already selected, and one enemy Infantry three tiles away — inside
  * Infantry's 3.5-tile weapon range, so the game's own automatic targeting (`core/autoCombat.ts`)

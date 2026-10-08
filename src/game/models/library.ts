@@ -37,8 +37,8 @@ export function createModelLibrary(scene: Scene, materials: MaterialLibrary): Mo
         models.set(key, model);
         return model;
       }
-      if (entity.type === 'infantry') {
-        throw new Error('Infantry renders as a squad; ModelLibrary does not build it.');
+      if (entity.type === 'infantry' || entity.type === 'fpvOperators') {
+        throw new Error('Infantry roles render as squads; ModelLibrary does not build them.');
       }
       const model = buildUnitModel(scene, materials, entity.type, entity.owner);
       models.set(key, model);

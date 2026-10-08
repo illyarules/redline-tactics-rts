@@ -43,26 +43,27 @@ export interface SoldierPartPrototypes {
 
 export interface SoldierKit {
   /** Prototypes for one faction's soldier. Built the first time that faction fields Infantry. */
-  partsFor(owner: PlayerId): SoldierPartPrototypes;
+  partsFor(owner: PlayerId, role?: 'infantry' | 'fpvOperators'): SoldierPartPrototypes;
   dispose(): void;
 }
 
 export function createSoldierKit(scene: Scene, materials: MaterialLibrary): SoldierKit {
-  const torsos = new Map<PlayerId, ModelSpec>();
-  const rifleArms = new Map<PlayerId, ModelSpec>();
+  const torsos = new Map<string, ModelSpec>();
+  const rifleArms = new Map<string, ModelSpec>();
   let leg: ModelSpec | null = null;
 
   return {
-    partsFor(owner) {
-      let torso = torsos.get(owner);
+    partsFor(owner, role = 'infantry') {
+      const key = `${owner}:${role}`;
+      let torso = torsos.get(key);
       if (torso === undefined) {
-        torso = buildTorso(scene, materials, owner);
-        torsos.set(owner, torso);
+        torso = buildTorso(scene, materials, owner, role);
+        torsos.set(key, torso);
       }
-      let rifleArm = rifleArms.get(owner);
+      let rifleArm = rifleArms.get(key);
       if (rifleArm === undefined) {
-        rifleArm = buildRifleArm(scene, materials, owner);
-        rifleArms.set(owner, rifleArm);
+        rifleArm = buildRifleArm(scene, materials, owner, role);
+        rifleArms.set(key, rifleArm);
       }
       if (leg === null) {
         leg = buildLeg(scene, materials);
@@ -89,9 +90,9 @@ export function createSoldierKit(scene: Scene, materials: MaterialLibrary): Sold
   };
 }
 
-function buildTorso(scene: Scene, materials: MaterialLibrary, owner: PlayerId): ModelSpec {
+function buildTorso(scene: Scene, materials: MaterialLibrary, owner: PlayerId, role: 'infantry' | 'fpvOperators'): ModelSpec {
   const palette = OWNER_PALETTES[owner];
-  return buildModel(scene, materials, `soldier:torso:${owner}`, (b) => {
+  return buildModel(scene, materials, `soldier:torso:${owner}:${role}`, (b) => {
     b.box({ size: [0.16, 0.14, 0.14], at: [0, 0.25, 0] }, palette.shell)
       .box({ size: [0.18, 0.03, 0.15], at: [0, 0.315, 0] }, palette.accent)
       .box({ size: [0.19, 0.22, 0.15], at: [0, 0.44, 0] }, palette.body)
@@ -100,6 +101,12 @@ function buildTorso(scene: Scene, materials: MaterialLibrary, owner: PlayerId): 
       .box({ size: [0.11, 0.1, 0.11], at: [0, 0.63, 0] }, palette.light)
       .box({ size: [0.09, 0.045, 0.03], at: [0, 0.615, 0.06] }, NEUTRAL_TONES.glass)
       .cylinder({ height: 0.12, diameter: 0.17, diameterTop: 0.12, sides: 6, at: [0, 0.71, 0] }, palette.body);
+    if (role === 'fpvOperators') {
+      // A short field cloak and radio pack distinguish the operators without changing the infantry silhouette.
+      b.box({ size: [0.22, 0.32, 0.035], at: [0, 0.39, -0.105], turn: [-0.12, 0, 0] }, palette.shell)
+        .box({ size: [0.14, 0.16, 0.08], at: [0, 0.5, -0.14] }, NEUTRAL_TONES.metalDark)
+        .cylinder({ height: 0.22, diameter: 0.018, sides: 6, at: [0.05, 0.67, -0.14] }, palette.accent, 'glowing');
+    }
   });
 }
 
@@ -111,11 +118,16 @@ function buildLeg(scene: Scene, materials: MaterialLibrary): ModelSpec {
   });
 }
 
-function buildRifleArm(scene: Scene, materials: MaterialLibrary, owner: PlayerId): ModelSpec {
+function buildRifleArm(scene: Scene, materials: MaterialLibrary, owner: PlayerId, role: 'infantry' | 'fpvOperators'): ModelSpec {
   const palette = OWNER_PALETTES[owner];
-  return buildModel(scene, materials, `soldier:rifleArm:${owner}`, (b) => {
-    b.box({ size: [0.07, 0.22, 0.07], at: [0, -0.11, 0.02] }, palette.shell)
-      .box({ size: [0.045, 0.045, 0.38], at: [0, -0.14, 0.16] }, NEUTRAL_TONES.metalDark);
+  return buildModel(scene, materials, `soldier:rifleArm:${owner}:${role}`, (b) => {
+    b.box({ size: [0.07, 0.22, 0.07], at: [0, -0.11, 0.02] }, palette.shell);
+    if (role === 'fpvOperators') {
+      b.box({ size: [0.18, 0.055, 0.12], at: [-0.04, -0.15, 0.12] }, NEUTRAL_TONES.metal)
+        .box({ size: [0.1, 0.025, 0.07], at: [-0.04, -0.115, 0.12] }, palette.accent);
+    } else {
+      b.box({ size: [0.045, 0.045, 0.38], at: [0, -0.14, 0.16] }, NEUTRAL_TONES.metalDark);
+    }
   });
 }
 

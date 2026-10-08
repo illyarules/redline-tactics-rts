@@ -23,6 +23,18 @@ export function clearEntrenchment(world: World, unitId: EntityId): void {
   const unit = world.unit(unitId);
   if (unit?.type !== 'fpvOperators' || unit.entrenchment === 'mobile') return;
   world.setEntrenchment(unitId, 'mobile', 0);
+  if (unit.status === 'entrenching' || unit.status === 'entrenched') world.setStatus(unitId, 'idle');
+}
+
+export function toggleEntrenchment(world: World, player: PlayerId, selectedIds: readonly EntityId[]): readonly EntityId[] {
+  const operators = [...new Set(selectedIds)].map((id) => world.unit(id)).filter(
+    (unit): unit is ReadonlyUnit => unit !== undefined && unit.owner === player &&
+      unit.type === 'fpvOperators' && isAlive(unit),
+  );
+  const shouldDeploy = operators.some((unit) => unit.entrenchment === 'mobile');
+  if (shouldDeploy) return startEntrenchment(world, player, operators.map((unit) => unit.id));
+  for (const unit of operators) clearEntrenchment(world, unit.id);
+  return operators.map((unit) => unit.id);
 }
 
 export function stepEntrenchment(world: World, deltaSeconds: number): readonly EntityId[] {

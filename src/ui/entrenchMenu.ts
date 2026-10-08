@@ -5,7 +5,7 @@ export class EntrenchMenu {
   private readonly root = document.createElement('div');
   private readonly button = document.createElement('button');
 
-  public constructor(container: HTMLElement, onEntrench: () => void) {
+  public constructor(container: HTMLElement, onToggle: () => void) {
     this.root.dataset.testid = 'entrench-menu';
     Object.assign(this.root.style, { position: 'fixed', left: '435px', bottom: '96px', zIndex: '10', display: 'none' });
     this.button.type = 'button';
@@ -15,7 +15,7 @@ export class EntrenchMenu {
       border: '1px solid rgba(159, 210, 255, 0.38)', background: 'rgba(10, 17, 22, 0.86)',
       color: '#dce6f5', cursor: 'pointer', letterSpacing: '.04em',
     });
-    this.button.addEventListener('click', onEntrench);
+    this.button.addEventListener('click', onToggle);
     this.root.append(this.button);
     container.append(this.root);
   }
@@ -29,14 +29,14 @@ export class EntrenchMenu {
       return;
     }
     this.root.style.display = 'block';
-    this.button.disabled = unit.entrenchment !== 'mobile';
+    this.button.disabled = false;
     if (unit.entrenchment === 'entrenched') {
-      this.button.textContent = 'ENTRENCHED';
-      this.button.title = 'Moving removes the entrenched armor and weapon';
+      this.button.textContent = 'PACK UP';
+      this.button.title = 'Leave the position and return to mobile formation';
     } else if (unit.entrenchment === 'entrenching') {
       const progress = Math.floor(unit.entrenchElapsedSeconds / ENTRENCHMENT_CONFIG.durationSeconds * 100);
       this.button.textContent = `ENTRENCHING ${progress}%`;
-      this.button.title = 'The unit cannot attack until entrenchment completes';
+      this.button.title = 'Click to cancel setup and return to mobile formation';
     } else {
       this.button.textContent = `ENTRENCH · ${ENTRENCHMENT_CONFIG.durationSeconds}s`;
       this.button.title = 'Deploy FPV equipment and defensive cover';

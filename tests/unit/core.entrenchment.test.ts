@@ -3,7 +3,7 @@ import { ENTRENCHMENT_CONFIG } from '../../src/config/entrenchment';
 import { MAP_CONFIG } from '../../src/config/map';
 import { UNIT_CONFIG } from '../../src/config/units';
 import { checkAttackEligibility, calculateAttackDamage } from '../../src/core/combat';
-import { canUnitAttack, effectiveArmor, startEntrenchment, stepEntrenchment } from '../../src/core/entrenchment';
+import { canUnitAttack, effectiveArmor, startEntrenchment, stepEntrenchment, toggleEntrenchment } from '../../src/core/entrenchment';
 import { issueMoveOrders } from '../../src/core/movement';
 import { createMapGrid } from '../../src/core/map';
 import { createWorld } from '../../src/core/world';
@@ -50,6 +50,20 @@ describe('FPV operator entrenchment', () => {
 
     expect(operator.entrenchment).toBe('mobile');
     expect(operator.status).toBe('moving');
+  });
+
+  it('packs up an entrenched team when toggled again', () => {
+    const world = createWorld({ tileSizePixels: 30 });
+    const operator = world.createUnit({
+      type: 'fpvOperators', owner: 'player', faction: 'meridian', position: { x: 0, y: 0 },
+    });
+    toggleEntrenchment(world, 'player', [operator.id]);
+    stepEntrenchment(world, ENTRENCHMENT_CONFIG.durationSeconds);
+
+    expect(toggleEntrenchment(world, 'player', [operator.id])).toEqual([operator.id]);
+    expect(operator.entrenchment).toBe('mobile');
+    expect(operator.status).toBe('idle');
+    expect(canUnitAttack(operator)).toBe(false);
   });
 
   it('rejects enemy and non-operator selections', () => {
