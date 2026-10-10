@@ -86,7 +86,7 @@ const showTitle = (): void => {
   titleScreen = new TitleScreen(
     container,
     GAME_TITLE,
-    'Establish your base, secure crystal fields, and outmaneuver the Ember Collective in fast, readable RTS battles.',
+    'Establish your base, secure gas fields, and outmaneuver the Ember Collective in fast, readable RTS battles.',
     () => (loadSnapshot() === null ? showGameModeSelection() : resumeMatch()),
     {
       gameStartSupported: deviceSupport.supported,

@@ -2,6 +2,9 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
+import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
+import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
+import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder';
 import type { Scene } from '@babylonjs/core/scene';
 import { SQUAD_CONFIG } from '../config/squad';
 import { healthFraction, isAlive, type ReadonlyEntity, type ReadonlyUnit } from '../core/entities';
@@ -79,6 +82,7 @@ interface SquadDisplay extends DisplayBase {
   readonly kind: 'squad';
   readonly soldiers: readonly SoldierInstance[];
   readonly animation: SquadAnimationState;
+  readonly entrenchmentCover: readonly Mesh[];
 }
 
 type EntityDisplay = ModelDisplay | SquadDisplay;
@@ -86,8 +90,8 @@ type EntityVisibility = (entity: ReadonlyEntity) => boolean;
 
 const ALWAYS_VISIBLE: EntityVisibility = () => true;
 
-function isInfantry(entity: ReadonlyEntity): entity is ReadonlyUnit & { type: 'infantry' } {
-  return entity.kind === 'unit' && entity.type === 'infantry';
+function isInfantryRole(entity: ReadonlyEntity): entity is ReadonlyUnit & { type: 'infantry' | 'fpvOperators' } {
+  return entity.kind === 'unit' && (entity.type === 'infantry' || entity.type === 'fpvOperators');
 }
 
 export class EntitiesView {
@@ -165,12 +169,13 @@ export class EntitiesView {
   private create(entity: ReadonlyEntity): EntityDisplay {
     const root = new TransformNode(`entity:${entity.id}`, this.scene);
 
-    if (isInfantry(entity)) {
-      const parts = this.soldierKit.partsFor(entity.owner);
+    if (isInfantryRole(entity)) {
+      const parts = this.soldierKit.partsFor(entity.owner, entity.type);
       const soldiers = squadFormationSlots(SQUAD_CONFIG.formation).map((slot, index) =>
         instantiateSoldier(this.scene, parts, root, slot, `entity:${entity.id}:soldier${index}`),
       );
-      const pickableMeshes = soldiers.flatMap((soldier) => soldier.meshes);
+      const entrenchmentCover = entity.type === 'fpvOperators' ? this.createEntrenchmentCover(root, entity.id) : [];
+      const pickableMeshes = [...soldiers.flatMap((soldier) => soldier.meshes), ...entrenchmentCover];
       const barWidth = clamp(this.displayWidth(entity) * 0.9, BAR_MIN_WIDTH, BAR_MAX_WIDTH);
       const bar = this.createBar(entity.id, root, parts.standHeightTiles);
       this.registerPickable(pickableMeshes, entity.id);
@@ -186,6 +191,7 @@ export class EntitiesView {
         modelHeight: parts.standHeightTiles,
         pickableMeshes,
         animation: { walkPhaseRadians: 0, elapsedSeconds: 0 },
+        entrenchmentCover,
       };
     }
 
@@ -215,6 +221,32 @@ export class EntitiesView {
       this.meshOwners.set(mesh.uniqueId, id);
       this.onMeshCreated(mesh);
     }
+  }
+
+  private createEntrenchmentCover(root: TransformNode, id: EntityId): readonly Mesh[] {
+    const soil = this.materials.surface(0x6b5132);
+    const mound = CreateTorus(`entity:${id}:earthMound`, {
+      diameter: 1.28, thickness: 0.21, tessellation: 24,
+    }, this.scene);
+    mound.parent = root;
+    mound.position.y = 0.055;
+    mound.scaling.z = 0.82;
+    mound.material = soil;
+    const pit = CreateCylinder(`entity:${id}:firingPit`, { height: 0.025, diameter: 1.04, tessellation: 24 }, this.scene);
+    pit.parent = root;
+    pit.position.y = 0.014;
+    pit.scaling.z = 0.82;
+    pit.material = this.materials.surface(0x30281d);
+    const front = CreateBox(`entity:${id}:raisedEarth`, { width: 0.92, height: 0.16, depth: 0.18 }, this.scene);
+    front.parent = root;
+    front.position.set(0, 0.09, 0.43);
+    front.material = soil;
+    const cover = [mound, pit, front];
+    for (const mesh of cover) {
+      mesh.isPickable = true;
+      mesh.setEnabled(false);
+    }
+    return cover;
   }
 
   private createBar(id: EntityId, root: TransformNode, modelHeight: number): Bar {
@@ -280,6 +312,8 @@ export class EntitiesView {
       : 1;
 
     if (display.kind === 'squad' && entity.kind === 'unit') {
+      const deployed = entity.type === 'fpvOperators' && entity.entrenchment !== 'mobile';
+      for (const cover of display.entrenchmentCover) cover.setEnabled(deployed);
       this.updateSquadAnimation(display, entity, deltaSeconds);
     }
 
@@ -311,7 +345,7 @@ export class EntitiesView {
     if (moving) {
       display.animation.walkPhaseRadians =
         (display.animation.walkPhaseRadians +
-          deltaSeconds * SQUAD_CONFIG.walkCyclesPerSecond * Math.PI * 2) %
+          deltaSeconds * SQUAD_CONFIG.walkCyclesPerSecond * (entity.type === 'fpvOperators' ? 0.82 : 1) * Math.PI * 2) %
         (Math.PI * 2);
     }
     display.animation.elapsedSeconds += deltaSeconds;
@@ -324,7 +358,7 @@ export class EntitiesView {
       soldier.legLeftPivot.rotation.x = pose.legLeftRadians;
       soldier.legRightPivot.rotation.x = pose.legRightRadians;
       soldier.armPivot.rotation.x = pose.armRadians;
-      soldier.bob.position.y = pose.bobTiles;
+      soldier.bob.position.y = pose.bobTiles + (entity.type === 'fpvOperators' && entity.entrenchment !== 'mobile' ? -0.14 : 0);
     });
   }
 

@@ -35,6 +35,8 @@ export interface UnitConfig {
   /** Body diameter in tiles: both the size the unit is drawn at and its click target. */
   readonly bodySizeTiles: number;
   readonly armor: Exclude<ArmorCategory, 'structure'>;
+  /** Completed buildings required before this unit may be queued. */
+  readonly requires: readonly BuildingTypeId[];
   /** `null` for units that cannot attack. */
   readonly attack: AttackProfile | null;
 }
@@ -245,7 +247,7 @@ export interface PersistenceConfig {
 }
 
 /** Low-frequency, deterministic decision thresholds for the single skirmish AI. */
-export type AiMilitaryUnitType = Extract<UnitTypeId, 'infantry' | 'tank' | 'rocket'>;
+export type AiMilitaryUnitType = Extract<UnitTypeId, 'infantry' | 'fpvOperators' | 'tank' | 'rocket'>;
 
 export interface AiConfig {
   readonly productionCycle: readonly AiMilitaryUnitType[];
@@ -421,22 +423,4 @@ export interface GatherConfig {
   readonly workerCapacityCredits: number;
   /** Seconds spent standing at a field per gather cycle, regardless of the amount carried away. */
   readonly gatherSeconds: number;
-}
-
-/** Faceted low-poly crystal deposit tuning for a resource field. Distances are tiles. */
-export interface CrystalFieldConfig {
-  /** Every this-many-th field tile (in declaration order) grows one deposit cluster. */
-  readonly tileStride: number;
-  readonly oreBedDiameterTiles: number;
-  readonly glowPoolDiameterTiles: number;
-  readonly rockChance: number;
-  readonly fragmentChance: number;
-  readonly shardHeightTiles: { readonly min: number; readonly max: number };
-  readonly shardDiameterTiles: { readonly min: number; readonly max: number };
-  /** Share of a shard's height given to its darker lower band; the rest is the bright upper band. */
-  readonly lowerBandShare: number;
-  /** How far a shard, rock or fragment may drift from its tile centre. */
-  readonly jitterTiles: number;
-  /** Largest lean applied to a shard or fragment, in radians. */
-  readonly maxTiltRadians: number;
 }

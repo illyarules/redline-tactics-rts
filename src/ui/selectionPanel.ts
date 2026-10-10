@@ -53,6 +53,7 @@ export class SelectionPanel {
   }
 
   /** Shows the entity's name, health and current activity, or hides the panel when nothing is selected. */
+  // eslint-disable-next-line complexity -- The compact readout formats each entity-specific detail in one place.
   public update(entities: readonly ReadonlyEntity[]): void {
     const entity = entities[0] ?? null;
     if (entity === null) {
@@ -80,12 +81,15 @@ export class SelectionPanel {
     const progress = entity.kind === 'building' && entity.status === 'constructing'
       ? ` (${Math.floor(entity.constructionProgress * 100)}%)`
       : '';
-    this.detailLine.textContent = `${entity.status === 'idle' ? 'Idle' : entity.status}${progress}${carrying}`;
+    const entrenchment = entity.kind === 'unit' && entity.type === 'fpvOperators'
+      ? entity.entrenchment === 'mobile' ? ' — must entrench to attack' : ''
+      : '';
+    this.detailLine.textContent = `${entity.status === 'idle' ? 'Idle' : entity.status}${progress}${entrenchment}${carrying}`;
     this.root.style.display = 'block';
   }
 
   public updateResourceField(remaining: number, total: number): void {
-    this.nameLine.textContent = 'Crystal Deposit';
+    this.nameLine.textContent = 'Gas Extraction Site';
     this.healthLine.textContent = `${Math.floor(remaining)} / ${total} Credits remaining`;
     this.healthLine.style.color = remaining > 0 ? '#8feaff' : '#f2a177';
     this.detailLine.textContent = remaining > 0 ? 'Resource field' : 'Depleted';

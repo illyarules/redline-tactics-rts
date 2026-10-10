@@ -57,7 +57,7 @@ describe('AI military', () => {
     executeDecision(c);
     expect(c.barracks.productionQueue.map((q) => q.unitType)).toEqual(['infantry', 'infantry']);
     expect(c.factory.productionQueue.map((q) => q.unitType)).toEqual(['tank', 'rocket']);
-    expect(c.ai.productionCycleIndex).toBe(0);
+    expect(c.ai.productionCycleIndex).toBe(3);
     expect(c.economy.balance('ai')).toBe(before - resolveUnitStats('infantry', 'ember').cost * 2 -
       resolveUnitStats('tank', 'ember').cost - resolveUnitStats('rocket', 'ember').cost);
   });
@@ -184,7 +184,7 @@ describe('AI military', () => {
     expect(c.ai.lastKnownPlayerBasePosition).toEqual(hq.position);
   });
   it.each([
-    { productionCycleIndex: -1 }, { productionCycleIndex: 0.5 }, { productionCycleIndex: 3 },
+    { productionCycleIndex: -1 }, { productionCycleIndex: 0.5 }, { productionCycleIndex: AI_CONFIG.productionCycle.length },
     { lastKnownPlayerBasePosition: undefined }, { lastKnownPlayerBasePosition: { x: Infinity, y: 0 } },
     { lastKnownPlayerBasePosition: { x: 0, y: -1 } }, { lastKnownPlayerBasePosition: { x: 0 } },
     { decisionRemainingSeconds: NaN },

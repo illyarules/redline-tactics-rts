@@ -14,6 +14,7 @@ import type { World } from './world';
 import type { AttackHitEvent } from './attack';
 
 /** Routes selected combat units to a destination they may interrupt to fight. */
+// eslint-disable-next-line complexity -- Command validation keeps every rejection before route mutation.
 export function issueAttackMoveOrders(
   world: World,
   grid: MapGrid,
@@ -28,7 +29,8 @@ export function issueAttackMoveOrders(
   const accepted: EntityId[] = [];
   for (const id of new Set(selectedIds)) {
     const unit = world.unit(id);
-    if (unit === undefined || unit.owner !== player || !isAlive(unit) || unit.stats.attack === null) continue;
+    if (unit === undefined || unit.owner !== player || !isAlive(unit) || unit.stats.attack === null ||
+      (unit.type === 'fpvOperators' && unit.entrenchment !== 'mobile')) continue;
     const plan = planRoute(
       grid,
       grid.worldToTile(unit.position),

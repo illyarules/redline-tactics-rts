@@ -49,6 +49,7 @@ export function issueMoveOrders(
   for (const id of new Set(selectedIds)) {
     const unit = world.unit(id);
     if (!unit || unit.owner !== player || !isAlive(unit) || unit.health <= 0 ||
+      (unit.type === 'fpvOperators' && unit.entrenchment !== 'mobile') ||
       !Number.isFinite(unit.stats.speedTilesPerSecond) || unit.stats.speedTilesPerSecond <= 0) continue;
 
     const plan = planRoute(grid, grid.worldToTile(unit.position), targetTile, isBlocked);

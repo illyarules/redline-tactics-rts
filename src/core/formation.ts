@@ -89,6 +89,7 @@ export function issueGroupMoveOrders(
       unit.owner === player &&
       isAlive(unit) &&
       unit.health > 0 &&
+      !(unit.type === 'fpvOperators' && unit.entrenchment !== 'mobile') &&
       Number.isFinite(unit.stats.speedTilesPerSecond) &&
       unit.stats.speedTilesPerSecond > 0
     ) {

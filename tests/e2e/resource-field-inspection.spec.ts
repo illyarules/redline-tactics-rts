@@ -27,10 +27,10 @@ test('shows a depleted field on click and after resuming a save', async ({ page 
 
   // The home field is northeast of the HQ in the ordinary 1280×720 opening view.
   await page.mouse.click(850, 190);
-  await expect(page.getByTestId('selection-panel')).toContainText('0 / 3000 Credits remaining');
+  await expect(page.getByTestId('selection-panel')).toContainText('0 / 5000 Credits remaining');
   await expect(page.getByTestId('selection-panel')).toContainText('Depleted');
   await saveAndResume(page);
   await page.mouse.click(850, 190);
-  await expect(page.getByTestId('selection-panel')).toContainText('0 / 3000 Credits remaining');
+  await expect(page.getByTestId('selection-panel')).toContainText('0 / 5000 Credits remaining');
   await expect(page.getByTestId('selection-panel')).toContainText('Depleted');
 });

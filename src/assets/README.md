@@ -26,16 +26,9 @@ a file:
 - The two faction palettes and the neutral machinery tones live in `game/palette.ts` — one palette
   per side, substituted into one set of models, which is why the two factions cannot drift apart.
 
-```text
-sprites/
-  units/      worker, infantry, tank, rocket
-  buildings/  hq, barracks, factory, powerPlant, resourceDepot
-```
-
-The SVGs above are the **2D plan-view artwork from before the move to 3D**. They are kept because
-they are original work and a useful reference for each role's silhouette, but nothing imports them
-and they are not part of any build. Delete them if the 2D direction is not coming back.
-
 The repository's `assets/concepts/` folder, outside `src/`, holds visual reference for the art
 direction. It is reference only: no concept image is loaded, rendered or sampled by the game, and
 nothing is traced from one.
+
+The approved FPV Drone Operators and Unmanned Systems Forces Center concept sheets in that folder
+guide the original primitive models assembled in `game/models/units.ts` and `game/models/buildings.ts`.

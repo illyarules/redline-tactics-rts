@@ -32,8 +32,8 @@ export const MAP_CONFIG: MapConfig = {
   ],
 
   resourceFields: [
-    { id: 'west-home', center: { tx: 18, ty: 26 }, radiusTiles: 3, credits: 3000, contested: false, homeFor: 'player' },
-    { id: 'east-home', center: { tx: 45, ty: 37 }, radiusTiles: 3, credits: 3000, contested: false, homeFor: 'ai' },
+    { id: 'west-home', center: { tx: 18, ty: 26 }, radiusTiles: 3, credits: 5000, contested: false, homeFor: 'player' },
+    { id: 'east-home', center: { tx: 45, ty: 37 }, radiusTiles: 3, credits: 5000, contested: false, homeFor: 'ai' },
   ],
 
   starts: [
@@ -93,10 +93,10 @@ export const TRIDENT_BASIN_CONFIG: MapConfig = {
     { terrain: 'rock', area: { tx: 50, ty: 67, width: 4, height: 8 } },
   ],
   resourceFields: [
-    { id: 'player-home', center: { tx: 17, ty: 65 }, radiusTiles: 3, credits: 4200, contested: false, homeFor: 'player' },
-    { id: 'north-ai-home', center: { tx: 62, ty: 15 }, radiusTiles: 3, credits: 4200, contested: false, homeFor: 'ai' },
-    { id: 'south-ai-home', center: { tx: 62, ty: 65 }, radiusTiles: 3, credits: 4200, contested: false, homeFor: 'ai2' },
-    { id: 'central-west', center: { tx: 29, ty: 39 }, radiusTiles: 2, credits: 2400, contested: true },
+    { id: 'player-home', center: { tx: 17, ty: 65 }, radiusTiles: 3, credits: 5000, contested: false, homeFor: 'player' },
+    { id: 'north-ai-home', center: { tx: 62, ty: 15 }, radiusTiles: 3, credits: 5000, contested: false, homeFor: 'ai' },
+    { id: 'south-ai-home', center: { tx: 62, ty: 65 }, radiusTiles: 3, credits: 5000, contested: false, homeFor: 'ai2' },
+    { id: 'central-west', center: { tx: 29, ty: 39 }, radiusTiles: 2, credits: 5000, contested: true },
   ],
   starts: [
     { player: 'player', baseArea: { tx: 2, ty: 58, width: 14, height: 18 }, hqTopLeft: { tx: 5, ty: 67 }, rallyPoint: { tx: 14, ty: 68 } },

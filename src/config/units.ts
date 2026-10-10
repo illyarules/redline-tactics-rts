@@ -13,6 +13,7 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     visionRangeTiles: 5,
     bodySizeTiles: 0.72,
     armor: 'light',
+    requires: [],
     attack: null,
   },
   infantry: {
@@ -25,7 +26,22 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     visionRangeTiles: 6,
     bodySizeTiles: 0.8,
     armor: 'light',
+    requires: [],
     attack: { damage: 12, cooldownSeconds: 0.9, rangeTiles: 3.5, targetCategories: ['unit', 'building'] },
+  },
+  fpvOperators: {
+    id: 'fpvOperators',
+    name: 'FPV Drone Operators',
+    cost: 350,
+    buildTimeSeconds: 16,
+    maxHealth: 90,
+    speedTilesPerSecond: 2.15,
+    visionRangeTiles: 8,
+    bodySizeTiles: 0.86,
+    armor: 'light',
+    requires: ['unmannedSystemsCenter'],
+    // Damage and cadence match Rocket; the deployed drone team sees and reaches slightly farther.
+    attack: { damage: 60, cooldownSeconds: 3, rangeTiles: 7.5, targetCategories: ['unit', 'building'] },
   },
   tank: {
     id: 'tank',
@@ -37,6 +53,7 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     visionRangeTiles: 6,
     bodySizeTiles: 1,
     armor: 'armored',
+    requires: [],
     attack: { damage: 45, cooldownSeconds: 2.2, rangeTiles: 4.5, targetCategories: ['unit', 'building'] },
   },
   rocket: {
@@ -49,6 +66,7 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     visionRangeTiles: 7,
     bodySizeTiles: 0.86,
     armor: 'light',
+    requires: [],
     attack: { damage: 60, cooldownSeconds: 3, rangeTiles: 7, targetCategories: ['unit', 'building'] },
   },
 };

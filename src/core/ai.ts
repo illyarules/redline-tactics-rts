@@ -8,7 +8,7 @@ import { AI_CONFIG } from '../config/ai';
 import type { AiConfig } from '../config/types';
 import { isAlive } from './entities';
 import { isEntityVisibleToPlayer, type FogState } from './fog';
-import type { BuildingTypeId, PlayerId } from './ids';
+import { BUILDING_TYPE_IDS, UNIT_TYPE_IDS, type BuildingTypeId, type PlayerId } from './ids';
 import type { Vec2 } from './geometry';
 import type { MapGrid } from './map';
 import { isCompleted } from './prerequisites';
@@ -262,18 +262,18 @@ function assertAiConfig(config: AiConfig): void {
   if (!Number.isInteger(config.maximumDefenders) || config.maximumDefenders < 1 ||
     !Number.isFinite(config.defenderSelectionRadiusTiles) || config.defenderSelectionRadiusTiles <= 0 ||
     config.defenderPriority !== 'distanceThenId' || config.recoveryBuildOrder.length === 0 ||
-    config.recoveryBuildOrder.some((type) => !['barracks', 'powerPlant', 'factory', 'resourceDepot'].includes(type))) {
+    config.recoveryBuildOrder.some((type) => !(BUILDING_TYPE_IDS as readonly string[]).includes(type))) {
     throw new Error('Invalid AI defense/recovery configuration');
   }
   if (!Number.isFinite(config.commandArrivalRadiusTiles) || config.commandArrivalRadiusTiles <= 0) throw new Error('Invalid AI arrival radius');
-  if (config.productionCycle.length === 0 || config.productionCycle.some((u) => !['infantry', 'tank', 'rocket'].includes(u)) ||
+  if (config.productionCycle.length === 0 || config.productionCycle.some((u) => !(UNIT_TYPE_IDS as readonly string[]).includes(u)) ||
     !Number.isInteger(config.targetArmyUnits) || config.targetArmyUnits < config.minimumAttackArmyUnits) {
     throw new Error('AI military cycle and army target must be valid');
   }
   if (!Number.isInteger(config.placementRadiusTiles) || config.placementRadiusTiles < 0) {
     throw new Error('AI placement radius must be a non-negative integer');
   }
-  if (config.buildOrder.length === 0 || config.buildOrder.some((type) => !['barracks', 'powerPlant', 'factory', 'resourceDepot'].includes(type))) {
+  if (config.buildOrder.length === 0 || config.buildOrder.some((type) => !(BUILDING_TYPE_IDS as readonly string[]).includes(type))) {
     throw new Error('AI build order must contain buildable building types');
   }
   if (!Number.isFinite(config.decisionIntervalSeconds) || config.decisionIntervalSeconds <= 0) {

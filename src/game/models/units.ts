@@ -99,7 +99,7 @@ const ROCKET: UnitParts = (b, palette) => {
 };
 
 /** Every unit role except Infantry, which is built by `models/soldier.ts` instead. */
-export type MergedUnitTypeId = Exclude<UnitTypeId, 'infantry'>;
+export type MergedUnitTypeId = Exclude<UnitTypeId, 'infantry' | 'fpvOperators'>;
 
 const UNIT_PARTS: Readonly<Record<MergedUnitTypeId, UnitParts>> = {
   worker: WORKER,

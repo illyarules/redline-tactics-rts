@@ -54,7 +54,7 @@ Quit to Title from the battle report clears the completed save.
 
 Use WASD or arrow keys to pan, the mouse wheel or +/− to zoom, left-click/drag to select, and
 right-click to move, attack visible enemies, or gather with Workers. Q then left-click issues
-Attack-Move; A pans the camera. The minimap is read-only. Full controls are in
+Attack-Move; E entrenches selected FPV Drone Operators; A pans the camera. The minimap is read-only. Full controls are in
 [`docs/gameplay.md`](./docs/gameplay.md).
 
 Gameplay and saves require no backend. The deployed client initializes Vercel Web Analytics; it does

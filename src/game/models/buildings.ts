@@ -157,12 +157,34 @@ const RESOURCE_DEPOT: BuildingParts = (b, palette) => {
     .box({ size: [2.42, 0.08, 0.06], at: [0, 0.62, -1.32] }, palette.accent, 'glowing');
 };
 
+const UNMANNED_SYSTEMS_CENTER: BuildingParts = (b, palette) => {
+  const edge = half(3);
+  b.box({ size: [edge * 2, 0.14, edge * 2], at: [0, 0.07, 0] }, palette.shell)
+    .box({ size: [1.35, 0.8, 1.25], at: [0, 0.52, 0.25] }, palette.body)
+    .box({ size: [1.5, 0.1, 1.4], at: [0, 0.97, 0.25] }, palette.shell)
+    .box({ size: [1.05, 0.12, 0.45], at: [0, 1.08, 0.25] }, palette.light)
+    .box({ size: [0.85, 0.38, 0.06], at: [0, 0.55, -0.41] }, NEUTRAL_TONES.glass)
+    .box({ size: [0.72, 0.55, 0.12], at: [0.78, 1.05, 0.42], turn: [-0.2, 0, 0] }, palette.body)
+    .box({ size: [0.58, 0.38, 0.05], at: [0.78, 1.08, 0.34], turn: [-0.2, 0, 0] }, palette.accent, 'glowing');
+  // Twin rooftop drone pads make the technology role legible from above.
+  for (const x of [-0.85, 0.85]) {
+    b.cylinder({ height: 0.08, diameter: 0.7, sides: 8, at: [x, 0.23, -0.65] }, NEUTRAL_TONES.metalDark)
+      .box({ size: [0.2, 0.05, 0.2], at: [x, 0.3, -0.65] }, palette.light);
+    for (const dx of [-0.18, 0.18]) for (const dz of [-0.18, 0.18]) {
+      b.cylinder({ height: 0.025, diameter: 0.12, sides: 8, at: [x + dx, 0.34, -0.65 + dz] }, palette.accent, 'glowing');
+    }
+  }
+  b.cylinder({ height: 0.75, diameter: 0.07, at: [-0.5, 1.3, 0.55] }, NEUTRAL_TONES.metalLight)
+    .cylinder({ height: 0.16, diameter: 0.1, at: [-0.5, 1.72, 0.55] }, palette.accent, 'glowing');
+};
+
 const BUILDING_PARTS: Readonly<Record<BuildingTypeId, BuildingParts>> = {
   hq: HQ,
   barracks: BARRACKS,
   factory: FACTORY,
   powerPlant: POWER_PLANT,
   resourceDepot: RESOURCE_DEPOT,
+  unmannedSystemsCenter: UNMANNED_SYSTEMS_CENTER,
 };
 
 /** Builds the prototype model for one building role in one faction's colours. */

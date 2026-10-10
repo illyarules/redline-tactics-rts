@@ -24,6 +24,21 @@ function setup() {
 }
 
 describe('production queues', () => {
+  it('unlocks FPV operators only after a completed Unmanned Systems Forces Center exists', () => {
+    const { world, economy, barracks } = setup();
+    economy.earn('player', 1000);
+    expect(checkProductionRequest(world, economy, 'player', barracks.id, 'fpvOperators')).toEqual({
+      allowed: false, reason: 'missing-prerequisite',
+    });
+    const center = world.createBuilding({
+      type: 'unmannedSystemsCenter', owner: 'player', faction: 'meridian', topLeft: { tx: 20, ty: 30 },
+      constructionProgress: 0.5,
+    });
+    expect(checkProductionRequest(world, economy, 'player', barracks.id, 'fpvOperators').reason).toBe('missing-prerequisite');
+    world.setConstructionProgress(center.id, 1);
+    expect(queueProduction(world, economy, 'player', barracks.id, 'fpvOperators').allowed).toBe(true);
+  });
+
   it('assigns each configured unit to its intended producer and charges once', () => {
     const { world, economy, hq, barracks } = setup();
     const factory = world.createBuilding({ type: 'factory', owner: 'player', faction: 'meridian', topLeft: { tx: 24, ty: 30 } });

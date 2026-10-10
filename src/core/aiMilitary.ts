@@ -6,6 +6,7 @@ import type { AiState, AiStepResult } from './ai';
 import { issueAttackMoveOrders } from './attackMove';
 import type { Economy } from './economy';
 import { isAlive, type ReadonlyBuilding, type ReadonlyUnit } from './entities';
+import { startEntrenchment } from './entrenchment';
 import { resolveUnitStats } from './factionStats';
 import type { Vec2 } from './geometry';
 import type { EntityId, PlayerId, UnitTypeId } from './ids';
@@ -111,6 +112,10 @@ function chooseCombatUnit(selection: CombatProductionSelection): CombatProductio
   const { ai, world, producer, economy, owner, spendableCredits, config } = selection;
   const supported = config.productionCycle.filter((unitType) =>
     producer.stats.produces.includes(unitType) && resolveUnitStats(unitType, producer.faction).attack !== null);
+  const eligibleSupported = supported.filter((unitType) => resolveUnitStats(unitType, producer.faction).requires.every(
+    (type) => world.buildings(owner).some((building) =>
+      building.type === type && isAlive(building) && isCompleted(building)),
+  ));
   if (supported.length === 0) return null;
   for (let offset = 0; offset < config.productionCycle.length; offset++) {
     const index = (ai.productionCycleIndex + offset) % config.productionCycle.length;
@@ -121,8 +126,8 @@ function chooseCombatUnit(selection: CombatProductionSelection): CombatProductio
     return {
       unitType,
       cost,
-      // A single-option producer (currently the Barracks) must not disturb Factory variety.
-      nextCycleIndex: supported.length === 1 ? ai.productionCycleIndex : (index + 1) % config.productionCycle.length,
+      // A producer with one currently eligible option must not disturb variety at other producers.
+      nextCycleIndex: eligibleSupported.length === 1 ? ai.productionCycleIndex : (index + 1) % config.productionCycle.length,
     };
   }
   return null;
@@ -259,4 +264,8 @@ export function executeAiMilitaryDecisions(ai: AiState, step: AiStepResult, cont
     }
     ai.productionCycleIndex = decisionAi.productionCycleIndex;
   }
+  const idleOperators = context.world.units(owner)
+    .filter((unit) => unit.type === 'fpvOperators' && unit.order === null && unit.entrenchment === 'mobile')
+    .map((unit) => unit.id);
+  startEntrenchment(context.world, owner, idleOperators);
 }

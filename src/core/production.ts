@@ -20,6 +20,7 @@ export type ProductionBlockedReason =
   | 'not-owner'
   | 'incomplete-building'
   | 'unsupported-unit'
+  | 'missing-prerequisite'
   | 'queue-full'
   | 'insufficient-credits';
 
@@ -47,6 +48,10 @@ export function checkProductionRequest(
   if (building.owner !== player) return { allowed: false, reason: 'not-owner' };
   if (!isCompleted(building)) return { allowed: false, reason: 'incomplete-building' };
   if (!building.stats.produces.includes(unitType)) return { allowed: false, reason: 'unsupported-unit' };
+  const required = resolveUnitStats(unitType, building.faction).requires;
+  if (required.some((type) => !world.buildings(player).some(
+    (candidate) => candidate.type === type && isAlive(candidate) && isCompleted(candidate),
+  ))) return { allowed: false, reason: 'missing-prerequisite' };
   if (building.productionQueue.length >= config.queueCapacity) return { allowed: false, reason: 'queue-full' };
   const cost = resolveUnitStats(unitType, building.faction).cost;
   if (!economy.canAfford(player, cost)) return { allowed: false, reason: 'insufficient-credits' };

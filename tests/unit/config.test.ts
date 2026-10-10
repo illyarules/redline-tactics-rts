@@ -146,7 +146,7 @@ describe('building values', () => {
 
 describe('damage table', () => {
   it('rates each attacker against every armor category', () => {
-    for (const attacker of ['infantry', 'tank', 'rocket'] as const) {
+    for (const attacker of ['fpvOperators', 'infantry', 'tank', 'rocket'] as const) {
       for (const armor of ARMOR_CATEGORIES) {
         expect(isPositiveFinite(DAMAGE_TABLE[attacker][armor])).toBe(true);
       }
@@ -154,7 +154,7 @@ describe('damage table', () => {
   });
 
   it('has no entry for the worker', () => {
-    expect(Object.keys(DAMAGE_TABLE).sort()).toEqual(['infantry', 'rocket', 'tank']);
+    expect(Object.keys(DAMAGE_TABLE).sort()).toEqual(['fpvOperators', 'infantry', 'rocket', 'tank']);
   });
 });
 

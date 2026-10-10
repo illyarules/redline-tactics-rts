@@ -19,6 +19,7 @@ export interface ResolvedUnitStats {
   readonly visionRangeTiles: number;
   readonly bodySizeTiles: number;
   readonly armor: UnitConfig['armor'];
+  readonly requires: UnitConfig['requires'];
   readonly attack: AttackProfile | null;
 }
 
@@ -44,6 +45,7 @@ export function resolveUnitStats(type: UnitTypeId, faction: FactionId): Resolved
     visionRangeTiles: base.visionRangeTiles,
     bodySizeTiles: base.bodySizeTiles,
     armor: base.armor,
+    requires: base.requires,
     attack: base.attack,
   };
 }

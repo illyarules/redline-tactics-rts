@@ -7,6 +7,7 @@ import { resolveUnitStats } from '../core/factionStats';
 import type { PlayerId, UnitTypeId } from '../core/ids';
 import { checkProductionRequest, type CancelProductionResult, type ProductionCheck } from '../core/production';
 import { isCompleted } from '../core/prerequisites';
+import { BUILDING_CONFIG } from '../config/buildings';
 import type { World } from '../core/world';
 
 export class ProductionMenu {
@@ -77,7 +78,7 @@ export class ProductionMenu {
       if (button.disabled !== disabled) button.disabled = disabled;
       const title = check.allowed
         ? `Queue ${stats.name} (${stats.buildTimeSeconds}s)`
-        : requestMessage(check, stats.cost);
+        : requestMessage(check, stats.cost, stats.requires);
       if (button.title !== title) button.title = title;
     }
 
@@ -115,8 +116,8 @@ export class ProductionMenu {
     this.root.remove();
   }
 
-  private showRequestResult(result: ProductionCheck, cost: number): void {
-    this.lastMessage = result.allowed ? '' : requestMessage(result, cost);
+  private showRequestResult(result: ProductionCheck, cost: number, requires: readonly import('../core/ids').BuildingTypeId[] = []): void {
+    this.lastMessage = result.allowed ? '' : requestMessage(result, cost, requires);
     setText(this.message, this.lastMessage);
   }
 
@@ -134,7 +135,7 @@ export class ProductionMenu {
       Object.assign(button.style, buttonStyle);
       button.addEventListener('click', () => {
         const cost = Number(button.dataset.cost ?? 0);
-        this.showRequestResult(this.onQueue(unitType), cost);
+        this.showRequestResult(this.onQueue(unitType), cost, resolveUnitStats(unitType, 'meridian').requires);
       });
       this.actionButtons.set(unitType, button);
       this.actions.append(button);
@@ -181,12 +182,13 @@ function sameUnitTypes(left: readonly UnitTypeId[], right: readonly UnitTypeId[]
   return left.length === right.length && left.every((unitType, index) => unitType === right[index]);
 }
 
-function requestMessage(check: ProductionCheck, cost: number): string {
+function requestMessage(check: ProductionCheck, cost: number, requires: readonly import('../core/ids').BuildingTypeId[] = []): string {
   switch (check.reason) {
     case 'queue-full': return 'Queue full';
     case 'insufficient-credits': return `Needs ${cost} Credits`;
     case 'incomplete-building': return 'Building is not complete';
     case 'unsupported-unit': return 'This building cannot produce that unit';
+    case 'missing-prerequisite': return `Requires ${requires.map((type) => BUILDING_CONFIG[type].name).join(', ')}`;
     case 'not-owner': return 'That building is not yours';
     default: return 'Production is unavailable';
   }

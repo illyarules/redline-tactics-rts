@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { issueRetaliationOrders, nearestValidEnemy, createAutoTargetingState, stepAutomaticTargeting } from '../../src/core/autoCombat';
 import { attackOrder, moveOrder } from '../../src/core/orders';
 import { createWorld } from '../../src/core/world';
+import { startEntrenchment, stepEntrenchment } from '../../src/core/entrenchment';
+import { ENTRENCHMENT_CONFIG } from '../../src/config/entrenchment';
 
 function setup() {
   return createWorld({ tileSizePixels: 30 });
@@ -40,6 +42,23 @@ describe('automatic combat targeting', () => {
     expect(infantry.order).toBeNull();
     expect(stepAutomaticTargeting(world, state, 0.01, config)).toContain(infantry.id);
     expect(infantry.order).toEqual(expect.objectContaining({
+      kind: 'Attack', targetId: target.id, source: 'acquired',
+    }));
+  });
+
+  it('lets entrenched FPV operators acquire enemies across their full weapon range', () => {
+    const world = setup();
+    const operator = world.createUnit({
+      type: 'fpvOperators', owner: 'player', faction: 'meridian', position: { x: 300, y: 300 },
+    });
+    const target = world.createUnit({
+      type: 'tank', owner: 'ai', faction: 'ember', position: { x: 522, y: 300 },
+    });
+    startEntrenchment(world, 'player', [operator.id]);
+    stepEntrenchment(world, ENTRENCHMENT_CONFIG.durationSeconds);
+
+    expect(stepAutomaticTargeting(world, createAutoTargetingState(), 0.25)).toEqual([operator.id]);
+    expect(operator.order).toEqual(expect.objectContaining({
       kind: 'Attack', targetId: target.id, source: 'acquired',
     }));
   });

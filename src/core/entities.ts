@@ -32,6 +32,8 @@ export type EntityStatus =
   | 'gathering'
   | 'constructing'
   | 'producing'
+  | 'entrenching'
+  | 'entrenched'
   /** A requested order could not find a route; it remains visible until another order replaces it. */
   | 'failed'
   | 'destroyed';
@@ -59,6 +61,9 @@ export interface UnitEntity extends EntityBase {
   attackCooldownRemainingSeconds: number;
   /** Credits a Worker is currently carrying back from a field. Always 0 for other unit types. */
   carriedCredits: number;
+  /** Only FPV Drone Operators use these fields; other unit roles remain permanently mobile. */
+  entrenchment: 'mobile' | 'entrenching' | 'entrenched';
+  entrenchElapsedSeconds: number;
 }
 
 export interface BuildingEntity extends EntityBase {

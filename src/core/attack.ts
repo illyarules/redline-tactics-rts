@@ -40,6 +40,7 @@ export function issueAttackOrders(
     if (!canPursue(eligibility)) continue;
     const attacker = world.unit(id);
     if (attacker === undefined || attacker.owner !== player) continue;
+    if (attacker.type === 'fpvOperators' && !eligibility.allowed) continue;
     world.setOrder(id, attackOrder(targetId, null, 'explicit'));
     world.setStatus(id, eligibility.allowed || eligibility.reason === 'cooling-down' ? 'attacking' : 'moving');
     accepted.push(id);
@@ -79,6 +80,10 @@ export function stepAttackOrders(world: World, grid: MapGrid, deltaSeconds: numb
       continue;
     }
     if (eligibility.reason !== 'out-of-range') {
+      stopAttacking(world, attacker.id);
+      continue;
+    }
+    if (attacker.type === 'fpvOperators') {
       stopAttacking(world, attacker.id);
       continue;
     }
@@ -123,8 +128,9 @@ function canPursue(eligibility: ReturnType<typeof checkAttackEligibility>): bool
 
 /** Cancels pursuit through the normal order/status API. */
 export function stopAttacking(world: World, attackerId: EntityId): void {
+  const attacker = world.unit(attackerId);
   world.setOrder(attackerId, null);
-  world.setStatus(attackerId, 'idle');
+  world.setStatus(attackerId, attacker?.entrenchment === 'entrenched' ? 'entrenched' : 'idle');
 }
 
 /** A route toward the target's current tile, or `undefined` when pathfinding cannot reach it. */

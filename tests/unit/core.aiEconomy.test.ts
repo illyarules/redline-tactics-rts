@@ -129,7 +129,7 @@ describe('AI economy', () => {
         }
       }
       expect(completed).toEqual(AI_CONFIG.buildOrder);
-      expect(ai.buildOrderIndex).toBe(4);
+      expect(ai.buildOrderIndex).toBe(AI_CONFIG.buildOrder.length);
       const spent = context.world.buildings('ai').reduce((n, b) => n + b.stats.cost, 0);
       const carried = context.world.units('ai').reduce((n, w) => n + w.carriedCredits, 0);
       expect(context.economy.balance('ai') + spent + carried).toBe(initial + initialResources - remaining());
@@ -150,7 +150,7 @@ describe('AI economy', () => {
     expect(restoreAiState(serializeAiState(ai))).toEqual(ai);
   });
 
-  it.each([-1, 5, 0.5, NaN, Infinity, '1', null, undefined])('rejects malformed build progress %s', (index) => {
+  it.each([-1, AI_CONFIG.buildOrder.length + 1, 0.5, NaN, Infinity, '1', null, undefined])('rejects malformed build progress %s', (index) => {
     expect(isAiSnapshotShape({ ...serializeAiState(createAiState()), buildOrderIndex: index })).toBe(false);
   });
 });
