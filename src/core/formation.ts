@@ -20,7 +20,6 @@ import { issueMoveOrders } from './movement';
 import { moveOrder } from './orders';
 import { findPath, type TileBlockedPredicate } from './pathfinding';
 import type { World } from './world';
-import { clearEntrenchment } from './entrenchment';
 
 /**
  * Ideal, unclamped world positions for a square/grid formation of `count` slots centred on `origin`.
@@ -90,6 +89,7 @@ export function issueGroupMoveOrders(
       unit.owner === player &&
       isAlive(unit) &&
       unit.health > 0 &&
+      !(unit.type === 'fpvOperators' && unit.entrenchment !== 'mobile') &&
       Number.isFinite(unit.stats.speedTilesPerSecond) &&
       unit.stats.speedTilesPerSecond > 0
     ) {
@@ -134,7 +134,6 @@ export function issueGroupMoveOrders(
     claimed.add(tileKey(resolvedTile));
     const resolvedTarget = grid.tileCenter(resolvedTile.tx, resolvedTile.ty);
     const waypoints = waypointTiles.map((tile) => grid.tileCenter(tile.tx, tile.ty));
-    clearEntrenchment(world, unit.id);
     world.setOrder(unit.id, moveOrder(target, { resolvedTarget, waypoints, waypointIndex: 0 }));
     world.setStatus(unit.id, 'moving');
     accepted.push(unit.id);

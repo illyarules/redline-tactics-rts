@@ -3,6 +3,8 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
+import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
+import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder';
 import type { Scene } from '@babylonjs/core/scene';
 import { SQUAD_CONFIG } from '../config/squad';
 import { healthFraction, isAlive, type ReadonlyEntity, type ReadonlyUnit } from '../core/entities';
@@ -222,16 +224,28 @@ export class EntitiesView {
   }
 
   private createEntrenchmentCover(root: TransformNode, id: EntityId): readonly Mesh[] {
-    const cover = [-0.24, 0, 0.24].map((x, index) => {
-      const mesh = CreateBox(`entity:${id}:cover${index}`, { width: 0.25, height: 0.14, depth: 0.16 }, this.scene);
-      mesh.parent = root;
-      mesh.position.set(x, 0.07, 0.32 - Math.abs(x) * 0.18);
-      mesh.rotation.y = x * 0.45;
-      mesh.material = this.materials.surface(0x536057);
+    const soil = this.materials.surface(0x6b5132);
+    const mound = CreateTorus(`entity:${id}:earthMound`, {
+      diameter: 0.88, thickness: 0.16, tessellation: 20,
+    }, this.scene);
+    mound.parent = root;
+    mound.position.y = 0.055;
+    mound.scaling.z = 0.78;
+    mound.material = soil;
+    const pit = CreateCylinder(`entity:${id}:firingPit`, { height: 0.025, diameter: 0.68, tessellation: 20 }, this.scene);
+    pit.parent = root;
+    pit.position.y = 0.014;
+    pit.scaling.z = 0.78;
+    pit.material = this.materials.surface(0x30281d);
+    const front = CreateBox(`entity:${id}:raisedEarth`, { width: 0.58, height: 0.13, depth: 0.13 }, this.scene);
+    front.parent = root;
+    front.position.set(0, 0.08, 0.29);
+    front.material = soil;
+    const cover = [mound, pit, front];
+    for (const mesh of cover) {
       mesh.isPickable = true;
       mesh.setEnabled(false);
-      return mesh;
-    });
+    }
     return cover;
   }
 

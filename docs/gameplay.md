@@ -82,8 +82,9 @@ tracers, impact flashes, health bars and a loss ring make combat results readabl
 FPV Drone Operators cannot attack while mobile. Select them and press `E`, or use the Entrench button,
 to begin a three-second setup. Once entrenched, they deal the same base damage as Rockets and use the
 same armor category as Tanks, with slightly greater weapon and vision range than Rockets. Press `E`
-again or use Pack Up to leave the position manually. Any move or Attack-Move order also removes their
-entrenched state and returns their armor to the Infantry category. The AI uses the same setup and cancellation rules.
+again or use Pack Up to leave the position manually. While setting up or entrenched they reject Move
+and Attack-Move orders; after packing up they can move again. Leaving the position returns their armor
+to the Infantry category. The AI uses the same setup and cancellation rules.
 
 `src/core/world.ts` holds the authoritative entity state: units and buildings keyed by a stable id,
 each with an owner, faction, resolved stats, position, health, current order and status. It knows

@@ -55,18 +55,18 @@ export function stepAutomaticTargeting(
   const changed: EntityId[] = [];
   for (const unit of world.units()) {
     if (!isCombatUnit(unit)) continue;
-    const canAcquire = (unit.order === null && unit.status === 'idle') ||
+    const canAcquire = (unit.order === null && (unit.status === 'idle' || unit.status === 'entrenched')) ||
       (unit.order?.kind === 'AttackMove' && unit.order.engagement === null);
     if (!canAcquire) continue;
     const target = nearestValidEnemy(
       world,
       unit,
-      Math.min(config.acquisitionRangeTiles, unit.stats.visionRangeTiles),
+      Math.min(Math.max(config.acquisitionRangeTiles, unit.stats.attack!.rangeTiles), unit.stats.visionRangeTiles),
       canTarget,
     );
     if (target === null) continue;
 
-    if (unit.order === null && unit.status === 'idle') {
+    if (unit.order === null && (unit.status === 'idle' || unit.status === 'entrenched')) {
       world.setOrder(unit.id, attackOrder(target.id, null, 'acquired'));
       world.setStatus(unit.id, 'attacking');
       changed.push(unit.id);

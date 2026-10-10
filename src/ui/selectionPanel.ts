@@ -82,7 +82,7 @@ export class SelectionPanel {
       ? ` (${Math.floor(entity.constructionProgress * 100)}%)`
       : '';
     const entrenchment = entity.kind === 'unit' && entity.type === 'fpvOperators'
-      ? ` — ${entity.entrenchment === 'mobile' ? 'must entrench to attack' : entity.entrenchment}`
+      ? entity.entrenchment === 'mobile' ? ' — must entrench to attack' : ''
       : '';
     this.detailLine.textContent = `${entity.status === 'idle' ? 'Idle' : entity.status}${progress}${entrenchment}${carrying}`;
     this.root.style.display = 'block';

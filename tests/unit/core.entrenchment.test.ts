@@ -37,7 +37,7 @@ describe('FPV operator entrenchment', () => {
     expect(calculateAttackDamage(operator, target)).toBe(calculateAttackDamage(rocket, target));
   });
 
-  it('cancels entrenchment when given a move order', () => {
+  it('rejects movement until the entrenched team packs up', () => {
     const grid = createMapGrid(MAP_CONFIG);
     const world = createWorld({ tileSizePixels: grid.tileSizePixels });
     const operator = world.createUnit({
@@ -46,8 +46,12 @@ describe('FPV operator entrenchment', () => {
     startEntrenchment(world, 'player', [operator.id]);
     stepEntrenchment(world, ENTRENCHMENT_CONFIG.durationSeconds);
 
-    issueMoveOrders(world, grid, 'player', [operator.id], grid.tileCenter(10, 10));
+    expect(issueMoveOrders(world, grid, 'player', [operator.id], grid.tileCenter(10, 10))).toEqual([]);
+    expect(operator.entrenchment).toBe('entrenched');
+    expect(operator.status).toBe('entrenched');
 
+    toggleEntrenchment(world, 'player', [operator.id]);
+    expect(issueMoveOrders(world, grid, 'player', [operator.id], grid.tileCenter(10, 10))).toEqual([operator.id]);
     expect(operator.entrenchment).toBe('mobile');
     expect(operator.status).toBe('moving');
   });

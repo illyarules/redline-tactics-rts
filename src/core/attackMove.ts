@@ -11,10 +11,10 @@ import { planRoute } from './pathfinding';
 import { MOVEMENT_CONFIG } from '../config/movement';
 import type { CanTargetEntity } from './autoCombat';
 import type { World } from './world';
-import { clearEntrenchment } from './entrenchment';
 import type { AttackHitEvent } from './attack';
 
 /** Routes selected combat units to a destination they may interrupt to fight. */
+// eslint-disable-next-line complexity -- Command validation keeps every rejection before route mutation.
 export function issueAttackMoveOrders(
   world: World,
   grid: MapGrid,
@@ -29,7 +29,8 @@ export function issueAttackMoveOrders(
   const accepted: EntityId[] = [];
   for (const id of new Set(selectedIds)) {
     const unit = world.unit(id);
-    if (unit === undefined || unit.owner !== player || !isAlive(unit) || unit.stats.attack === null) continue;
+    if (unit === undefined || unit.owner !== player || !isAlive(unit) || unit.stats.attack === null ||
+      (unit.type === 'fpvOperators' && unit.entrenchment !== 'mobile')) continue;
     const plan = planRoute(
       grid,
       grid.worldToTile(unit.position),
@@ -46,7 +47,6 @@ export function issueAttackMoveOrders(
       waypoints: plan.tiles.map((tile) => grid.tileCenter(tile.tx, tile.ty)),
       waypointIndex: 0,
     };
-    clearEntrenchment(world, unit.id);
     world.setOrder(unit.id, attackMoveOrder({ x: target.x, y: target.y }, route));
     world.setStatus(unit.id, 'moving');
     accepted.push(unit.id);
