@@ -22,6 +22,7 @@ interface ProjectileSlot {
   readonly from: Vector3;
   readonly to: Vector3;
   readonly direction: Vector3;
+  readonly curveSide: Vector3;
   readonly rotation: Quaternion;
   elapsedSeconds: number;
   durationSeconds: number;
@@ -137,6 +138,15 @@ export class CombatEffectsView {
     } else {
       slot.direction.normalize();
     }
+    Vector3.CrossToRef(slot.direction, UP, slot.curveSide);
+    if (slot.curveSide.lengthSquared() < 1e-6) {
+      slot.curveSide.copyFromFloats(1, 0, 0);
+    } else {
+      slot.curveSide.normalize();
+    }
+    if ((event.from.x * 17 + event.from.y * 31 + event.to.x * 13 + event.to.y * 7) % 2 < 1) {
+      slot.curveSide.scaleInPlace(-1);
+    }
     Quaternion.FromUnitVectorsToRef(UP, slot.direction, slot.rotation);
     this.placeProjectile(slot, weapon, 0);
     slot.body.setEnabled(event.weapon !== 'rocket');
@@ -165,6 +175,20 @@ export class CombatEffectsView {
 
   private placeProjectile(slot: ProjectileSlot, weapon: CombatEffectWeaponConfig, progress: number): void {
     Vector3.LerpToRef(slot.from, slot.to, progress, slot.body.position);
+    if (slot.event?.weapon === 'fpvOperators') {
+      const arc = Math.sin(Math.PI * progress);
+      const weave = Math.sin(Math.PI * 2 * progress);
+      slot.body.position.addInPlace(slot.curveSide.scale(arc * 0.65 + weave * 0.16));
+      slot.body.position.y += arc * 0.42;
+
+      const tangent = slot.to.subtract(slot.from).addInPlace(slot.curveSide.scale(
+        Math.PI * 0.65 * Math.cos(Math.PI * progress) +
+        Math.PI * 2 * 0.16 * Math.cos(Math.PI * 2 * progress),
+      ));
+      tangent.y += Math.PI * 0.42 * Math.cos(Math.PI * progress);
+      tangent.normalize();
+      Quaternion.FromUnitVectorsToRef(UP, tangent, slot.rotation);
+    }
     slot.body.rotationQuaternion = slot.rotation;
     slot.body.scaling.set(weapon.projectileWidthTiles, weapon.projectileLengthTiles, weapon.projectileWidthTiles);
     slot.body.material = this.materials.unlit(weapon.projectileColor, CONFIG.visual.projectileAlpha);
@@ -362,7 +386,8 @@ export class CombatEffectsView {
       }, this.scene));
       return {
         body, rocketHead: head, trail,
-        from: Vector3.Zero(), to: Vector3.Zero(), direction: Vector3.Forward(), rotation: Quaternion.Identity(),
+        from: Vector3.Zero(), to: Vector3.Zero(), direction: Vector3.Forward(), curveSide: Vector3.Right(),
+        rotation: Quaternion.Identity(),
         elapsedSeconds: 0, durationSeconds: 1, event: null,
       };
     });

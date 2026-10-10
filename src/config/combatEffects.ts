@@ -84,8 +84,8 @@ export const COMBAT_EFFECTS_CONFIG: CombatEffectsConfig = {
       debrisDiameterTiles: 0.11,
       debrisTravelTiles: 0.58,
       ringDiameterTiles: 1.15,
-      projectileColor: 0x7de8ff,
-      trailColor: 0x4fc7e8,
+      projectileColor: 0x090b0d,
+      trailColor: 0x31383c,
       impactColor: 0xff8e6b,
     },
     tank: {
