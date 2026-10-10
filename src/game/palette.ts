@@ -49,6 +49,8 @@ export const NEUTRAL_TONES = {
 export const GAS_FIELD_TONES = {
   soil: 0x252820,
   soilEdge: 0x34382c,
+  concrete: 0x777873,
+  concreteEdge: 0x555852,
   platform: 0x3b4245,
   column: 0xaeb8ba,
   columnShade: 0x6f7b7e,

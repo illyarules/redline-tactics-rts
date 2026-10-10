@@ -237,11 +237,16 @@ export class MapView {
     const model = buildModel(scene, materials, `gas-rig:${field.id}`, (builder) => {
       const x = center.x;
       const z = center.z;
-      builder.box({ size: [1.18, 0.12, 0.82], at: [x, 0.08, z] }, GAS_FIELD_TONES.platform)
+      builder.box({ size: [1.28, 0.12, 1.28], at: [x, 0.06, z] }, GAS_FIELD_TONES.concreteEdge)
+        .box({ size: [1.18, 0.08, 1.18], at: [x, 0.14, z] }, GAS_FIELD_TONES.concrete)
+        .box({ size: [0.98, 0.08, 0.68], at: [x, 0.2, z] }, GAS_FIELD_TONES.platform)
         .cylinder({ height: 2.35, diameter: 0.34, diameterTop: 0.3, sides: 10, at: [x - 0.18, 1.28, z] }, GAS_FIELD_TONES.column)
         .cylinder({ height: 1.5, diameter: 0.25, sides: 10, at: [x + 0.35, 0.84, z + 0.12] }, GAS_FIELD_TONES.columnShade)
         .cylinder({ height: 0.78, diameter: 0.12, sides: 8, at: [x + 0.1, 1.83, z], turn: [0, 0, QUARTER_TURN] }, GAS_FIELD_TONES.pipe)
         .cylinder({ height: 0.62, diameter: 0.11, sides: 8, at: [x + 0.42, 1.55, z + 0.12] }, GAS_FIELD_TONES.pipe)
+        .cylinder({ height: 0.74, diameter: 0.1, sides: 8, at: [x - 0.38, 0.7, z + 0.24] }, GAS_FIELD_TONES.pipe)
+        .cylinder({ height: 0.66, diameter: 0.1, sides: 8, at: [x - 0.07, 1.02, z + 0.24], turn: [0, 0, QUARTER_TURN] }, GAS_FIELD_TONES.pipe)
+        .cylinder({ height: 0.7, diameter: 0.09, sides: 8, at: [x + 0.22, 0.62, z - 0.22], turn: [QUARTER_TURN, 0, 0] }, GAS_FIELD_TONES.pipe)
         .box({ size: [0.08, 2.18, 0.08], at: [x - 0.48, 1.18, z - 0.25] }, GAS_FIELD_TONES.frame)
         .box({ size: [0.08, 2.18, 0.08], at: [x + 0.48, 1.18, z - 0.25] }, GAS_FIELD_TONES.frame)
         .box({ size: [1.04, 0.07, 0.08], at: [x, 1.55, z - 0.25] }, GAS_FIELD_TONES.frame)
