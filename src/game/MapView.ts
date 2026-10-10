@@ -5,24 +5,22 @@ import { MultiMaterial } from '@babylonjs/core/Materials/multiMaterial';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder';
 import type { Scene } from '@babylonjs/core/scene';
-import { CRYSTAL_FIELD_CONFIG } from '../config/crystalField';
 import { cellVisibility, type FogState } from '../core/fog';
 import type { PlayerId } from '../core/ids';
 import type { MapGrid, ResourceField } from '../core/map';
 import { createGroundTexture } from './groundTexture';
 import type { MaterialLibrary } from './materials';
-import { generateCrystalFieldLayout } from './models/crystalField';
-import { buildModel } from './models/kit';
+import { buildModel, QUARTER_TURN } from './models/kit';
 import { generateTerrainSceneryLayout } from './models/terrainScenery';
-import { CRYSTAL_FIELD_TONES, FIELD_TONES } from './palette';
+import { FIELD_TONES, GAS_FIELD_TONES } from './palette';
 import type { SceneSpace } from './sceneSpace';
 
 /**
  * The static battlefield: the ground the match is played on, the edge of the playable area, and the
- * crystal deposits standing in the resource fields.
+ * compact gas extraction equipment standing in the resource fields.
  *
- * Everything here is read from the `MapGrid` and never decides a rule. Terrain scenery and crystal
- * deposits use deterministic layouts; this view only turns those layouts into merged geometry.
+ * Everything here is read from the `MapGrid` and never decides a rule. This view only turns the
+ * deterministic terrain data into merged geometry.
  */
 
 /** How far past the map edge the ground keeps going, in map widths, so the horizon is never void. */
@@ -33,9 +31,8 @@ const MIN_FIELD_SCALE = 0.08;
 
 export class MapView {
   private readonly meshes: Mesh[] = [];
-  private readonly crystals: Mesh[] = [];
   private readonly scenery: { mesh: Mesh; tiles: readonly { tx: number; ty: number }[] }[] = [];
-  private readonly crystalsByField = new Map<string, Mesh[]>();
+  private readonly gasRigsByField = new Map<string, Mesh>();
   private readonly fogMaterials = new Map<Mesh, { normal: Mesh['material']; dim: Mesh['material'] }>();
   private readonly disposables: { dispose(): void }[] = [];
   private readonly ground: Mesh;
@@ -79,19 +76,10 @@ export class MapView {
     this.buildTerrainScenery(scene, materials, space);
 
     for (const field of grid.resourceFields) {
-      const parts: Mesh[] = [];
-      for (const tile of field.tiles) {
-        const crystals = this.buildCrystals(scene, materials, space, field, tile);
-        if (crystals === null) continue;
-        parts.push(crystals);
-        this.crystals.push(crystals);
-        this.meshes.push(crystals);
-        // Crystal positions are compressed toward the field center in buildCrystals.
-        const bounds = crystals.getBoundingInfo().boundingBox.centerWorld;
-        const world = space.toWorld(bounds.x, bounds.z);
-        this.scenery.push({ mesh: crystals, tiles: [grid.worldToTile(world)] });
-      }
-      this.crystalsByField.set(field.id, parts);
+      const rig = this.buildGasRig(scene, materials, space, field);
+      this.gasRigsByField.set(field.id, rig);
+      this.meshes.push(rig);
+      this.scenery.push({ mesh: rig, tiles: [field.center] });
     }
   }
 
@@ -101,16 +89,15 @@ export class MapView {
   }
 
   /**
-   * Shrinks a field's crystal deposit toward the ground as it is gathered out, so how much is left
-   * reads at a glance instead of only through the HUD. `fraction` is remaining Credits over the
-   * field's original total.
+   * Dims a depleted extraction rig while leaving its silhouette on the field. `fraction` is the
+   * remaining Credits over the field's original total.
    */
   public setFieldFraction(fieldId: string, fraction: number): void {
-    const mesh = this.crystalsByField.get(fieldId);
+    const mesh = this.gasRigsByField.get(fieldId);
     if (mesh === undefined) {
       return;
     }
-    for (const part of mesh) part.scaling.y = Math.max(fraction, MIN_FIELD_SCALE);
+    mesh.visibility = Math.max(fraction, MIN_FIELD_SCALE);
   }
 
   /** Applies fog to resource deposits, which stand above the terrain veil. */
@@ -230,111 +217,37 @@ export class MapView {
       mesh.dispose();
     }
     this.meshes.length = 0;
-    this.crystals.length = 0;
     this.scenery.length = 0;
     this.fogMaterials.clear();
-    this.crystalsByField.clear();
+    this.gasRigsByField.clear();
     for (const disposable of this.disposables) {
       disposable.dispose();
     }
     this.disposables.length = 0;
   }
 
-  /**
-   * One resource field's crystal deposit, merged into a single mesh: a dense, irregular group of
-   * faceted cyan gems rooted directly in the grass. This follows the concept art deliberately — no
-   * pads, glowing circles or generic rock scatter competing with the crystals' silhouette.
-   */
-  private buildCrystals(
+  /** A narrow gas separator inspired by industrial columns and overhead pipework. */
+  private buildGasRig(
     scene: Scene,
     materials: MaterialLibrary,
     space: SceneSpace,
     field: ResourceField,
-    tile: { tx: number; ty: number },
-  ): Mesh | null {
-    const fullLayout = generateCrystalFieldLayout(field.tiles, CRYSTAL_FIELD_CONFIG);
-    const layout = {
-      rocks: fullLayout.rocks.filter((part) => part.tx === tile.tx && part.ty === tile.ty),
-      shards: fullLayout.shards.filter((part) => part.tx === tile.tx && part.ty === tile.ty),
-      fragments: fullLayout.fragments.filter((part) => part.tx === tile.tx && part.ty === tile.ty),
-    };
-    if (layout.rocks.length + layout.shards.length + layout.fragments.length === 0) return null;
-    const config = CRYSTAL_FIELD_CONFIG;
-
-    const model = buildModel(scene, materials, `crystals:${field.id}`, (builder) => {
-      const center = this.sceneTileCenter(space, field.center.tx, field.center.ty);
-      for (const rock of layout.rocks) {
-        const { x, z } = this.sceneTileCenter(space, rock.tx, rock.ty);
-        const rx = center.x + (x + rock.offsetXTiles - center.x) * 0.7;
-        const rz = center.z + (z + rock.offsetZTiles - center.z) * 0.7;
-        builder.cylinder(
-          {
-            height: rock.heightTiles,
-            diameter: rock.diameterTiles,
-            diameterTop: rock.diameterTiles * 0.7,
-            sides: 6,
-            at: [rx, rock.heightTiles / 2 + 0.09, rz],
-            turn: [0, rock.rotationRadians, 0],
-          },
-          CRYSTAL_FIELD_TONES.rock,
-        );
-      }
-      for (const shard of layout.shards) {
-        const { x, z } = this.sceneTileCenter(space, shard.tx, shard.ty);
-        // Pull the deterministic tile samples toward the field centre, so a radius-three resource
-        // field reads as a dense vein with negative space around it rather than a loose ring.
-        const sx = center.x + (x + shard.offsetXTiles - center.x) * 0.7;
-        const sz = center.z + (z + shard.offsetZTiles - center.z) * 0.7;
-        const baseHeight = shard.heightTiles * config.lowerBandShare;
-        const crownHeight = shard.heightTiles - baseHeight;
-        const groundY = 0.025;
-        // Two pyramidal rings make a true low-poly gem: narrow at the ground, widest at its
-        // shoulder, then tapering to a point. The prior shape widened at the ground and read as a
-        // traffic cone from this camera.
-        builder.cylinder(
-          {
-            height: baseHeight,
-            diameter: shard.lowerDiameterTiles * 0.14,
-            diameterTop: shard.lowerDiameterTiles,
-            sides: shard.sides,
-            at: [sx, groundY + baseHeight / 2, sz],
-            turn: [shard.tiltXRadians, shard.rotationRadians, shard.tiltZRadians],
-          },
-          CRYSTAL_FIELD_TONES.crystalLower,
-        );
-        builder.cylinder(
-          {
-            height: crownHeight,
-            diameter: shard.lowerDiameterTiles,
-            diameterTop: shard.capDiameterTiles,
-            sides: shard.sides,
-            at: [sx, groundY + baseHeight + crownHeight / 2, sz],
-            turn: [shard.tiltXRadians, shard.rotationRadians, shard.tiltZRadians],
-          },
-          CRYSTAL_FIELD_TONES.crystalUpper,
-        );
-      }
-      for (const fragment of layout.fragments) {
-        const { x, z } = this.sceneTileCenter(space, fragment.tx, fragment.ty);
-        const fx = center.x + (x + fragment.offsetXTiles - center.x) * 0.7;
-        const fz = center.z + (z + fragment.offsetZTiles - center.z) * 0.7;
-        // Tipped onto its side near the ground: a shard that broke off rather than one still growing.
-        builder.cylinder(
-          {
-            height: fragment.lengthTiles,
-            diameter: fragment.lengthTiles * 0.3,
-            diameterTop: fragment.lengthTiles * 0.14,
-            sides: 5,
-            at: [fx, 0.1, fz],
-            turn: [fragment.tiltXRadians, fragment.rotationRadians, fragment.tiltZRadians],
-          },
-          CRYSTAL_FIELD_TONES.fragment,
-        );
-      }
+  ): Mesh {
+    const center = this.sceneTileCenter(space, field.center.tx, field.center.ty);
+    const model = buildModel(scene, materials, `gas-rig:${field.id}`, (builder) => {
+      const x = center.x;
+      const z = center.z;
+      builder.box({ size: [1.18, 0.12, 0.82], at: [x, 0.08, z] }, GAS_FIELD_TONES.platform)
+        .cylinder({ height: 2.35, diameter: 0.34, diameterTop: 0.3, sides: 10, at: [x - 0.18, 1.28, z] }, GAS_FIELD_TONES.column)
+        .cylinder({ height: 1.5, diameter: 0.25, sides: 10, at: [x + 0.35, 0.84, z + 0.12] }, GAS_FIELD_TONES.columnShade)
+        .cylinder({ height: 0.78, diameter: 0.12, sides: 8, at: [x + 0.1, 1.83, z], turn: [0, 0, QUARTER_TURN] }, GAS_FIELD_TONES.pipe)
+        .cylinder({ height: 0.62, diameter: 0.11, sides: 8, at: [x + 0.42, 1.55, z + 0.12] }, GAS_FIELD_TONES.pipe)
+        .box({ size: [0.08, 2.18, 0.08], at: [x - 0.48, 1.18, z - 0.25] }, GAS_FIELD_TONES.frame)
+        .box({ size: [0.08, 2.18, 0.08], at: [x + 0.48, 1.18, z - 0.25] }, GAS_FIELD_TONES.frame)
+        .box({ size: [1.04, 0.07, 0.08], at: [x, 1.55, z - 0.25] }, GAS_FIELD_TONES.frame)
+        .box({ size: [1.04, 0.07, 0.08], at: [x, 2.22, z - 0.25] }, GAS_FIELD_TONES.frame)
+        .cylinder({ height: 0.18, diameter: 0.17, diameterTop: 0.05, sides: 8, at: [x - 0.18, 2.54, z] }, GAS_FIELD_TONES.lamp, 'glowing');
     });
-
-    // A field's crystals are unique geometry rather than a role's prototype, so the merged mesh is
-    // shown directly instead of being cloned per entity the way `EntitiesView` uses a model.
     model.mesh.setEnabled(true);
     return model.mesh;
   }

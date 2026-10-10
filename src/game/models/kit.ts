@@ -47,7 +47,7 @@ export interface CylinderSpec extends PartPlacement {
   readonly sides?: number;
 }
 
-/** How the part takes light. `glowing` and `unlit` are for lamps, panels and crystal only. */
+/** How the part takes light. `glowing` and `unlit` are for lamps and panels only. */
 export type PartFinish = 'surface' | 'glowing' | 'unlit';
 
 /** Collects parts and merges them into one model. Use `buildModel`. */

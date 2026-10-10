@@ -1,7 +1,7 @@
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import type { Scene } from '@babylonjs/core/scene';
 import type { MapGrid } from '../core/map';
-import { FIELD_TONES } from './palette';
+import { FIELD_TONES, GAS_FIELD_TONES } from './palette';
 
 /**
  * The battlefield's surface, painted once into a texture.
@@ -62,6 +62,36 @@ export function createGroundTexture(scene: Scene, grid: MapGrid): DynamicTexture
         context.fillStyle = rgba(FIELD_TONES.mountainGround, 0.9);
         context.fillRect(tx * tile, ty * tile, tile, tile);
       }
+    }
+  }
+
+  // Gas-bearing soil follows the existing resource-field footprint. Several offset translucent
+  // discs soften its edge so it reads as stained earth rather than a painted game marker.
+  for (const field of grid.resourceFields) {
+    const cx = (field.center.tx + 0.5) * tile;
+    const cy = (field.center.ty + 0.5) * tile;
+    const radius = (field.radiusTiles + 0.45) * tile;
+    const gradient = context.createRadialGradient(cx, cy, radius * 0.12, cx, cy, radius);
+    gradient.addColorStop(0, rgba(GAS_FIELD_TONES.soil, 0.94));
+    gradient.addColorStop(0.72, rgba(GAS_FIELD_TONES.soil, 0.88));
+    gradient.addColorStop(1, rgba(GAS_FIELD_TONES.soilEdge, 0));
+    context.fillStyle = gradient;
+    context.beginPath();
+    context.arc(cx, cy, radius, 0, Math.PI * 2);
+    context.fill();
+    for (let blotch = 0; blotch < 9; blotch++) {
+      const angle = hash01(field.center.tx, field.center.ty, 40 + blotch) * Math.PI * 2;
+      const distance = radius * (0.42 + hash01(field.center.ty, field.center.tx, 60 + blotch) * 0.42);
+      context.fillStyle = rgba(GAS_FIELD_TONES.soil, 0.22);
+      context.beginPath();
+      context.arc(
+        cx + Math.cos(angle) * distance,
+        cy + Math.sin(angle) * distance,
+        radius * (0.18 + hash01(blotch, field.center.tx, 80) * 0.12),
+        0,
+        Math.PI * 2,
+      );
+      context.fill();
     }
   }
 

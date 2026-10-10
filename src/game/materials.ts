@@ -13,7 +13,7 @@ import { color3 } from './palette';
 export interface MaterialLibrary {
   /** A matte surface that takes light and casts shade. The default for anything solid. */
   surface(hex: number): StandardMaterial;
-  /** A surface with a little light of its own: accent stripes, lamps, crystal. */
+  /** A surface with a little light of its own: accent stripes and lamps. */
   glowing(hex: number, strength?: number): StandardMaterial;
   /** Flat colour that ignores lighting entirely: markers, health bars, the ground apron. */
   unlit(hex: number, alpha?: number): StandardMaterial;

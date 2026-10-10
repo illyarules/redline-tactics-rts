@@ -41,24 +41,20 @@ export const NEUTRAL_TONES = {
   /** Bright machinery — barrels, tubes, rails — has to read against dark ground, not sink into it. */
   metalLight: 0xa3aeba,
   glass: 0x101d1a,
-  /** The same cyan the resource fields use, so anything to do with Credits reads the same way. */
+  /** Cool indicator light used by neutral resource machinery. */
   crystal: 0x5fdcee,
 } as const;
 
-/** The crystal deposits resource fields grow: a dark stone bed under two-tone faceted shards. */
-export const CRYSTAL_FIELD_TONES = {
-  /** Uneven dark stone/ore the deposit sits on. */
-  oreBed: 0x363a34,
-  /** Loose rocks scattered near the base — a shade off the bed so they still read as separate. */
-  rock: 0x5c6256,
-  /** Deep cyan body facets. Their value stays below the tip so a shard remains readable. */
-  crystalLower: 0x0d617a,
-  /** Sunlit facets, not emissive: avoids the previous near-white cones. */
-  crystalUpper: 0x1da7c5,
-  /** Tiny emissive apex, the only truly bright surface in a deposit. */
-  crystalTip: 0x8feefa,
-  /** Small broken-off shard pieces lying around the base. Dim: they carry no glow of their own. */
-  fragment: 0x2d7d84,
+/** Compact neutral gas extraction equipment placed at the centre of each resource field. */
+export const GAS_FIELD_TONES = {
+  soil: 0x252820,
+  soilEdge: 0x34382c,
+  platform: 0x3b4245,
+  column: 0xaeb8ba,
+  columnShade: 0x6f7b7e,
+  pipe: 0xd39a27,
+  frame: 0x844632,
+  lamp: 0x81d8c8,
 } as const;
 
 /** The battlefield's own tones: a dark, subdued green that lets the factions be the only loud thing. */
