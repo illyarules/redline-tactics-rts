@@ -226,20 +226,20 @@ export class EntitiesView {
   private createEntrenchmentCover(root: TransformNode, id: EntityId): readonly Mesh[] {
     const soil = this.materials.surface(0x6b5132);
     const mound = CreateTorus(`entity:${id}:earthMound`, {
-      diameter: 0.88, thickness: 0.16, tessellation: 20,
+      diameter: 1.28, thickness: 0.21, tessellation: 24,
     }, this.scene);
     mound.parent = root;
     mound.position.y = 0.055;
-    mound.scaling.z = 0.78;
+    mound.scaling.z = 0.82;
     mound.material = soil;
-    const pit = CreateCylinder(`entity:${id}:firingPit`, { height: 0.025, diameter: 0.68, tessellation: 20 }, this.scene);
+    const pit = CreateCylinder(`entity:${id}:firingPit`, { height: 0.025, diameter: 1.04, tessellation: 24 }, this.scene);
     pit.parent = root;
     pit.position.y = 0.014;
-    pit.scaling.z = 0.78;
+    pit.scaling.z = 0.82;
     pit.material = this.materials.surface(0x30281d);
-    const front = CreateBox(`entity:${id}:raisedEarth`, { width: 0.58, height: 0.13, depth: 0.13 }, this.scene);
+    const front = CreateBox(`entity:${id}:raisedEarth`, { width: 0.92, height: 0.16, depth: 0.18 }, this.scene);
     front.parent = root;
-    front.position.set(0, 0.08, 0.29);
+    front.position.set(0, 0.09, 0.43);
     front.material = soil;
     const cover = [mound, pit, front];
     for (const mesh of cover) {
