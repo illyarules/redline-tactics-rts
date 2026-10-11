@@ -105,6 +105,10 @@ function infantryProductionLimit(ai: AiState, world: World, owner: PlayerId, con
 function nextBuildingReserve(world: World, owner: PlayerId, config: AiConfig): number {
   const next = config.buildOrder.find((type) =>
     !world.buildings(owner).some((building) => building.type === type && isAlive(building)));
+  // The optional FPV tech building must not postpone the AI's first fighting force. Otherwise an
+  // AI with completed Barracks and Factory can display ARMY 0/3 while saving every credit for tech.
+  if (next === 'unmannedSystemsCenter' &&
+    aiArmy(world, owner).length + queuedCombatUnits(world, owner) < config.minimumAttackArmyUnits) return 0;
   return next === undefined ? 0 : BUILDING_CONFIG[next].cost;
 }
 
