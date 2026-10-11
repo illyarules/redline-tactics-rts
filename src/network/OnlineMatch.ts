@@ -24,11 +24,12 @@ import {
 import { OnlineCommandFeedback, withOnlineCommandMarkers } from './onlineCommandFeedback';
 import { OnlineCombatEffectFeed } from './onlineCombatEffects';
 import { OnlineSnapshotInterpolator } from './onlineSnapshotInterpolator';
+import { multiplayerServerUrl } from './multiplayerUrl';
 import './onlineMatch.css';
 
 const STORAGE = 'redline-online-seat';
 const VERSION = 1;
-const SERVER_URL = import.meta.env.VITE_MULTIPLAYER_URL ?? 'ws://localhost:8787/ws';
+const SERVER_URL = multiplayerServerUrl(import.meta.env.VITE_MULTIPLAYER_URL, import.meta.env.PROD);
 const BUILDABLE_TYPES = (Object.keys(BUILDING_CONFIG) as BuildingTypeId[]).filter((type) => BUILDING_CONFIG[type].buildable);
 
 interface Snapshot extends OnlineBattleSnapshot {
@@ -69,6 +70,7 @@ export class OnlineMatch {
   private epoch = 0;
   private seq = 0;
   private reconnectDelay = 500;
+  private reconnectAttempts = 0;
   private disposed = false;
   private snapshot: Snapshot | null = null;
   private battleState: BattleViewState | null = null;
@@ -260,11 +262,17 @@ export class OnlineMatch {
     this.socket?.close();
     this.resetTransientPresentation();
     this.root.dataset.connection = 'offline';
+    if (SERVER_URL === null) {
+      this.showEntry();
+      this.setModalStatus('Multiplayer is not configured for this deployment.', 'error');
+      return;
+    }
     this.setModalStatus(type === 'resume' ? 'Restoring your command seat…' : 'Contacting multiplayer server…');
     const socket = new WebSocket(SERVER_URL);
     this.socket = socket;
     socket.addEventListener('open', () => {
       this.reconnectDelay = 500;
+      this.reconnectAttempts = 0;
       this.root.dataset.connection = 'online';
       this.updateHud();
       this.send({ type, protocolVersion: VERSION, ...data });
@@ -282,7 +290,13 @@ export class OnlineMatch {
     this.root.dataset.connection = 'offline';
     this.resetTransientPresentation();
     this.updateHud();
+    if (this.snapshot?.result) return;
     if (this.roomId && this.credential) {
+      if (this.reconnectAttempts >= 5) {
+        this.showServiceUnavailable('The multiplayer service could not restore this match. No winner was awarded.');
+        return;
+      }
+      this.reconnectAttempts++;
       this.notify('Connection lost. Rejoining your seat…', 'error', 5000);
       const delay = this.reconnectDelay;
       this.reconnectDelay = Math.min(5000, delay * 2);
@@ -303,6 +317,9 @@ export class OnlineMatch {
     } else if (message.type === 'snapshot') this.receiveSnapshot(message as unknown as Snapshot);
     else if (message.type === 'rejected') this.receiveRejection(message);
     else if (message.type === 'ack') this.receiveAcknowledgement(message);
+    else if (message.type === 'service-unavailable') {
+      this.showServiceUnavailable('The multiplayer service restarted. This match was aborted with no winner.');
+    }
   }
 
   private receiveSession(message: Record<string, unknown>): void {
@@ -368,6 +385,7 @@ export class OnlineMatch {
       'room-unavailable': 'That room is unavailable or already has two players.',
       'rate-limited': 'Too many orders were sent. Wait a moment and try again.',
       'sequence-gap': 'Your command stream is out of sync. Reconnecting…',
+      draining: 'The multiplayer service is restarting and is not accepting new rooms.',
     };
     const text = explanation[reason] ?? 'The server rejected that action.';
     this.setModalStatus(text, 'error');
@@ -474,6 +492,26 @@ export class OnlineMatch {
       this.makeButton('Return to title', () => this.leaveToTitle(), 'secondary'),
       this.makeButton('Rematch lobby', () => this.send({ type: 'rematch', protocolVersion: VERSION }), 'ready'),
     );
+    this.modalCard.append(footer);
+  }
+
+  private showServiceUnavailable(message: string): void {
+    const socket = this.socket;
+    this.socket = null;
+    socket?.close();
+    sessionStorage.removeItem(STORAGE);
+    this.roomId = null;
+    this.invite = null;
+    this.credential = null;
+    this.matchId = null;
+    this.resetMatchState();
+    this.presentation.cameraController.setEnabled(false);
+    this.setBattleInputEnabled(false);
+    this.modalLayer.hidden = false;
+    this.gameUi.hidden = true;
+    this.modalCard.replaceChildren(this.cardHeading('SERVICE INTERRUPTION', 'Match aborted', message));
+    const footer = element('div', 'online-card-footer');
+    footer.append(this.makeButton('Return to title', () => this.onExit(), 'secondary'));
     this.modalCard.append(footer);
   }
 
@@ -856,6 +894,7 @@ function resultReason(reason: string): string {
     case 'surrender': return 'A commander surrendered the battlefield.';
     case 'disconnect': return 'A commander did not reconnect in time.';
     case 'timeout': return 'The fifteen-minute limit expired.';
+    case 'aborted': return 'The match ended without a winner.';
     default: return 'The match was ended by the server.';
   }
 }

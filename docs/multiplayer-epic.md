@@ -62,8 +62,8 @@ validation before starting the next task.
 | Task 3 — shared battle interaction | Complete and validated | `codex/online-shared-battlefield` / `cc613ce` | Shared selection, contextual orders, attack-move, and building placement preview |
 | Task 4 — shared PvP-style tactical HUD | Complete and validated | `codex/online-shared-battlefield` / `b8582b0` | One presentation-only HUD for both modes, with mode-specific status and lifecycle controls |
 | Task 5 — online command feedback and interpolation | Complete and validated | `codex/online-shared-battlefield` / `76b757c`, `04b32d4` | Buffered visible movement, local command status, shared order markers, safe resync reset, and explicit combat feedback |
-| Task 6 — playable PvP loop audit | Complete, awaiting validation | `codex/online-shared-battlefield` | Complete command audit plus clean result, rematch, command-sequence, and return lifecycle |
-| Task 7 — private alpha deployment | Not started | — | Production configuration, operations, capacity evidence, and deployment guide |
+| Task 6 — playable PvP loop audit | Complete, awaiting validation | `codex/online-shared-battlefield` / `3a23825` | Complete command audit plus clean result, rematch, command-sequence, and return lifecycle |
+| Task 7 — private alpha deployment | Implementation complete, hosted validation pending | `codex/online-shared-battlefield` | WSS configuration, origin enforcement, health/drain controls, five-room cap, load harness, Render blueprint, and deployment guide |
 
 ## Epic acceptance criteria
 
@@ -296,7 +296,7 @@ for repeated manual play sessions. Fix only parity and lifecycle defects found b
 
 ## Task 7 — Validate and prepare the private alpha deployment
 
-**Status:** Not started.
+**Status:** Implementation complete; production deployment and hosted 30-minute validation remain release gates.
 
 ### Description
 

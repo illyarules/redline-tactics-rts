@@ -81,8 +81,10 @@ feedback until the server applies or rejects the command.
 Confirmed PvP attacks keep a marker on the visible target and use the shared muzzle, projectile,
 impact, target-flash, and destruction effects from the single-player battlefield.
 
-The browser uses `ws://localhost:8787/ws` by default. Set `VITE_MULTIPLAYER_URL` to the public WSS
-endpoint when building the client. Set `MULTIPLAYER_ORIGIN` to the exact HTTPS frontend origin on
-the server; the default is `http://localhost:5173`. `MULTIPLAYER_MAX_ROOMS` sets the room cap.
-The online service keeps rooms in memory and loses them on process restart. It has no accounts or
-persistent match history. The deployed client also initializes Vercel Web Analytics.
+The browser uses `ws://localhost:8787/ws` in development. Production keeps the static Vite client
+on Vercel and runs the authoritative process as a separate single-instance Render Web Service; set
+`VITE_MULTIPLAYER_URL` to its `wss://.../ws` endpoint. The online service keeps rooms in memory and
+has no accounts or persistent match history. Environment variables, health checks, draining,
+capacity testing and rollback are documented in
+[`docs/multiplayer-deployment.md`](./docs/multiplayer-deployment.md). The deployed client also
+initializes Vercel Web Analytics.

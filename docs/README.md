@@ -8,6 +8,7 @@
 - [Post-MVP roadmap](./roadmap.md) — maps, combat expansion and multiplayer backlog
 - [Multiplayer architecture](./multiplayer-architecture.md) — proposed private 1v1 format, server boundaries, protocol, lifecycle and implementation gates
 - [Playable private PvP epic](./multiplayer-epic.md) — current implementation status, task breakdown, acceptance criteria and test scenarios
+- [Private alpha deployment](./multiplayer-deployment.md) — Vercel client, Render WebSocket service, operations, limits, rollback and load evidence
 
 See also [`game-design.md`](../game-design.md) for the current design and scope, and
 [`implementation-plan.md`](../implementation-plan.md) for the historical task-by-task build order

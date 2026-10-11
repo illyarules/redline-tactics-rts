@@ -19,6 +19,53 @@ async function connectedSocket(): Promise<WebSocket> {
   return socket;
 }
 
+function socketClosed(socket: WebSocket): Promise<number> {
+  return new Promise((resolve) => socket.once('close', (code) => resolve(code)));
+}
+
+test('server enforces origin, protocol, payload and room-capacity boundaries', async () => {
+  const wrongOrigin = new WebSocket('ws://localhost:8788/ws', { origin: 'https://untrusted.example' });
+  const refused = new Promise<void>((resolve) => {
+    wrongOrigin.once('error', () => resolve());
+    wrongOrigin.once('unexpected-response', () => resolve());
+  });
+  await refused;
+
+  const invalidProtocol = await connectedSocket();
+  const invalidWait = socketMessage(invalidProtocol, 'rejected');
+  invalidProtocol.send(JSON.stringify({ protocolVersion: 999, type: 'create' }));
+  expect((await invalidWait).reason).toBe('invalid-message');
+  invalidProtocol.close();
+
+  const oversized = await connectedSocket();
+  const oversizedClose = socketClosed(oversized);
+  oversized.send('x'.repeat(17 * 1024));
+  expect(await oversizedClose).toBe(1009);
+
+  const health = await fetch('http://localhost:8788/healthz').then(async (response) =>
+    response.json() as Promise<{ rooms: { active: number; max: number } }>);
+  const rooms: WebSocket[] = [];
+  try {
+    for (let index = health.rooms.active; index < health.rooms.max; index++) {
+      const socket = await connectedSocket();
+      const session = socketMessage(socket, 'session');
+      socket.send(JSON.stringify({ protocolVersion: 1, type: 'create' }));
+      await session;
+      rooms.push(socket);
+    }
+    const overflow = await connectedSocket();
+    const capacity = socketMessage(overflow, 'rejected');
+    overflow.send(JSON.stringify({ protocolVersion: 1, type: 'create' }));
+    expect((await capacity).reason).toBe('capacity');
+    overflow.close();
+  } finally {
+    for (const socket of rooms) {
+      socket.send(JSON.stringify({ protocolVersion: 1, type: 'leave' }));
+      socket.close();
+    }
+  }
+});
+
 test('server applies owned orders once and rejects a forged actor', async () => {
   const west = await connectedSocket();
   const east = await connectedSocket();
