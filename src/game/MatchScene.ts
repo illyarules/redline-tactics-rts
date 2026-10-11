@@ -1,12 +1,4 @@
-import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { TargetCamera } from '@babylonjs/core/Cameras/targetCamera';
-import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
-import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
-import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import type { Engine } from '@babylonjs/core/Engines/engine';
-import type { Mesh } from '@babylonjs/core/Meshes/mesh';
-import { Scene } from '@babylonjs/core/scene';
 import type { MapConfig } from '../config/types';
 import { PERSISTENCE_CONFIG } from '../config/persistence';
 import { RENDER_CONFIG } from '../config/render';
@@ -47,25 +39,15 @@ import { EntrenchMenu } from '../ui/entrenchMenu';
 import { MatchResultOverlay } from '../ui/matchResultOverlay';
 import type { AudioManager } from '../audio/AudioManager';
 import { TitleBanner } from '../ui/titleBanner';
-import { CameraController } from './CameraController';
 import { AiDebugReadout } from './AiDebugReadout';
-import { CombatEffectsView } from './CombatEffectsView';
 import { deathEffectAt, mapAttackHitToCombatEffect } from './combatEffectEvents';
 import { DebugLabelsView } from './DebugLabelsView';
-import { EntitiesView } from './EntitiesView';
-import { FogView } from './FogView';
 import { clearSnapshot, saveSnapshot } from './matchPersistence';
-import { MapView } from './MapView';
-import { OrderMarkerView } from './OrderMarkerView';
 import { PlacementController } from './PlacementController';
 import { RouteDebugView } from './RouteDebugView';
 import { SelectionController } from './SelectionController';
-import { SelectionMarker } from './SelectionMarker';
-import { SlotMarkerView } from './SlotMarkerView';
-import { createMaterialLibrary, type MaterialLibrary } from './materials';
-import { createModelLibrary, type ModelLibrary } from './models/library';
-import { color3, FIELD_TONES } from './palette';
-import { createSceneSpace, type SceneSpace } from './sceneSpace';
+import { BattlePresentation } from './BattlePresentation';
+import { localBattleViewState } from './battleViewState';
 import { GAME_TITLE } from './title';
 import {
   createMatchLifecycle,
@@ -98,21 +80,8 @@ const OPENING_FIELD_BIAS = 0.55;
 /** Toggles the entity debug labels. */
 const DEBUG_LABEL_KEY = 'Backquote';
 
-/**
- * The sun. It comes from behind the player's left shoulder so that models are lit on the faces the
- * camera sees and their shadows fall away from the viewer, which is what keeps silhouettes readable.
- */
-const SUN_DIRECTION = new Vector3(0.45, -1, 0.35);
-const SUN_INTENSITY = 1.25;
-/** Fills the shadowed faces so nothing on the field goes black. */
-const AMBIENT_INTENSITY = 0.8;
-/** How far the sun stands off the field, in tiles, so nothing on it falls outside the shadow map. */
-const SUN_DISTANCE_TILES = 90;
-/** Half-width of the shadow camera, as a share of the map: enough to cover it corner to corner. */
-const SHADOW_SPAN_SHARE = 0.9;
-
 export class MatchScene {
-  private readonly scene: Scene;
+  private readonly presentation: BattlePresentation;
   private readonly grid: MapGrid;
   private readonly world: World;
   private readonly economy: Economy;
@@ -121,21 +90,8 @@ export class MatchScene {
   private readonly aiPlayers: readonly AiPlayerId[];
   private readonly ais: ReadonlyMap<AiPlayerId, AiState>;
   private readonly lifecycle: MatchLifecycleState;
-  private readonly space: SceneSpace;
-  private readonly materials: MaterialLibrary;
-  private readonly models: ModelLibrary;
-  private readonly mapView: MapView;
-  private readonly fogView: FogView;
-  private readonly entitiesView: EntitiesView;
-  private readonly combatEffects: CombatEffectsView;
-  private readonly selectionMarker: SelectionMarker;
-  private readonly orderMarker: OrderMarkerView;
-  private readonly slotMarker: SlotMarkerView;
   private readonly routeDebug: RouteDebugView;
   private readonly selection: SelectionController;
-  private readonly cameraController: CameraController;
-  private readonly camera: TargetCamera;
-  private readonly shadows: ShadowGenerator;
   private readonly debugLabels: DebugLabelsView;
   private readonly defenseRecoveryReadout = { latestAction: '—' };
   private readonly militaryReadout: AiMilitaryReadout = { latestAction: '—' };
@@ -180,14 +136,10 @@ export class MatchScene {
     snapshot: WorldSnapshot | null,
     private readonly debugNoFog = false,
   ) {
-    this.scene = new Scene(engine);
-    this.scene.clearColor = Color4.FromColor3(color3(FIELD_TONES.sky), 1);
-
     this.grid = createMapGrid(mapConfig);
     this.aiPlayers = this.grid.starts
       .map((start) => start.player)
       .filter((player): player is AiPlayerId => player !== PLAYER_ID);
-    this.space = createSceneSpace(this.grid);
 
     // Resume an unfinished match saved on this device when one exists and is readable; otherwise
     // open the same opening position every fresh match always has.
@@ -216,50 +168,25 @@ export class MatchScene {
       updateFogVisibility(this.fog, this.world, this.grid);
     }
 
-    this.camera = new TargetCamera('camera', Vector3.Zero(), this.scene);
-    this.camera.minZ = 0.5;
-    this.camera.maxZ = 400;
-    this.scene.activeCamera = this.camera;
-
-    this.shadows = this.createLighting();
-
-    this.materials = createMaterialLibrary(this.scene);
-    this.models = createModelLibrary(this.scene, this.materials);
-    this.mapView = new MapView(this.scene, this.grid, this.space, this.materials);
-    this.syncResourceFields();
-    this.fogView = new FogView(this.scene, this.grid, this.space);
-    this.fogView.setEnabled(!this.debugNoFog);
-    if (!this.debugNoFog) {
-      this.fogView.update(this.fog, PLAYER_ID);
-      this.mapView.updateFog(this.fog, PLAYER_ID);
-    }
-    for (const mesh of this.mapView.shadowCasters()) {
-      this.shadows.addShadowCaster(mesh);
-    }
-
-    this.entitiesView = new EntitiesView(
-      this.scene,
-      this.space,
-      this.models,
-      this.materials,
-      (mesh: Mesh) => this.shadows.addShadowCaster(mesh),
-    );
-    this.entitiesView.sync(this.world, [], 0, this.isVisibleToObserver);
-    this.combatEffects = new CombatEffectsView(this.scene, this.space, this.materials);
-
-    this.selectionMarker = new SelectionMarker(this.scene, this.materials, this.space);
-    this.orderMarker = new OrderMarkerView(this.scene, this.materials, this.space);
-    this.slotMarker = new SlotMarkerView(this.scene, this.materials, this.space);
-    this.routeDebug = new RouteDebugView(this.scene, this.space);
-    this.selection = new SelectionController(
-      this.scene,
-      this.camera,
+    this.presentation = new BattlePresentation(
+      engine,
       canvas,
-      this.space,
+      this.grid,
+      this.openingFocus(),
+      this.debugNoFog,
+    );
+    this.presentation.sync(this.battleViewState([]));
+    this.presentation.updateFog(this.fog, PLAYER_ID);
+    this.routeDebug = new RouteDebugView(this.presentation.scene, this.presentation.space);
+    this.selection = new SelectionController(
+      this.presentation.scene,
+      this.presentation.camera,
+      canvas,
+      this.presentation.space,
       this.world,
       PLAYER_ID,
       this.isVisibleToHuman,
-      (mesh) => this.entitiesView.entityIdOfMesh(mesh),
+      (mesh) => this.presentation.entityIdOfMesh(mesh),
       () => this.showSelection(),
       (ids, target) => {
         this.issueRightClickOrders(ids, target);
@@ -288,14 +215,6 @@ export class MatchScene {
       },
     );
 
-    this.cameraController = new CameraController(
-      this.camera,
-      canvas,
-      this.grid.bounds,
-      this.space,
-      this.openingFocus(),
-    );
-
     // The title, the controls card and the selection readout sit in the HTML layer above the canvas,
     // so no camera movement can scale them and they stay crisp at any zoom.
     this.hud = new TacticalHud(overlayContainer, this.grid.name);
@@ -322,13 +241,13 @@ export class MatchScene {
       this.showSelection();
     });
     this.placement = new PlacementController(
-      this.scene,
-      this.camera,
+      this.presentation.scene,
+      this.presentation.camera,
       canvas,
-      this.space,
+      this.presentation.space,
       this.grid,
       this.world,
-      this.materials,
+      this.presentation.materials,
       (buildingType, topLeft, workerId) => this.confirmPlacement(buildingType, topLeft, workerId),
     );
     this.pauseMenu = new PauseMenu(
@@ -357,7 +276,12 @@ export class MatchScene {
         this.onReturnToTitle();
       },
     );
-    this.debugLabels = new DebugLabelsView(overlayContainer, this.scene, canvas, this.space);
+    this.debugLabels = new DebugLabelsView(
+      overlayContainer,
+      this.presentation.scene,
+      canvas,
+      this.presentation.space,
+    );
     this.aiDebug = import.meta.env.DEV ? new AiDebugReadout(overlayContainer) : null;
     const primaryAi = this.ais.get('ai');
     if (primaryAi !== undefined) this.aiDebug?.update(primaryAi, this.world, this.economy, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
@@ -444,12 +368,12 @@ export class MatchScene {
   // eslint-disable-next-line complexity -- One frame intentionally sequences all deterministic simulation systems.
   public render(deltaSeconds: number): void {
     if (this.paused || this.lifecycle.result !== null) {
-      this.scene.render();
+      this.presentation.render();
       return;
     }
     const activeDeltaSeconds = stepMatchElapsedTime(this.lifecycle, deltaSeconds);
     this.hud.updateTimer(this.lifecycle.elapsedActiveSeconds);
-    this.cameraController.update(activeDeltaSeconds);
+    this.presentation.cameraController.update(activeDeltaSeconds);
     stepMovement(this.world, activeDeltaSeconds);
     stepGather(this.world, this.grid, this.resourceFieldState, this.economy, activeDeltaSeconds);
     stepConstruction(this.world, activeDeltaSeconds);
@@ -457,10 +381,7 @@ export class MatchScene {
     recordProducedUnits(this.lifecycle, stepProduction(this.world, this.grid, activeDeltaSeconds));
     stepAttackCooldowns(this.world, activeDeltaSeconds);
     if (stepFogVisibility(this.fog, this.world, this.grid, activeDeltaSeconds)) {
-      if (!this.debugNoFog) {
-        this.fogView.update(this.fog, PLAYER_ID);
-        this.mapView.updateFog(this.fog, PLAYER_ID);
-      }
+      this.presentation.updateFog(this.fog, PLAYER_ID);
     }
     for (const owner of this.aiPlayers) {
       const ai = this.ais.get(owner);
@@ -487,22 +408,20 @@ export class MatchScene {
       return;
     }
     issueRetaliationOrders(this.world, hits, this.canTarget);
-    this.combatEffects.update(activeDeltaSeconds);
-    this.syncResourceFields();
+    this.presentation.updateEffects(activeDeltaSeconds);
     stepSeparation(this.world, this.grid, activeDeltaSeconds);
     // The selected entity keeps moving and taking damage, so the markers and the readout follow it.
     this.selection.refresh();
-    this.entitiesView.sync(this.world, this.selection.selectedIds(), activeDeltaSeconds, this.isVisibleToObserver);
-    this.showSelection();
+    this.showSelection(activeDeltaSeconds);
     this.placement.update();
-    this.debugLabels.update(this.world, (id) => this.entitiesView.modelHeightOf(id), this.isVisibleToObserver);
+    this.debugLabels.update(this.world, (id) => this.presentation.modelHeightOf(id), this.isVisibleToObserver);
 
     this.hudElapsedSeconds += activeDeltaSeconds;
     if (this.hudElapsedSeconds >= RENDER_CONFIG.hudUpdateIntervalSeconds) {
       this.hud.update(
         this.world,
         this.grid,
-        this.cameraController.visibleBounds(),
+        this.presentation.cameraController.visibleBounds(),
         this.economy,
         this.fog,
         PLAYER_ID,
@@ -517,24 +436,14 @@ export class MatchScene {
     if (this.saveElapsedSeconds >= PERSISTENCE_CONFIG.saveIntervalSeconds) {
       this.saveNow();
     }
-    this.scene.render();
+    this.presentation.render();
   }
 
   public dispose(): void {
     window.removeEventListener('keydown', this.onKeyDown, true);
     window.removeEventListener('pagehide', this.onPageHide);
-    this.cameraController.dispose();
     this.selection.dispose();
-    this.selectionMarker.dispose();
-    this.orderMarker.dispose();
-    this.slotMarker.dispose();
     this.routeDebug.dispose();
-    this.combatEffects.dispose();
-    this.entitiesView.dispose();
-    this.fogView.dispose();
-    this.mapView.dispose();
-    this.models.dispose();
-    this.materials.dispose();
     this.debugLabels.dispose();
     this.aiDebug?.dispose();
     this.hud.destroy();
@@ -548,7 +457,7 @@ export class MatchScene {
     this.pauseMenu.destroy();
     this.quitConfirm.destroy();
     this.resultOverlay.destroy();
-    this.scene.dispose();
+    this.presentation.dispose();
   }
 
   /** Freezes simulation and all map input while the pause menu owns the screen. */
@@ -562,7 +471,7 @@ export class MatchScene {
       this.placement.cancel();
       this.saveNow();
     }
-    this.cameraController.setEnabled(!paused);
+    this.presentation.cameraController.setEnabled(!paused);
     this.selection.setEnabled(!paused);
     this.placement.setEnabled(!paused);
     this.pauseMenu.setVisible(paused);
@@ -611,56 +520,11 @@ export class MatchScene {
     this.saveElapsedSeconds = 0;
   }
 
-  /** One directional sun with soft shadows, plus a sky fill. Restrained on purpose. */
-  private createLighting(): ShadowGenerator {
-    const ambient = new HemisphericLight('ambient', new Vector3(0, 1, 0), this.scene);
-    ambient.intensity = AMBIENT_INTENSITY;
-    ambient.diffuse = color3(0xc5d8ed);
-    ambient.groundColor = color3(0x727c79);
-    ambient.specular = Color3.Black();
-
-    const sun = new DirectionalLight('sun', SUN_DIRECTION, this.scene);
-    sun.intensity = SUN_INTENSITY;
-    sun.diffuse = color3(0xffe3bc);
-    sun.specular = Color3.Black();
-    // Stood off the middle of the field, far enough back that the shadow camera looks at the whole
-    // map. Babylon fits the shadow frustum around the casters each frame, so the sun only has to be
-    // outside everything it lights.
-    sun.position = SUN_DIRECTION.scale(-SUN_DISTANCE_TILES).add(
-      new Vector3(this.space.widthUnits / 2, 0, this.space.depthUnits / 2),
-    );
-
-    // The shadow camera is pinned over the whole battlefield rather than fitted to the casters:
-    // ground that falls outside it is not shaded correctly, which shows up as the map being a
-    // different tone from the apron around it.
-    sun.autoUpdateExtends = false;
-    const span = Math.max(this.space.widthUnits, this.space.depthUnits) * SHADOW_SPAN_SHARE;
-    sun.orthoLeft = -span;
-    sun.orthoRight = span;
-    sun.orthoBottom = -span;
-    sun.orthoTop = span;
-    sun.shadowMinZ = 1;
-    sun.shadowMaxZ = SUN_DISTANCE_TILES * 2.5;
-
-    const shadows = new ShadowGenerator(RENDER_CONFIG.shadowMapSize, sun);
-    // Percentage-closer filtering rather than an exponential map: it softens the edge without
-    // bleeding light or darkening ground that happens to fall outside the shadow camera.
-    shadows.usePercentageCloserFiltering = true;
-    shadows.filteringQuality = ShadowGenerator.QUALITY_MEDIUM;
-    shadows.darkness = 0.4;
-    return shadows;
-  }
-
   /** Points the marker and the readout at whatever is selected right now. */
-  private showSelection(): void {
+  private showSelection(deltaSeconds = 0): void {
     const entities = this.selection.selectedIds()
       .flatMap((id) => { const entity = this.world.get(id); return entity === undefined ? [] : [entity]; });
-    this.selectionMarker.update(entities);
-    this.orderMarker.update(entities, (targetId) => {
-      const target = this.world.get(targetId);
-      return target !== undefined && this.isVisibleToHuman(target) ? target.position : null;
-    });
-    this.slotMarker.update(entities);
+    this.presentation.sync(this.battleViewState(this.selection.selectedIds()), deltaSeconds);
     this.routeDebug.update(entities);
     const field = entities.length === 0
       ? this.grid.resourceFields.find((candidate) => candidate.id === this.selectedFieldId)
@@ -675,10 +539,14 @@ export class MatchScene {
     this.entrenchMenu.update(entities);
   }
 
-  private syncResourceFields(): void {
-    for (const field of this.grid.resourceFields) {
-      this.mapView.setFieldFraction(field.id, this.resourceFieldState.remaining(field.id) / field.credits);
-    }
+  private battleViewState(selectedIds: readonly EntityId[]) {
+    return localBattleViewState(
+      this.world,
+      this.grid,
+      this.resourceFieldState,
+      selectedIds,
+      this.isVisibleToObserver,
+    );
   }
 
   /** Maps only confirmed core hits into renderer-safe cues, then removes a confirmed dead entity once. */
@@ -688,10 +556,10 @@ export class MatchScene {
       const target = this.world.get(event.targetId);
       const effect = mapAttackHitToCombatEffect(event, attacker, target);
       if (target === undefined) continue;
-      if (effect !== null) this.combatEffects.play(effect);
+      if (effect !== null) this.presentation.playEffect(effect);
       if (event.destroyed) {
         const death = effect === null ? null : deathEffectAt(effect.to, effect.targetToken);
-        if (death !== null) this.combatEffects.play(death);
+        if (death !== null) this.presentation.playEffect(death);
         this.world.remove(target.id);
       }
     }
@@ -715,21 +583,20 @@ export class MatchScene {
 
   /** Performs the final renderer sync, freezes every gameplay input, and persists exactly once. */
   private finishTerminalFrame(deltaSeconds: number): void {
-    this.combatEffects.update(deltaSeconds);
+    this.presentation.updateEffects(deltaSeconds);
     this.selection.refresh();
-    this.entitiesView.sync(this.world, this.selection.selectedIds(), deltaSeconds, this.isVisibleToObserver);
-    this.showSelection();
-    this.debugLabels.update(this.world, (id) => this.entitiesView.modelHeightOf(id), this.isVisibleToObserver);
+    this.showSelection(deltaSeconds);
+    this.debugLabels.update(this.world, (id) => this.presentation.modelHeightOf(id), this.isVisibleToObserver);
     this.enterTerminalState();
     this.saveNow();
-    this.scene.render();
+    this.presentation.render();
   }
 
   private enterTerminalState(): void {
     if (this.lifecycle.result === null) return;
     this.paused = false;
     this.placement.cancel();
-    this.cameraController.setEnabled(false);
+    this.presentation.cameraController.setEnabled(false);
     this.selection.setEnabled(false);
     this.placement.setEnabled(false);
     this.pauseMenu.setVisible(false);
