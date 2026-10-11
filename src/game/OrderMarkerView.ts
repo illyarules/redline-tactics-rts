@@ -5,7 +5,7 @@ import type { ReadonlyEntity } from '../core/entities';
 import type { Vec2 } from '../core/geometry';
 import type { EntityId } from '../core/ids';
 import type { MaterialLibrary } from './materials';
-import { orderMarkerFor, type OrderMarkerKind } from './orderMarker';
+import { attackMarkerDiameterTiles, orderMarkerFor, type OrderMarkerKind } from './orderMarker';
 import { MARKER_TONES } from './palette';
 import type { SceneSpace } from './sceneSpace';
 
@@ -46,8 +46,12 @@ export class OrderMarkerView {
   }
 
   /** Marks the shared selected-group destination while any selected unit carries it. */
-  public update(entities: readonly ReadonlyEntity[], positionOf: (id: EntityId) => Vec2 | null): void {
-    const marker = entities.map((entity) => orderMarkerFor(entity, positionOf)).find((value) => value !== null) ?? null;
+  public update(
+    selectedEntities: readonly ReadonlyEntity[],
+    allEntities: readonly ReadonlyEntity[],
+    positionOf: (id: EntityId) => Vec2 | null,
+  ): void {
+    const marker = selectedEntities.map((entity) => orderMarkerFor(entity, positionOf)).find((value) => value !== null) ?? null;
     if (marker === null) {
       this.ring.setEnabled(false);
       this.drawn = null;
@@ -63,6 +67,13 @@ export class OrderMarkerView {
       MARKER_HEIGHT,
       this.space.sceneZ(marker.position.y),
     );
+    let targetId: EntityId | null = null;
+    if (marker.kind === 'attack') {
+      const attacker = selectedEntities.find((entity) => entity.order?.kind === 'Attack');
+      if (attacker?.order?.kind === 'Attack') targetId = attacker.order.targetId;
+    }
+    const target = targetId === null ? undefined : allEntities.find((entity) => entity.id === targetId);
+    this.ring.scaling.setAll(target === undefined ? 1 : attackMarkerDiameterTiles(target) / MARKER_DIAMETER);
     this.ring.setEnabled(true);
   }
 

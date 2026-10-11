@@ -78,6 +78,8 @@ confirmation and ends the match. Refreshing the same tab resumes its seat while 
 Visible online movement is smoothed between the server's authoritative snapshots. The command panel
 shows pending, confirmed, and rejected order states; movement and attack markers remain local visual
 feedback until the server applies or rejects the command.
+Confirmed PvP attacks keep a marker on the visible target and use the shared muzzle, projectile,
+impact, target-flash, and destruction effects from the single-player battlefield.
 
 The browser uses `ws://localhost:8787/ws` by default. Set `VITE_MULTIPLAYER_URL` to the public WSS
 endpoint when building the client. Set `MULTIPLAYER_ORIGIN` to the exact HTTPS frontend origin on

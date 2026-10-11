@@ -10,6 +10,8 @@ import { restoreFogState, type CellVisibility, type FogState } from '../core/fog
 import type { BuildingTypeId, EntityId, UnitTypeId } from '../core/ids';
 import type { MapGrid } from '../core/map';
 import type { Seat } from '../core/pvp';
+import type { PvpOrderView } from '../core/pvp';
+import { attackMoveOrder, attackOrder, moveOrder, type Order } from '../core/orders';
 import type { BattleViewState } from '../game/battleViewState';
 
 export interface OnlineQueueView {
@@ -32,6 +34,7 @@ export interface OnlineEntityView {
   readonly entrenchment?: ReadonlyUnit['entrenchment'];
   readonly constructionProgress?: number;
   readonly queue?: readonly OnlineQueueView[];
+  readonly order?: PvpOrderView | null;
 }
 
 export interface OnlineFieldView {
@@ -103,7 +106,7 @@ export class OnlineBattleViewAdapter {
         type,
         position,
         health: entity.health,
-        order: null,
+        order: onlineOrder(entity.order),
         status: entity.status ?? 'idle',
         stats: resolveUnitStats(type, 'meridian'),
         facingRadians: entity.facingRadians ?? 0,
@@ -147,4 +150,13 @@ function visibilityCode(visibility: CellVisibility): number {
   if (visibility === 'visible') return 2;
   if (visibility === 'explored') return 1;
   return 0;
+}
+
+function onlineOrder(order: PvpOrderView | null | undefined): Order | null {
+  if (order === undefined || order === null) return null;
+  switch (order.kind) {
+    case 'Move': return moveOrder(order.target);
+    case 'AttackMove': return attackMoveOrder(order.target);
+    case 'Attack': return attackOrder(order.targetId as EntityId);
+  }
 }

@@ -9,7 +9,7 @@ import type { TileCoord, Vec2 } from '../core/geometry';
 import type { BuildingTypeId, EntityId, UnitTypeId } from '../core/ids';
 import { createMapGrid } from '../core/map';
 import { checkBuildingPlacement } from '../core/placement';
-import type { PvpCommand, Seat } from '../core/pvp';
+import type { PvpCombatEffect, PvpCommand, Seat } from '../core/pvp';
 import { inspectResourceField } from '../core/resourceFieldInspection';
 import { BattlePresentation } from '../game/BattlePresentation';
 import { PlacementController } from '../game/PlacementController';
@@ -22,6 +22,7 @@ import {
   type OnlineEntityView as EntityView,
 } from './onlineBattleView';
 import { OnlineCommandFeedback, withOnlineCommandMarkers } from './onlineCommandFeedback';
+import { OnlineCombatEffectFeed } from './onlineCombatEffects';
 import { OnlineSnapshotInterpolator } from './onlineSnapshotInterpolator';
 import './onlineMatch.css';
 
@@ -37,6 +38,7 @@ interface Snapshot extends OnlineBattleSnapshot {
   readonly tick: number;
   readonly credits: number;
   readonly result: { readonly winner: Seat | null; readonly reason: string } | null;
+  readonly effects?: readonly PvpCombatEffect[];
 }
 interface LobbySeat { readonly seat: Seat; readonly occupied: boolean; readonly connected: boolean; readonly ready: boolean }
 
@@ -47,6 +49,7 @@ export class OnlineMatch {
   private readonly battleView = new OnlineBattleViewAdapter(this.grid);
   private readonly snapshotInterpolator = new OnlineSnapshotInterpolator();
   private readonly commandFeedback = new OnlineCommandFeedback();
+  private readonly combatEffects = new OnlineCombatEffectFeed();
   private readonly selection: SelectionController;
   private readonly placement: PlacementController;
   private readonly modalLayer = element('div', 'online-modal-layer');
@@ -331,6 +334,9 @@ export class OnlineMatch {
     this.snapshot = snapshot;
     this.snapshotInterpolator.push(snapshot, performance.now());
     this.commandFeedback.applySnapshot(snapshot.tick);
+    for (const effect of this.combatEffects.consume(snapshot.matchId, snapshot.effects ?? [])) {
+      this.presentation.playEffect(effect);
+    }
     this.syncView();
     if (snapshot.result) this.showResult();
     else {

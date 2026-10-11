@@ -11,7 +11,7 @@ import { createResourceFieldState } from './resourceFieldState';
 import { createFogState, fogTargetPredicate, isEntityVisibleToPlayer, cellVisibility, stepFogVisibility, updateFogVisibility } from './fog';
 import { issueGroupMoveOrders } from './formation';
 import { issueAttackMoveOrders, stepAttackMoveOrders } from './attackMove';
-import { issueAttackOrders, stepAttackOrders } from './attack';
+import { issueAttackOrders, stepAttackOrders, type AttackHitEvent } from './attack';
 import { issueGatherOrder, stepGather } from './gather';
 import { startConstruction, resumeConstruction, stepConstruction } from './construction';
 import { queueProduction, cancelProduction, stepProduction } from './production';
@@ -21,11 +21,36 @@ import { stepAttackCooldowns } from './combat';
 import { createAutoTargetingState, issueRetaliationOrders, stepAutomaticTargeting } from './autoCombat';
 import { stepSeparation } from './separation';
 import { isAlive } from './entities';
+import type { ReadonlyEntity } from './entities';
+import type { AttackerTypeId } from '../config/types';
+import type { Order } from './orders';
 
 export const PVP_TICK_SECONDS = 0.05;
 export const PVP_DURATION_TICKS = 18_000;
 export type Seat = 'player' | 'ai';
 export type PvpResult = { winner: Seat | null; reason: 'elimination' | 'surrender' | 'disconnect' | 'timeout' | 'aborted' };
+export type PvpOrderView =
+  | { readonly kind: 'Move' | 'AttackMove'; readonly target: { readonly x: number; readonly y: number } }
+  | { readonly kind: 'Attack'; readonly targetId: string };
+export type PvpCombatEffect =
+  | {
+      readonly eventId: string;
+      readonly kind: 'combat-hit';
+      readonly weapon: AttackerTypeId;
+      readonly from: { readonly x: number; readonly y: number };
+      readonly to: { readonly x: number; readonly y: number };
+      readonly targetKind: 'unit' | 'building';
+      readonly targetToken: string;
+      readonly targetSizeTiles: number;
+      readonly targetDestroyed: boolean;
+    }
+  | {
+      readonly eventId: string;
+      readonly kind: 'combat-death';
+      readonly at: { readonly x: number; readonly y: number };
+      readonly targetToken: string;
+    };
+export type PvpCombatEffectsBySeat = Readonly<Record<Seat, readonly PvpCombatEffect[]>>;
 export type PvpCommand =
   | { type: 'Move' | 'AttackMove'; unitIds: EntityId[]; destination: { x: number; y: number } }
   | { type: 'Attack'; unitIds: EntityId[]; targetId: EntityId }
@@ -69,6 +94,7 @@ export class PvpMatch {
   private readonly publicIds = new Map<EntityId, string>();
   private readonly coreIds = new Map<string, EntityId>();
   private nextQueueId = 1;
+  private nextEffectId = 1;
   tick = 0;
   result: PvpResult | null = null;
 
@@ -147,8 +173,9 @@ export class PvpMatch {
     return { ok: false, actorIds: [] };
   }
 
-  step(): void {
-    if (this.result !== null) return;
+  step(): PvpCombatEffectsBySeat {
+    const noEffects: PvpCombatEffectsBySeat = { player: [], ai: [] };
+    if (this.result !== null) return noEffects;
     const dt = PVP_TICK_SECONDS;
     this.tick++;
     stepMovement(this.world, dt);
@@ -161,14 +188,16 @@ export class PvpMatch {
     const canTarget = (observer: Parameters<ReturnType<typeof fogTargetPredicate>>[0], target: Parameters<ReturnType<typeof fogTargetPredicate>>[1]) => observer.owner !== target.owner && isEntityVisibleToPlayer(this.fog, observer.owner, target);
     stepAutomaticTargeting(this.world, this.targeting, dt, undefined, canTarget);
     const hits = [...stepAttackOrders(this.world, this.grid, dt, canTarget), ...stepAttackMoveOrders(this.world, this.grid, dt, canTarget)];
+    const effects = this.combatEffects(hits);
     for (const hit of hits) if (hit.destroyed) this.world.remove(hit.targetId);
     const living = (seat: Seat) => this.world.buildings(seat).some(isAlive);
     const a = living('player'); const b = living('ai');
     if (!a || !b) this.result = { winner: a === b ? null : a ? 'player' : 'ai', reason: 'elimination' };
     else if (this.tick >= PVP_DURATION_TICKS) this.result = { winner: null, reason: 'timeout' };
-    if (this.result !== null) return;
+    if (this.result !== null) return effects;
     issueRetaliationOrders(this.world, hits, canTarget);
     stepSeparation(this.world, this.grid, dt);
+    return effects;
   }
 
   view(seat: Seat) {
@@ -179,6 +208,7 @@ export class PvpMatch {
         id: this.toPublicId(entity.id), owner: entity.owner, kind: entity.kind, type: entity.type,
         x: entity.position.x, y: entity.position.y, health: entity.health, maxHealth: entity.stats.maxHealth,
         ...(entity.kind === 'unit' ? { status: entity.status, facingRadians: entity.facingRadians, entrenchment: entity.entrenchment } : {}),
+        ...(entity.kind === 'unit' && entity.owner === seat ? { order: this.orderView(entity.order, seat) } : {}),
         ...(entity.kind === 'building' ? { status: entity.status, constructionProgress: entity.constructionProgress } : {}),
         ...(entity.kind === 'building' && entity.owner === seat ? { queue: entity.productionQueue.map((entry) => ({ id: entry.id, type: entry.unitType, progress: entry.elapsedSeconds })) } : {}),
       })),
@@ -191,6 +221,61 @@ export class PvpMatch {
     let id = this.publicIds.get(coreId);
     if (!id) { id = globalThis.crypto.randomUUID(); this.publicIds.set(coreId, id); this.coreIds.set(id, coreId); }
     return id;
+  }
+
+  private orderView(order: Order | null, seat: Seat): PvpOrderView | null {
+    if (order === null) return null;
+    if (order.kind === 'Move' || order.kind === 'AttackMove') {
+      return { kind: order.kind, target: { x: order.target.x, y: order.target.y } };
+    }
+    if (order.kind === 'Attack') {
+      const target = this.world.get(order.targetId);
+      return target !== undefined && isEntityVisibleToPlayer(this.fog, seat, target)
+        ? { kind: 'Attack', targetId: this.toPublicId(target.id) }
+        : null;
+    }
+    return null;
+  }
+
+  private combatEffects(hits: readonly AttackHitEvent[]): PvpCombatEffectsBySeat {
+    const result: Record<Seat, PvpCombatEffect[]> = { player: [], ai: [] };
+    for (const hit of hits) {
+      const attacker = this.world.unit(hit.attackerId);
+      const target = this.world.get(hit.targetId);
+      if (attacker === undefined || attacker.type === 'worker' || target === undefined) continue;
+      const effectId = `fx${this.nextEffectId++}`;
+      for (const seat of ['player', 'ai'] as const) {
+        if (!isEntityVisibleToPlayer(this.fog, seat, attacker) || !this.visibleEffectTarget(seat, target)) continue;
+        const targetToken = this.toPublicId(target.id);
+        result[seat].push({
+          eventId: effectId,
+          kind: 'combat-hit',
+          weapon: attacker.type,
+          from: { x: attacker.position.x, y: attacker.position.y },
+          to: { x: target.position.x, y: target.position.y },
+          targetKind: target.kind,
+          targetToken,
+          targetSizeTiles: targetSizeTiles(target),
+          targetDestroyed: hit.destroyed,
+        });
+        if (hit.destroyed) {
+          result[seat].push({
+            eventId: `${effectId}:death`,
+            kind: 'combat-death',
+            at: { x: target.position.x, y: target.position.y },
+            targetToken,
+          });
+        }
+      }
+    }
+    return result;
+  }
+
+  private visibleEffectTarget(seat: Seat, target: ReadonlyEntity): boolean {
+    if (target.owner === seat) return true;
+    const tx = Math.floor(target.position.x / this.grid.tileSizePixels);
+    const ty = Math.floor(target.position.y / this.grid.tileSizePixels);
+    return cellVisibility(this.fog, seat, tx, ty) === 'visible';
   }
 
   // eslint-disable-next-line complexity -- Every command variant maps only its entity-id fields.
@@ -208,3 +293,8 @@ export class PvpMatch {
 }
 
 function other(seat: Seat): Seat { return seat === 'player' ? 'ai' : 'player'; }
+function targetSizeTiles(target: ReadonlyEntity): number {
+  return target.kind === 'building'
+    ? Math.max(target.footprint.width, target.footprint.height)
+    : target.stats.bodySizeTiles;
+}

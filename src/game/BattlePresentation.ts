@@ -99,7 +99,7 @@ export class BattlePresentation {
     this.entitiesView.sync(state.entities, state.selectedIds, deltaSeconds, state.isVisible);
     const selected = selectedEntities(state.entities, state.selectedIds);
     this.selectionMarker.update(selected);
-    this.orderMarker.update(selected, state.positionOfVisibleTarget);
+    this.orderMarker.update(selected, state.entities, state.positionOfVisibleTarget);
     this.slotMarker.update(selected);
     for (const field of this.grid.resourceFields) {
       this.mapView.setFieldFraction(field.id, state.fieldFractions.get(field.id) ?? 0);

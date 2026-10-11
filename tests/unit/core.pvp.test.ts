@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PvpMatch, isPvpCommand } from '../../src/core/pvp';
+import { updateFogVisibility } from '../../src/core/fog';
 
 describe('authoritative PvP match', () => {
   it('starts with two mirror openings and filters the enemy base', () => {
@@ -71,5 +72,34 @@ describe('authoritative PvP match', () => {
     for (const building of draw.world.buildings()) draw.world.damage(building.id, building.health);
     draw.step();
     expect(draw.result).toEqual({ winner: null, reason: 'elimination' });
+  });
+
+  it('publishes own order targets and filtered combat effects for both observers', () => {
+    const match = new PvpMatch();
+    const position = match.grid.tileCenter(20, 15);
+    match.world.createUnit({ type: 'infantry', owner: 'player', faction: 'meridian', position });
+    match.world.createUnit({
+      type: 'tank', owner: 'ai', faction: 'meridian',
+      position: { x: position.x + match.grid.tileSizePixels, y: position.y }, health: 1,
+    });
+    updateFogVisibility(match.fog, match.world, match.grid);
+    const west = match.view('player');
+    const attacker = west.entities.find((entity) => entity.owner === 'player' && entity.type === 'infantry')!;
+    const target = west.entities.find((entity) => entity.owner === 'ai' && entity.type === 'tank')!;
+
+    expect(match.apply('player', { type: 'Attack', unitIds: [attacker.id], targetId: target.id }).ok).toBe(true);
+    expect(match.view('player').entities.find((entity) => entity.id === attacker.id)?.order)
+      .toEqual({ kind: 'Attack', targetId: target.id });
+    expect(match.view('ai').entities.find((entity) => entity.owner === 'player')?.order).toBeUndefined();
+
+    const effects = match.step();
+    expect(effects.player[0]).toMatchObject({
+      kind: 'combat-hit', weapon: 'infantry', targetToken: target.id,
+    });
+    expect(effects.ai[0]).toMatchObject({
+      kind: 'combat-hit', weapon: 'infantry', targetToken: target.id,
+    });
+    expect(effects.ai[1]).toMatchObject({ kind: 'combat-death', targetToken: target.id });
+    expect(effects.player).toHaveLength(2);
   });
 });

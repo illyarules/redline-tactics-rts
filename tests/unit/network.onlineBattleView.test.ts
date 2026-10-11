@@ -21,6 +21,7 @@ function snapshot(fields: OnlineBattleSnapshot['fields']): OnlineBattleSnapshot 
         id: 'worker-public-id', owner: 'player', kind: 'unit', type: 'worker',
         x: 405, y: 975, health: 150, maxHealth: 150,
         status: 'moving', facingRadians: 1.25, entrenchment: 'mobile',
+        order: { kind: 'Attack', targetId: 'target-public-id' },
       },
       {
         id: 'hq-public-id', owner: 'player', kind: 'building', type: 'hq',
@@ -41,6 +42,7 @@ describe('OnlineBattleViewAdapter', () => {
 
     expect(worker).toMatchObject({
       kind: 'unit', faction: 'meridian', status: 'moving', facingRadians: 1.25,
+      order: { kind: 'Attack', targetId: 'target-public-id' },
     });
     expect(hq).toMatchObject({
       kind: 'building', faction: 'meridian', topLeft: { tx: 4, ty: 30 },

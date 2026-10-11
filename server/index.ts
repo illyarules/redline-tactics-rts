@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { WebSocketServer, WebSocket } from 'ws';
-import { isPvpCommand, PvpMatch, PVP_TICK_SECONDS, type PvpCommand, type Seat } from '../src/core/pvp';
+import { isPvpCommand, PvpMatch, PVP_TICK_SECONDS, type PvpCombatEffect, type PvpCommand, type Seat } from '../src/core/pvp';
 
 const port = Number(process.env.PORT ?? 8787);
 const allowedOrigin = process.env.MULTIPLAYER_ORIGIN ?? 'http://localhost:5173';
@@ -40,6 +40,7 @@ interface Room {
   tickAccumulator: number;
   lastTickAt: number;
   snapshots: number;
+  effects: Record<Seat, PvpCombatEffect[]>;
   pending: Partial<Record<Seat, Array<{ seq: number; command: PvpCommand; socket: WebSocket; epoch: number }>>>;
 }
 const token = () => randomBytes(24).toString('base64url');
@@ -61,7 +62,15 @@ const lobby = (room: Room): void => both(room, (seat, state) => send(state.socke
 }));
 const view = (room: Room): void => {
   if (!room.match) return;
-  both(room, (seat, state) => send(state.socket, { type: 'snapshot', protocolVersion, matchId: room.matchId, snapshotSeq: ++room.snapshots, ...room.match!.view(seat) }));
+  both(room, (seat, state) => send(state.socket, {
+    type: 'snapshot',
+    protocolVersion,
+    matchId: room.matchId,
+    snapshotSeq: ++room.snapshots,
+    ...room.match!.view(seat),
+    effects: room.effects[seat],
+  }));
+  room.effects = { player: [], ai: [] };
 };
 const finish = (room: Room): void => {
   room.phase = 'finished'; room.changedAt = Date.now(); view(room); lobby(room);
@@ -93,7 +102,7 @@ sockets.on('connection', (socket) => {
     if (!attached) {
       if (message.type === 'create') {
         if (rooms.size >= MAX_ROOMS) { reject(socket, 'capacity'); return; }
-        const now = Date.now(); const room: Room = { id: roomId(), invite: token(), phase: 'waiting', seats: {}, match: null, matchId: null, createdAt: now, changedAt: now, loadingAt: null, tickAccumulator: 0, lastTickAt: performance.now(), snapshots: 0, pending: {} };
+        const now = Date.now(); const room: Room = { id: roomId(), invite: token(), phase: 'waiting', seats: {}, match: null, matchId: null, createdAt: now, changedAt: now, loadingAt: null, tickAccumulator: 0, lastTickAt: performance.now(), snapshots: 0, effects: { player: [], ai: [] }, pending: {} };
         room.seats.player = { token: token(), socket: null, epoch: 0, ready: false, loaded: false, lastSeq: 0, disconnectedAt: null, lastMessageAt: now, messages: 0, windowStart: now };
         rooms.set(room.id, room); attach(room, 'player', socket); return;
       }
@@ -151,7 +160,7 @@ sockets.on('connection', (socket) => {
       return;
     }
     if (message.type === 'rematch' && room.phase === 'finished') {
-      room.phase = 'waiting'; room.match = null; room.matchId = null; room.pending = {}; room.changedAt = now;
+      room.phase = 'waiting'; room.match = null; room.matchId = null; room.pending = {}; room.effects = { player: [], ai: [] }; room.changedAt = now;
       both(room, (_id, participant) => { participant.ready = false; participant.loaded = false; participant.lastSeq = 0; });
       lobby(room); return;
     }
@@ -206,7 +215,9 @@ setInterval(() => {
         }
         room.pending[seat] = [];
       }
-      room.match.step();
+      const effects = room.match.step();
+      room.effects.player.push(...effects.player);
+      room.effects.ai.push(...effects.ai);
       if (room.match.result) finish(room);
       else if (room.match.tick % 2 === 0) view(room);
     }

@@ -256,9 +256,10 @@ enemy through hidden terrain or retain live hidden state.
 The client interpolates only between consecutive, already filtered snapshots and removes an entity
 as soon as it is absent from the newest view. Command markers are presentation-only and disappear on
 rejection or once the acknowledged server tick arrives. Reconnects and sequence gaps clear pending
-feedback and interpolation before the next full snapshot. The current protocol does not contain
-filtered combat-event identifiers, so online combat effects are intentionally deferred rather than
-inferred from entity disappearance, which could reveal fog-of-war information or replay effects.
+feedback and interpolation before the next full snapshot. Online combat effects are transmitted as
+explicit per-seat events rather than inferred from entity disappearance. Unique event IDs prevent
+replay, and the server includes an attack target in an owned unit's order only while that target
+remains visible.
 
 ## Task 6 — Complete and audit the playable PvP loop
 
