@@ -38,6 +38,12 @@
 .battle-hud__economy-status { margin-left: auto; letter-spacing: .08em !important; }
 .battle-hud__economy-status[data-warning="true"] { color: #f2a177; }
 .battle-hud__action-title { margin-bottom: 10px; color: #8198a4; font-size: 9px; font-weight: 800; letter-spacing: .17em; text-transform: uppercase; }
+.battle-hud__command-feedback { margin: -3px 0 9px; color: var(--hud-gold); font-size: 10px; letter-spacing: .04em; }
+.battle-hud__command-feedback[data-state="pending"]::before { content: '◌'; margin-right: 6px; }
+.battle-hud__command-feedback[data-state="confirmed"] { color: #74d9a0; }
+.battle-hud__command-feedback[data-state="confirmed"]::before { content: '✓'; margin-right: 6px; }
+.battle-hud__command-feedback[data-state="rejected"] { color: #f39472; }
+.battle-hud__command-feedback[data-state="rejected"]::before { content: '!'; margin-right: 6px; font-weight: 900; }
 .battle-hud__action-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(130px,1fr)); gap: 7px; }
 .battle-hud__button { min-height: 48px; padding: 8px 10px; border: 1px solid #486c7e; border-radius: 4px; background: rgba(20,48,61,.72); color: #d8edf7; cursor: pointer; font-size: 10px; font-weight: 700; letter-spacing: .055em; text-align: left; text-transform: uppercase; }
 .battle-hud__button:hover:not(:disabled) { filter: brightness(1.14); border-color: #b9efff; }

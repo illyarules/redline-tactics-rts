@@ -21,6 +21,8 @@ import {
   type OnlineBattleSnapshot,
   type OnlineEntityView as EntityView,
 } from './onlineBattleView';
+import { OnlineCommandFeedback, withOnlineCommandMarkers } from './onlineCommandFeedback';
+import { OnlineSnapshotInterpolator } from './onlineSnapshotInterpolator';
 import './onlineMatch.css';
 
 const STORAGE = 'redline-online-seat';
@@ -43,6 +45,8 @@ export class OnlineMatch {
   private readonly grid = createMapGrid(MAP_CONFIG);
   private readonly presentation: BattlePresentation;
   private readonly battleView = new OnlineBattleViewAdapter(this.grid);
+  private readonly snapshotInterpolator = new OnlineSnapshotInterpolator();
+  private readonly commandFeedback = new OnlineCommandFeedback();
   private readonly selection: SelectionController;
   private readonly placement: PlacementController;
   private readonly modalLayer = element('div', 'online-modal-layer');
@@ -140,7 +144,8 @@ export class OnlineMatch {
 
   public render(deltaSeconds: number): void {
     if (!this.gameUi.hidden) this.presentation.cameraController.update(deltaSeconds);
-    if (this.battleState) this.presentation.sync(this.battleState, deltaSeconds);
+    this.syncRenderedView(deltaSeconds);
+    this.presentation.updateEffects(deltaSeconds);
     this.placement.update();
     this.presentation.render();
   }
@@ -201,6 +206,7 @@ export class OnlineMatch {
   }
 
   private showEntry(): void {
+    this.resetTransientPresentation();
     this.snapshot = null;
     this.battleState = null;
     this.battleFog = null;
@@ -249,6 +255,7 @@ export class OnlineMatch {
 
   private open(type: 'create' | 'join' | 'resume', data: object): void {
     this.socket?.close();
+    this.resetTransientPresentation();
     this.root.dataset.connection = 'offline';
     this.setModalStatus(type === 'resume' ? 'Restoring your command seat…' : 'Contacting multiplayer server…');
     const socket = new WebSocket(SERVER_URL);
@@ -270,6 +277,7 @@ export class OnlineMatch {
   private handleDisconnect(socket: WebSocket): void {
     if (this.disposed || this.socket !== socket) return;
     this.root.dataset.connection = 'offline';
+    this.resetTransientPresentation();
     this.updateHud();
     if (this.roomId && this.credential) {
       this.notify('Connection lost. Rejoining your seat…', 'error', 5000);
@@ -291,19 +299,18 @@ export class OnlineMatch {
       this.send({ type: 'loaded', protocolVersion: VERSION });
     } else if (message.type === 'snapshot') this.receiveSnapshot(message as unknown as Snapshot);
     else if (message.type === 'rejected') this.receiveRejection(message);
-    else if (message.type === 'ack') {
-      if (message.ok === false) this.notify('That order is not available right now.', 'error');
-      else this.notify('Order confirmed.', 'success', 900);
-    }
+    else if (message.type === 'ack') this.receiveAcknowledgement(message);
   }
 
   private receiveSession(message: Record<string, unknown>): void {
+    const previousMatchId = this.matchId;
     this.roomId = message.roomId as string;
     this.invite = message.invite as string;
     this.credential = message.credential as string;
     this.seat = message.seat as Seat;
     this.epoch = message.connectionEpoch as number;
     this.matchId = message.matchId as string | null;
+    if (previousMatchId !== this.matchId) this.resetTransientPresentation();
     this.seq = message.lastSeq as number;
     const start = this.grid.startFor(this.seat);
     if (start) this.presentation.cameraController.focus(this.grid.tileCenter(start.rallyPoint.tx, start.rallyPoint.ty));
@@ -322,6 +329,8 @@ export class OnlineMatch {
   private receiveSnapshot(snapshot: Snapshot): void {
     if (this.snapshot && snapshot.matchId === this.snapshot.matchId && snapshot.snapshotSeq <= this.snapshot.snapshotSeq) return;
     this.snapshot = snapshot;
+    this.snapshotInterpolator.push(snapshot, performance.now());
+    this.commandFeedback.applySnapshot(snapshot.tick);
     this.syncView();
     if (snapshot.result) this.showResult();
     else {
@@ -340,6 +349,11 @@ export class OnlineMatch {
       this.setModalStatus('That room has expired. Create or join a new room.', 'error');
       return;
     }
+    const rejectedSeq = typeof message.seq === 'number' ? message.seq : null;
+    if (rejectedSeq !== null && this.commandFeedback.reject(rejectedSeq, reason)) {
+      this.syncRenderedView(0);
+      this.updateHud();
+    }
     const explanation: Readonly<Record<string, string>> = {
       capacity: 'The multiplayer service is at capacity. Try again shortly.',
       'room-unavailable': 'That room is unavailable or already has two players.',
@@ -349,6 +363,20 @@ export class OnlineMatch {
     const text = explanation[reason] ?? 'The server rejected that action.';
     this.setModalStatus(text, 'error');
     this.notify(text, 'error');
+    if (reason === 'sequence-gap') this.socket?.close(4002, 'sequence resync');
+  }
+
+  private receiveAcknowledgement(message: Record<string, unknown>): void {
+    if (typeof message.seq !== 'number') return;
+    const appliedTick = typeof message.appliedTick === 'number' ? message.appliedTick : null;
+    const updated = message.ok === true
+      ? this.commandFeedback.acknowledge(message.seq, true, appliedTick)
+      : this.commandFeedback.reject(message.seq, String(message.reason ?? 'invalid-action'));
+    if (!updated) return;
+    this.syncRenderedView(0);
+    this.updateHud();
+    if (message.ok === false) this.notify('That order is not available right now.', 'error');
+    else this.notify('Order confirmed.', 'success', 900);
   }
 
   // eslint-disable-next-line complexity -- Lobby rendering combines independent room and seat states.
@@ -474,6 +502,7 @@ export class OnlineMatch {
   // eslint-disable-next-line complexity -- The view model exposes each contextual command without owning its rule.
   private hudModel(): BattleHudViewModel {
     const entities = this.selectedEntities();
+    const commandFeedback = this.commandFeedback.feedback();
     const base = {
       commandTitle: `${this.sideName(this.seat)} command`,
       status: this.root.dataset.connection === 'offline'
@@ -488,6 +517,7 @@ export class OnlineMatch {
       economyWarning: !this.hasFriendlyCompleted('powerPlant'),
       minimap: this.minimapView(),
       queue: [] as const,
+      ...(commandFeedback === null ? {} : { commandFeedback }),
     };
     if (entities.length === 0) {
       return { ...base, actionTitle: 'Tactical commands', actions: [], emptyMessage: 'Select a Worker to construct a base, a production building to train units, or combat units to attack.' };
@@ -576,8 +606,20 @@ export class OnlineMatch {
     if (!this.snapshot) return;
     const projection = this.battleView.project(this.snapshot, this.selection.selectedIds());
     this.battleState = projection.state;
-    this.presentation.sync(projection.state);
+    this.syncRenderedView(0);
     this.updateHud();
+  }
+
+  private syncRenderedView(deltaSeconds: number): void {
+    const snapshot = this.snapshotInterpolator.sample(performance.now());
+    if (snapshot === null) return;
+    const projection = this.battleView.project(snapshot, this.selection.selectedIds());
+    this.presentation.sync(withOnlineCommandMarkers(projection.state, this.commandFeedback.markerOrders()), deltaSeconds);
+  }
+
+  private resetTransientPresentation(): void {
+    this.snapshotInterpolator.reset();
+    this.commandFeedback.clear();
   }
 
   private minimapView(): BattleHudViewModel['minimap'] {
@@ -697,7 +739,11 @@ export class OnlineMatch {
       this.notify('Waiting for the server connection…', 'error');
       return;
     }
-    this.send({ type: 'command', protocolVersion: VERSION, matchId: this.matchId, connectionEpoch: this.epoch, seq: ++this.seq, command });
+    const seq = ++this.seq;
+    this.commandFeedback.submit(seq, command);
+    this.syncRenderedView(0);
+    this.updateHud();
+    this.send({ type: 'command', protocolVersion: VERSION, matchId: this.matchId, connectionEpoch: this.epoch, seq, command });
   }
 
   private send(value: object): void {

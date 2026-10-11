@@ -75,6 +75,9 @@ building, then click a visible footprint to construct; select a production build
 to queue it. Right-click a visible resource field with a Worker to gather. WASD or arrow keys move the
 camera; the minimap recenters it. Escape clears an active order or selection. Surrender requires
 confirmation and ends the match. Refreshing the same tab resumes its seat while the server is running.
+Visible online movement is smoothed between the server's authoritative snapshots. The command panel
+shows pending, confirmed, and rejected order states; movement and attack markers remain local visual
+feedback until the server applies or rejects the command.
 
 The browser uses `ws://localhost:8787/ws` by default. Set `VITE_MULTIPLAYER_URL` to the public WSS
 endpoint when building the client. Set `MULTIPLAYER_ORIGIN` to the exact HTTPS frontend origin on

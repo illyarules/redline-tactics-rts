@@ -60,8 +60,9 @@ validation before starting the next task.
 | Task 1 — shared battle presentation | Complete, awaiting merge | `codex/shared-battle-presentation` / `9378b46` | Shared Babylon scene, terrain, entities, fog, camera, effects, and battle view state |
 | Task 2 — online shared battlefield | Complete, awaiting merge | `codex/online-shared-battlefield` / `2fc5985` | `OnlineMatch` renders server snapshots through the shared battlefield instead of prototype primitives |
 | Task 3 — shared battle interaction | Complete and validated | `codex/online-shared-battlefield` / `cc613ce` | Shared selection, contextual orders, attack-move, and building placement preview |
-| Task 4 — shared PvP-style tactical HUD | Complete, awaiting validation | `codex/online-shared-battlefield` | One presentation-only HUD for both modes, with mode-specific status and lifecycle controls |
-| Tasks 5–7 | Not started | — | Must be implemented and validated one at a time |
+| Task 4 — shared PvP-style tactical HUD | Complete and validated | `codex/online-shared-battlefield` / `b8582b0` | One presentation-only HUD for both modes, with mode-specific status and lifecycle controls |
+| Task 5 — online command feedback and interpolation | Complete, awaiting validation | `codex/online-shared-battlefield` | Buffered visible movement, local command status, shared order markers, and safe resync reset |
+| Tasks 6–7 | Not started | — | Must be implemented and validated one at a time |
 
 ## Epic acceptance criteria
 
@@ -218,7 +219,7 @@ result actions.
 
 ## Task 5 — Add online command feedback and smooth snapshot presentation
 
-**Status:** Not started.
+**Status:** Complete, awaiting product validation.
 
 ### Description
 
@@ -249,6 +250,15 @@ enemy through hidden terrain or retain live hidden state.
 - Hide and reveal a moving enemy; verify no hidden route is displayed.
 - Drop a snapshot, reconnect, and verify the client resumes from the newest full view.
 - Verify combat effects do not repeat when the same snapshot is received twice.
+
+### Implementation note
+
+The client interpolates only between consecutive, already filtered snapshots and removes an entity
+as soon as it is absent from the newest view. Command markers are presentation-only and disappear on
+rejection or once the acknowledged server tick arrives. Reconnects and sequence gaps clear pending
+feedback and interpolation before the next full snapshot. The current protocol does not contain
+filtered combat-event identifiers, so online combat effects are intentionally deferred rather than
+inferred from entity disappearance, which could reveal fog-of-war information or replay effects.
 
 ## Task 6 — Complete and audit the playable PvP loop
 

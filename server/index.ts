@@ -195,7 +195,14 @@ setInterval(() => {
       for (const seat of [first, first === 'player' ? 'ai' : 'player'] as Seat[]) {
         for (const queued of room.pending[seat] ?? []) {
           const outcome = room.match.apply(seat, queued.command);
-          send(queued.socket, { type: 'ack', seq: queued.seq, appliedTick: room.match.tick + 1, actorIds: outcome.actorIds, ok: outcome.ok });
+          send(queued.socket, {
+            type: 'ack',
+            seq: queued.seq,
+            appliedTick: room.match.tick + 1,
+            actorIds: outcome.actorIds,
+            ok: outcome.ok,
+            ...(outcome.ok ? {} : { reason: 'invalid-action' }),
+          });
         }
         room.pending[seat] = [];
       }

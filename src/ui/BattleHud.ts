@@ -47,6 +47,10 @@ export interface BattleHudViewModel {
   readonly credits: number;
   readonly economyStatus?: string;
   readonly economyWarning?: boolean;
+  readonly commandFeedback?: {
+    readonly state: 'pending' | 'confirmed' | 'rejected';
+    readonly message: string;
+  };
   readonly actionTitle: string;
   readonly actionTestId?: string;
   readonly emptyMessage?: string;
@@ -75,6 +79,7 @@ export class BattleHud {
   private readonly economyStatus = element('span', 'battle-hud__economy-status');
   private readonly actionPanel = element('section', 'battle-hud__panel battle-hud__actions');
   private readonly actionTitle = element('div', 'battle-hud__action-title');
+  private readonly commandFeedback = element('div', 'battle-hud__command-feedback');
   private readonly actionGrid = element('div', 'battle-hud__action-grid');
   private readonly queue = element('div', 'battle-hud__queue');
   private readonly minimap = document.createElement('canvas');
@@ -103,7 +108,9 @@ export class BattleHud {
     const resource = element('div', 'battle-hud__resource');
     resource.append(this.credits, textElement('span', 'Credits'), this.economyStatus);
     selection.append(this.selectionName, this.selectionDetail, health, resource);
-    this.actionPanel.append(this.actionTitle, this.actionGrid, this.queue);
+    this.commandFeedback.hidden = true;
+    this.commandFeedback.dataset.testid = 'command-feedback';
+    this.actionPanel.append(this.actionTitle, this.commandFeedback, this.actionGrid, this.queue);
     const minimapPanel = element('section', 'battle-hud__panel battle-hud__minimap-panel');
     this.minimap.width = 160;
     this.minimap.height = 160;
@@ -134,6 +141,11 @@ export class BattleHud {
     this.economyStatus.textContent = model.economyStatus ?? '';
     this.economyStatus.dataset.warning = String(model.economyWarning === true);
     this.actionTitle.textContent = model.actionTitle;
+    this.commandFeedback.hidden = model.commandFeedback === undefined;
+    if (model.commandFeedback !== undefined) {
+      this.commandFeedback.dataset.state = model.commandFeedback.state;
+      this.commandFeedback.textContent = model.commandFeedback.message;
+    }
     delete this.actionPanel.dataset.testid;
     if (model.actionTestId !== undefined) this.actionPanel.dataset.testid = model.actionTestId;
     if (model.emptyMessage !== undefined) {
