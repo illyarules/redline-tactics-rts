@@ -221,7 +221,7 @@ Room flow: `waiting -> ready -> loading -> running -> finished -> waiting`, plus
 The ready-to-loading transition atomically locks the two seats and the content revision. Both
 clients acknowledge loaded assets before the start countdown; no simulation runs before start.
 
-- Enter Multiplayer through an explicit title entry even if a local single-player save exists.
+- Enter Multiplayer through mode selection after Start Game, even if a local single-player save exists.
   Offer Create / Join, then show invite, both seats, fixed map/factions, readiness and connection status.
 - Invite capability grants access to a vacant seat only. Issue a separate unguessable seat/resume
   credential; possession of the room invite must never let a third party steal an occupied seat.

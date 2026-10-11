@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { clearSnapshot, readSnapshot } from './helpers/storage';
 import { selectMapAndStart } from './helpers/match';
 
-test('starts offline through mode and map selection while multiplayer is available', async ({ page }) => {
+test('Start Game opens mode selection before an offline match', async ({ page }) => {
   await clearSnapshot(page);
   await page.goto('/');
 
@@ -10,6 +10,7 @@ test('starts offline through mode and map selection while multiplayer is availab
   const startGameButton = page.getByTestId('title-start-game');
   await expect(titleScreen).toBeVisible();
   await expect(startGameButton).toBeVisible();
+  await expect(page.getByTestId('title-multiplayer')).toHaveCount(0);
   await expect(page.getByTestId('title-quick-audio-toggle')).toHaveCount(0);
   await startGameButton.click();
   await expect(page.getByTestId('game-mode-selection')).toBeVisible();

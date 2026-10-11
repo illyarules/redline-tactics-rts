@@ -38,10 +38,10 @@ Gameplay, world, camera and per-task build notes live in [`docs/`](./docs/README
 
 ## Match flow
 
-The title screen offers Start Game and Multiplayer. With a valid save, Start Game resumes that match,
-including a completed battle report. Without a save it opens mode selection: Single Game leads to
-battlefield selection. Choose Open Field (64 × 64, 1v1) or Trident Basin (80 × 80, 1v2 against two
-allied AI commanders), then Start Match. The player is always Meridian and the AI is Ember.
+The title screen offers Start Game, which opens the Single Game / Multiplayer mode selection.
+Single Game resumes a valid save, including a completed battle report, or leads to battlefield
+selection when there is no save. Choose Open Field (64 × 64, 1v1) or Trident Basin (80 × 80, 1v2
+against two allied AI commanders), then Start Match. The player is always Meridian and the AI is Ember.
 The lower title-screen footer shows the application version, current build identifier, developer,
 source repository, bug-report and feedback links.
 
@@ -61,8 +61,8 @@ Attack-Move; E entrenches selected FPV Drone Operators; A pans the camera. Click
 [`docs/gameplay.md`](./docs/gameplay.md).
 
 Single-player gameplay and saves require no backend. For private multiplayer, start the Node server
-with `npm run build:server && npm run start:server` alongside `npm run dev`. Select Multiplayer on
-the title screen, create a room, share the invite link, and have both players select Ready. The
+with `npm run build:server && npm run start:server` alongside `npm run dev`. Select Start Game, then
+Multiplayer, create a room, share the invite link, and have both players select Ready. The
 server starts a Meridian mirror match after both clients load. Online and single-player use the same
 tactical HUD structure: match status and clock at the top, selection and Credits at bottom left,
 contextual construction, production, queue and unit actions in the center, and the minimap at bottom

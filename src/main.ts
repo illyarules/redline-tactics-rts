@@ -92,12 +92,11 @@ const showTitle = (): void => {
     container,
     GAME_TITLE,
     'Establish your base, secure gas fields, and outmaneuver the Ember Collective in fast, readable RTS battles.',
-    () => (loadSnapshot() === null ? showGameModeSelection() : resumeMatch()),
+    showGameModeSelection,
     {
       gameStartSupported: deviceSupport.supported,
       version: BUILD_METADATA.version,
       buildId: BUILD_METADATA.buildId,
-      onMultiplayer: () => showMultiplayer(),
     },
   );
 };
@@ -125,7 +124,12 @@ const showGameModeSelection = (): void => {
   mapSelection?.destroy();
   mapSelection = null;
   gameModeScreen?.destroy();
-  gameModeScreen = new GameModeScreen(container, audio, showMapSelection, () => showMultiplayer());
+  gameModeScreen = new GameModeScreen(
+    container,
+    audio,
+    () => (loadSnapshot() === null ? showMapSelection() : resumeMatch()),
+    () => showMultiplayer(),
+  );
 };
 
 const startMatch = (map: MapConfig, snapshot: WorldSnapshot | null): void => {

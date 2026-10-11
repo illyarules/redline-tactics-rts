@@ -1,6 +1,5 @@
 /**
- * The first screen a player sees. It deliberately exposes one action only: an existing save is
- * resumed by Start Game, while a fresh session continues to mode selection.
+ * The first screen a player sees. Its single game action continues to mode selection.
  */
 const OPEN_FIELD_RENDER = new URL('../../assets/concepts/open-field-map-render-v2.png', import.meta.url).href;
 const UNSUPPORTED_DEVICE_MESSAGE =
@@ -16,7 +15,6 @@ interface TitleScreenOptions {
   readonly gameStartSupported?: boolean;
   readonly version?: string;
   readonly buildId?: string;
-  readonly onMultiplayer?: () => void;
 }
 
 export class TitleScreen {
@@ -57,13 +55,6 @@ export class TitleScreen {
       <p style="margin:0 0 28px;color:#b8cad5;font:15px/1.5 system-ui,sans-serif">${description}</p>`;
     if (!gameStartSupported) panel.append(this.unsupportedDeviceWarning());
     panel.append(this.startButton(onStart, gameStartSupported));
-    if (options.onMultiplayer) {
-      const multiplayer = this.startButton(options.onMultiplayer, gameStartSupported);
-      multiplayer.textContent = 'Multiplayer';
-      multiplayer.dataset.testid = 'title-multiplayer';
-      multiplayer.style.marginTop = '12px';
-      panel.append(multiplayer);
-    }
     main.append(panel);
     this.root.append(main, this.metadataFooter(version, buildId));
     container.append(this.root);

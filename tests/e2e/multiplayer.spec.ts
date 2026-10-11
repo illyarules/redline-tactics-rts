@@ -56,7 +56,8 @@ test('two private seats can start, refresh and finish an online match', async ({
   const east = await eastContext.newPage();
   try {
     await west.goto('/');
-    await west.getByTestId('title-multiplayer').click();
+    await west.getByTestId('title-start-game').click();
+    await west.getByTestId('game-mode-multiplayer').click();
     await west.getByTestId('multiplayer-create').click();
     const invite = await west.getByTestId('multiplayer-invite-link').inputValue();
     await east.goto(invite);

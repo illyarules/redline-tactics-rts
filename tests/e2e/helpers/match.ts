@@ -23,8 +23,9 @@ export async function startMatch(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByTestId('title-screen')).toBeVisible();
   await page.getByTestId('title-start-game').click();
-  if (await page.getByTestId('game-mode-selection').isVisible()) {
-    await page.getByTestId('game-mode-single').click();
+  await expect(page.getByTestId('game-mode-selection')).toBeVisible();
+  await page.getByTestId('game-mode-single').click();
+  if (await page.getByTestId('map-selection').isVisible()) {
     await selectMapAndStart(page);
   }
   await expect(page.getByTestId('game-canvas')).toBeVisible();
@@ -36,6 +37,7 @@ export async function saveAndResume(page: Page): Promise<void> {
   await page.reload();
   await expect(page.getByTestId('title-screen')).toBeVisible();
   await page.getByTestId('title-start-game').click();
+  await page.getByTestId('game-mode-single').click();
   await expect(page.getByTestId('game-canvas')).toBeVisible();
 }
 

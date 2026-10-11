@@ -37,6 +37,7 @@ test('wins through real attack controls, restores terminal, and plays again clea
   // A terminal snapshot opens frozen with its report instead of silently becoming a live match.
   await page.reload();
   await page.getByTestId('title-start-game').click();
+  await page.getByTestId('game-mode-single').click();
   await expect(page.getByTestId('match-result-victory')).toBeVisible();
 
   await page.getByTestId('match-result-play-again').click();
@@ -68,6 +69,7 @@ test('wins through real attack controls, restores terminal, and plays again clea
   );
   await page.reload();
   await page.getByTestId('title-start-game').click();
+  await page.getByTestId('game-mode-single').click();
   await expect(page.getByTestId('match-result-victory')).toBeVisible();
   await page.getByTestId('match-result-quit').click();
   await expect(page.getByTestId('title-screen')).toBeVisible();
