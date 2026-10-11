@@ -65,6 +65,13 @@ test('two private seats can start, refresh and finish an online match', async ({
     await east.getByRole('button', { name: 'Ready' }).click();
     await expect(west.getByText(/Playing as west/)).toBeVisible();
     await expect(east.getByText(/Playing as east/)).toBeVisible();
+
+    const worker = { x: 720, y: 334 };
+    await west.mouse.click(worker.x, worker.y);
+    await expect(west.getByTestId('multiplayer-selection')).toContainText('Worker');
+    await west.mouse.click(worker.x + 160, worker.y + 70, { button: 'right' });
+    await expect(west.getByText('Order confirmed.')).toBeVisible();
+
     await east.reload();
     await expect(east.getByText(/Playing as east/)).toBeVisible();
     await west.getByTestId('multiplayer-surrender').click();

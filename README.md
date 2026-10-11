@@ -66,7 +66,8 @@ the title screen, create a room, share the invite link, and have both players se
 server starts a Meridian mirror match after both clients load. The online HUD shows the match clock,
 connection state, credits, selection details, production queue and actions available to the selected
 unit or building. Online matches use the same Open Field terrain, unit and building models, camera,
-and fog-of-war presentation as single-player matches. Click or Shift-click units to select them, right-click ground to move, press Q then
+and fog-of-war presentation as single-player matches. Click, Shift-click, or drag to select units;
+right-click ground to move, press Q then
 click ground to attack-move, or right-click a visible enemy to attack. Select a Worker and choose a
 building, then click a visible footprint to construct; select a production building and choose a unit
 to queue it. Right-click a visible resource field with a Worker to gather. WASD or arrow keys move the

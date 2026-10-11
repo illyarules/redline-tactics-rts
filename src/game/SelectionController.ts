@@ -5,20 +5,23 @@ import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Scene } from '@babylonjs/core/scene';
 import type { Vec2 } from '../core/geometry';
 import type { EntityId, PlayerId } from '../core/ids';
-import type { ReadonlyEntity } from '../core/entities';
-import { pruneSelection, updateSelection } from '../core/selection';
-import type { World } from '../core/world';
+import type { ReadonlyEntity, ReadonlyUnit } from '../core/entities';
+import { pruneSelection, updateSelection, type SelectionEntitySource } from '../core/selection';
 import { projectToScreen } from './screenProjection';
 import type { SceneSpace } from './sceneSpace';
-import { areHostile } from '../core/teams';
-import { inspectResourceField } from '../core/resourceFieldInspection';
-import type { MapGrid } from '../core/map';
-import type { FogState } from '../core/fog';
 
 interface PointerPoint { readonly x: number; readonly y: number; }
 interface DragState { readonly start: PointerPoint; readonly additive: boolean; }
 
 const DRAG_THRESHOLD_PIXELS = 6;
+
+/** Read-only selection boundary shared by local worlds and filtered remote battle views. */
+export interface SelectionSource extends SelectionEntitySource {
+  viewer(): PlayerId;
+  entities(): readonly ReadonlyEntity[];
+  isAttackable(entity: ReadonlyEntity): boolean;
+  visibleFieldAt(point: Vec2): string | null;
+}
 
 /** Babylon input adapter for selection, ground moves, explicit attacks and one-click Attack-Move. */
 export class SelectionController {
@@ -39,18 +42,13 @@ export class SelectionController {
     private readonly camera: Camera,
     private readonly canvas: HTMLCanvasElement,
     private readonly space: SceneSpace,
-    private readonly world: World,
-    private readonly player: PlayerId,
-    /** Renderer-independent information gate for enemy attack targets. */
-    private readonly isVisibleToPlayer: (entity: ReadonlyEntity) => boolean,
+    private readonly source: SelectionSource,
     private readonly entityIdOfMesh: (mesh: AbstractMesh) => EntityId | null,
     private readonly onChange: (selected: readonly EntityId[]) => void,
     private readonly onMove: (selected: readonly EntityId[], target: Vec2) => void,
     private readonly onFriendlyTarget: (selected: readonly EntityId[], targetId: EntityId) => void,
     private readonly onAttack: (selected: readonly EntityId[], targetId: EntityId) => void,
     private readonly onAttackMove: (selected: readonly EntityId[], target: Vec2) => void,
-    private readonly grid: MapGrid,
-    private readonly fog: FogState,
     private readonly onFieldSelection: (fieldId: string | null) => void,
   ) {
     this.dragBox = document.createElement('div');
@@ -85,14 +83,10 @@ export class SelectionController {
         ? null
         : this.entityIdOfMesh(hit.pickedMesh);
       if (targetId !== null) {
-        const target = this.world.get(targetId);
-        if (target !== undefined && target.owner === this.player) {
+        const target = this.source.get(targetId);
+        if (target !== undefined && target.owner === this.source.viewer()) {
           this.onFriendlyTarget(this.selected, targetId);
-        } else if (
-          target !== undefined &&
-          areHostile(target.owner, this.player) &&
-          this.isVisibleToPlayer(target)
-        ) {
+        } else if (target !== undefined && this.source.isAttackable(target)) {
           this.onAttack(this.selected, targetId);
         }
         return;
@@ -137,7 +131,9 @@ export class SelectionController {
   public select(id: EntityId | null): void { this.setSelection(id === null ? [] : [id]); }
   /** Allows the opening scene to seed a whole selection restored from a local match snapshot. */
   public restoreSelection(ids: readonly EntityId[]): void { this.setSelection(ids); }
-  public refresh(): void { this.setSelection(pruneSelection(this.world, this.selected, this.player)); }
+  public refresh(): void {
+    this.setSelection(pruneSelection(this.source, this.selected, this.source.viewer()));
+  }
 
   /** Lets the pause layer disable map commands even if it is temporarily not covering a pointer. */
   public setEnabled(enabled: boolean): void {
@@ -167,8 +163,7 @@ export class SelectionController {
     const id = this.pickAt(point.x, point.y);
     this.scene.createPickingRayToRef(point.x, point.y, this.identity, this.ray, this.camera);
     const ground = id === null ? this.groundPoint() : null;
-    const field = ground === null ? null : inspectResourceField(this.grid, this.fog, this.player, ground);
-    this.onFieldSelection(field?.id ?? null);
+    this.onFieldSelection(ground === null ? null : this.source.visibleFieldAt(ground));
     this.setSelection(updateSelection(this.selected, id === null ? [] : [id], additive));
   }
 
@@ -194,11 +189,17 @@ export class SelectionController {
   private unitsInScreenRect(a: PointerPoint, b: PointerPoint): readonly EntityId[] {
     const left = Math.min(a.x, b.x), right = Math.max(a.x, b.x);
     const top = Math.min(a.y, b.y), bottom = Math.max(a.y, b.y);
-    return this.world.units(this.player).flatMap((unit) => {
+    return this.ownedUnits().flatMap((unit) => {
       if (unit.status === 'destroyed') return [];
       const point = this.project(unit.position, unit.stats.bodySizeTiles * 0.5);
       return point.x >= left && point.x <= right && point.y >= top && point.y <= bottom ? [unit.id] : [];
     });
+  }
+
+  private ownedUnits(): readonly ReadonlyUnit[] {
+    return this.source.entities().filter((entity): entity is ReadonlyUnit =>
+      entity.kind === 'unit' && entity.owner === this.source.viewer(),
+    );
   }
 
   private project(point: Vec2, height: number): PointerPoint {
@@ -210,7 +211,7 @@ export class SelectionController {
     const hit = this.scene.pickWithRay(this.ray, (mesh) => this.entityIdOfMesh(mesh) !== null);
     const hitMesh = hit?.pickedMesh;
     const id = hitMesh === null || hitMesh === undefined ? null : this.entityIdOfMesh(hitMesh);
-    return id !== null && this.world.get(id)?.owner === this.player ? id : null;
+    return id !== null && this.source.get(id)?.owner === this.source.viewer() ? id : null;
   }
 
   private groundPoint(): Vec2 | null {

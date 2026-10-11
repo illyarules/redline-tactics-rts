@@ -18,7 +18,9 @@ import { issueGroupMoveOrders } from '../core/formation';
 import { issueGatherOrder, stepGather } from '../core/gather';
 import { stepMovement } from '../core/movement';
 import { cancelProduction, queueProduction, stepProduction } from '../core/production';
+import { checkBuildingPlacement } from '../core/placement';
 import { populateStartingEntities } from '../core/matchSetup';
+import { inspectResourceField } from '../core/resourceFieldInspection';
 import { createResourceFieldState, type ResourceFieldState } from '../core/resourceFieldState';
 import { pruneSelection } from '../core/selection';
 import { restoreWorld, serializeWorld, type WorldSnapshot } from '../core/snapshot';
@@ -183,9 +185,13 @@ export class MatchScene {
       this.presentation.camera,
       canvas,
       this.presentation.space,
-      this.world,
-      PLAYER_ID,
-      this.isVisibleToHuman,
+      {
+        viewer: () => PLAYER_ID,
+        get: (id) => this.world.get(id),
+        entities: () => this.world.entities(),
+        isAttackable: (entity) => areHostile(entity.owner, PLAYER_ID) && this.isVisibleToHuman(entity),
+        visibleFieldAt: (point) => inspectResourceField(this.grid, this.fog, PLAYER_ID, point)?.id ?? null,
+      },
       (mesh) => this.presentation.entityIdOfMesh(mesh),
       () => this.showSelection(),
       (ids, target) => {
@@ -207,8 +213,6 @@ export class MatchScene {
         issueAttackMoveOrders(this.world, this.grid, PLAYER_ID, ids, target);
         this.showSelection();
       },
-      this.grid,
-      this.fog,
       (fieldId) => {
         this.selectedFieldId = fieldId;
         this.showSelection();
@@ -246,8 +250,8 @@ export class MatchScene {
       canvas,
       this.presentation.space,
       this.grid,
-      this.world,
       this.presentation.materials,
+      (buildingType, topLeft) => checkBuildingPlacement(this.world, this.grid, buildingType, topLeft).valid,
       (buildingType, topLeft, workerId) => this.confirmPlacement(buildingType, topLeft, workerId),
     );
     this.pauseMenu = new PauseMenu(

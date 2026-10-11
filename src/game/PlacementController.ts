@@ -8,8 +8,6 @@ import { BUILDING_CONFIG } from '../config/buildings';
 import type { TileCoord, Vec2 } from '../core/geometry';
 import type { BuildingTypeId, EntityId } from '../core/ids';
 import type { MapGrid } from '../core/map';
-import { checkBuildingPlacement } from '../core/placement';
-import type { World } from '../core/world';
 import type { MaterialLibrary } from './materials';
 import type { SceneSpace } from './sceneSpace';
 
@@ -52,8 +50,8 @@ export class PlacementController {
     private readonly canvas: HTMLCanvasElement,
     private readonly space: SceneSpace,
     private readonly grid: MapGrid,
-    private readonly world: World,
     private readonly materials: MaterialLibrary,
+    private readonly isValidPlacement: (buildingType: BuildingTypeId, topLeft: TileCoord) => boolean,
     private readonly onConfirm: (buildingType: BuildingTypeId, topLeft: TileCoord, workerId: EntityId) => void,
   ) {
     this.onPointerMove = (event) => {
@@ -80,7 +78,7 @@ export class PlacementController {
       if (
         topLeft !== null &&
         workerId !== null &&
-        checkBuildingPlacement(this.world, this.grid, buildingType, topLeft).valid
+        this.isValidPlacement(buildingType, topLeft)
       ) {
         this.cancel();
         this.onConfirm(buildingType, topLeft, workerId);
@@ -141,7 +139,7 @@ export class PlacementController {
     this.mesh.position = this.space.point(center, PREVIEW_HEIGHT);
     this.mesh.setEnabled(true);
 
-    const valid = checkBuildingPlacement(this.world, this.grid, this.buildingType, topLeft).valid;
+    const valid = this.isValidPlacement(this.buildingType, topLeft);
     this.mesh.material = this.materials.unlit(valid ? VALID_COLOR : INVALID_COLOR, PREVIEW_ALPHA);
   }
 

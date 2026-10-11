@@ -2,10 +2,17 @@ import type { Engine } from '@babylonjs/core/Engines/engine';
 import { BUILDING_CONFIG } from '../config/buildings';
 import { MAP_CONFIG } from '../config/map';
 import { UNIT_CONFIG } from '../config/units';
+import type { ReadonlyBuilding, ReadonlyEntity } from '../core/entities';
+import { cellVisibility, type FogState } from '../core/fog';
+import type { TileCoord, Vec2 } from '../core/geometry';
 import type { BuildingTypeId, EntityId, UnitTypeId } from '../core/ids';
 import { createMapGrid } from '../core/map';
+import { checkBuildingPlacement } from '../core/placement';
 import type { PvpCommand, Seat } from '../core/pvp';
+import { inspectResourceField } from '../core/resourceFieldInspection';
 import { BattlePresentation } from '../game/BattlePresentation';
+import { PlacementController } from '../game/PlacementController';
+import { SelectionController } from '../game/SelectionController';
 import type { BattleViewState } from '../game/battleViewState';
 import {
   OnlineBattleViewAdapter,
@@ -34,7 +41,8 @@ export class OnlineMatch {
   private readonly grid = createMapGrid(MAP_CONFIG);
   private readonly presentation: BattlePresentation;
   private readonly battleView = new OnlineBattleViewAdapter(this.grid);
-  private readonly selected = new Set<string>();
+  private readonly selection: SelectionController;
+  private readonly placement: PlacementController;
   private readonly modalLayer = element('div', 'online-modal-layer');
   private readonly modalCard = element('section', 'online-card');
   private readonly modalStatus = element('p', 'online-status');
@@ -65,8 +73,7 @@ export class OnlineMatch {
   private disposed = false;
   private snapshot: Snapshot | null = null;
   private battleState: BattleViewState | null = null;
-  private buildType: (PvpCommand & { type: 'Build' }) | null = null;
-  private attackMoveArmed = false;
+  private battleFog: FogState | null = null;
   private toastTimer: number | null = null;
   private readonly heartbeat = window.setInterval(() => {
     if (this.credential) this.send({ type: 'ping', protocolVersion: VERSION });
@@ -74,7 +81,7 @@ export class OnlineMatch {
 
   public constructor(
     engine: Engine,
-    private readonly canvas: HTMLCanvasElement,
+    canvas: HTMLCanvasElement,
     container: HTMLElement,
     private readonly onExit: () => void,
     inviteFromUrl?: { roomId: string; invite: string },
@@ -83,8 +90,37 @@ export class OnlineMatch {
     this.presentation.cameraController.setEnabled(false);
     this.createUi();
     container.append(this.root);
-    this.canvas.addEventListener('pointerdown', this.onPointerDown);
-    this.canvas.addEventListener('contextmenu', this.onContextMenu);
+    this.selection = new SelectionController(
+      this.presentation.scene,
+      this.presentation.camera,
+      canvas,
+      this.presentation.space,
+      {
+        viewer: () => this.seat ?? 'player',
+        get: (id) => this.battleEntity(id),
+        entities: () => this.battleState?.entities ?? [],
+        isAttackable: (entity) => this.seat !== null && entity.owner !== this.seat,
+        visibleFieldAt: (point) => this.visibleFieldAt(point),
+      },
+      (mesh) => this.presentation.entityIdOfMesh(mesh),
+      () => this.refreshSelectedView(),
+      (ids, target) => this.issueGroundOrder(ids, target),
+      (ids, targetId) => this.issueFriendlyTarget(ids, targetId),
+      (ids, targetId) => this.issueAttack(ids, targetId),
+      (ids, target) => this.issueAttackMove(ids, target),
+      () => undefined,
+    );
+    this.placement = new PlacementController(
+      this.presentation.scene,
+      this.presentation.camera,
+      canvas,
+      this.presentation.space,
+      this.grid,
+      this.presentation.materials,
+      (buildingType, topLeft) => this.isValidPlacement(buildingType, topLeft),
+      (buildingType, topLeft, workerId) => this.command({ type: 'Build', workerId, buildingType, topLeft }),
+    );
+    this.setBattleInputEnabled(false);
     window.addEventListener('keydown', this.onKeyDown, true);
 
     const saved = sessionStorage.getItem(STORAGE);
@@ -102,6 +138,7 @@ export class OnlineMatch {
   public render(deltaSeconds: number): void {
     if (!this.gameUi.hidden) this.presentation.cameraController.update(deltaSeconds);
     if (this.battleState) this.presentation.sync(this.battleState, deltaSeconds);
+    this.placement.update();
     this.presentation.render();
   }
 
@@ -110,10 +147,10 @@ export class OnlineMatch {
     window.clearInterval(this.heartbeat);
     if (this.toastTimer !== null) window.clearTimeout(this.toastTimer);
     this.socket?.close();
+    this.selection.dispose();
+    this.placement.dispose();
     this.presentation.dispose();
     this.root.remove();
-    this.canvas.removeEventListener('pointerdown', this.onPointerDown);
-    this.canvas.removeEventListener('contextmenu', this.onContextMenu);
     window.removeEventListener('keydown', this.onKeyDown, true);
   }
 
@@ -145,6 +182,7 @@ export class OnlineMatch {
 
     const bottom = element('div', 'online-bottom-hud');
     const selection = element('section', 'online-hud-panel online-selection-panel');
+    selection.dataset.testid = 'multiplayer-selection';
     this.selectionName.textContent = 'No selection';
     this.selectionDetail.textContent = 'Select a friendly unit or structure';
     const health = element('div', 'online-health-track');
@@ -178,10 +216,10 @@ export class OnlineMatch {
       <dt>Left click</dt><dd>Select a friendly unit or structure</dd>
       <dt>Shift + click</dt><dd>Add a unit to the selection</dd>
       <dt>Right click</dt><dd>Move, attack, gather, or resume construction</dd>
-      <dt>Q</dt><dd>Arm attack-move, then right-click the ground</dd>
+      <dt>Q</dt><dd>Arm attack-move, then left-click the ground</dd>
       <dt>WASD / arrows</dt><dd>Pan the tactical camera</dd>
       <dt>Mouse wheel</dt><dd>Zoom in or out</dd>
-      <dt>Escape</dt><dd>Cancel building or attack-move mode</dd>
+      <dt>Escape</dt><dd>Cancel a command mode or clear selection</dd>
     </dl>`;
   }
 
@@ -204,8 +242,11 @@ export class OnlineMatch {
   private showEntry(): void {
     this.snapshot = null;
     this.battleState = null;
-    this.selected.clear();
+    this.battleFog = null;
+    this.selection.select(null);
+    this.placement.cancel();
     this.presentation.cameraController.setEnabled(false);
+    this.setBattleInputEnabled(false);
     this.modalLayer.hidden = false;
     this.gameUi.hidden = true;
     this.modalCard.replaceChildren();
@@ -352,6 +393,7 @@ export class OnlineMatch {
   // eslint-disable-next-line complexity -- Lobby rendering combines independent room and seat states.
   private showLobby(message: Record<string, unknown>): void {
     this.presentation.cameraController.setEnabled(false);
+    this.setBattleInputEnabled(false);
     this.modalLayer.hidden = false;
     this.gameUi.hidden = true;
     this.modalCard.replaceChildren();
@@ -397,6 +439,7 @@ export class OnlineMatch {
 
   private showLoading(): void {
     this.presentation.cameraController.setEnabled(false);
+    this.setBattleInputEnabled(false);
     this.modalLayer.hidden = false;
     this.gameUi.hidden = true;
     this.modalCard.replaceChildren(
@@ -410,6 +453,7 @@ export class OnlineMatch {
     this.modalLayer.hidden = true;
     this.gameUi.hidden = false;
     this.presentation.cameraController.setEnabled(true);
+    this.setBattleInputEnabled(true);
     this.commandTitle.textContent = `${this.sideName(this.seat)} COMMAND`;
     this.connectionLine.innerHTML = `<i class="online-connection-dot"></i>Playing as ${this.sideName(this.seat).toLowerCase()} · Connected`;
     this.updateHud();
@@ -418,6 +462,7 @@ export class OnlineMatch {
   private showResult(): void {
     if (!this.snapshot?.result) return;
     this.presentation.cameraController.setEnabled(false);
+    this.setBattleInputEnabled(false);
     this.modalLayer.hidden = false;
     this.gameUi.hidden = true;
     this.modalCard.replaceChildren();
@@ -553,26 +598,33 @@ export class OnlineMatch {
   }
 
   private armBuild(workerId: string, buildingType: BuildingTypeId): void {
-    this.attackMoveArmed = false;
-    this.buildType = { type: 'Build', workerId, buildingType, topLeft: { tx: 0, ty: 0 } };
+    this.selection.setAttackMoveArmed(false);
+    this.placement.start(buildingType, workerId as EntityId);
     this.notify(`Place ${BUILDING_CONFIG[buildingType].name} on visible clear ground. Escape cancels.`, 'success', 5000);
   }
 
   private armAttackMove(): void {
-    this.buildType = null;
-    this.attackMoveArmed = true;
-    this.notify('Attack-move armed. Right-click the destination. Escape cancels.', 'success', 5000);
+    this.placement.cancel();
+    this.selection.setAttackMoveArmed(true);
+    if (this.selection.isAttackMoveArmed()) {
+      this.notify('Attack-move armed. Left-click the destination. Escape cancels.', 'success', 5000);
+    }
   }
 
   private syncView(): void {
     if (!this.snapshot) return;
-    const owned = new Set(this.snapshot.entities
-      .filter((entity) => entity.owner === this.seat)
-      .map((entity) => entity.id));
-    for (const id of this.selected) if (!owned.has(id)) this.selected.delete(id);
-    const projection = this.battleView.project(this.snapshot, [...this.selected] as EntityId[]);
+    const projection = this.battleView.project(this.snapshot, this.selection.selectedIds());
     this.battleState = projection.state;
+    this.battleFog = projection.fog;
+    this.selection.refresh();
+    this.refreshSelectedView();
     this.presentation.updateFog(projection.fog, this.snapshot.seat);
+  }
+
+  private refreshSelectedView(): void {
+    if (!this.snapshot) return;
+    const projection = this.battleView.project(this.snapshot, this.selection.selectedIds());
+    this.battleState = projection.state;
     this.presentation.sync(projection.state);
     this.updateHud();
   }
@@ -607,60 +659,34 @@ export class OnlineMatch {
     );
   }
 
-  // eslint-disable-next-line complexity -- Picking combines selection and construction placement.
-  private readonly onPointerDown = (event: PointerEvent): void => {
-    if (event.button !== 0 || !this.snapshot || this.snapshot.result || !this.modalLayer.hidden) return;
-    const picked = this.presentation.scene.pick(event.offsetX, event.offsetY);
-    const id = this.presentation.entityIdOfMesh(picked?.pickedMesh ?? null) ?? undefined;
-    if (this.buildType && picked?.pickedPoint) {
-      const world = this.presentation.space.toWorld(picked.pickedPoint.x, picked.pickedPoint.z);
-      this.command({ ...this.buildType, topLeft: this.grid.worldToTile(world) });
-      this.buildType = null;
-      return;
-    }
-    if (!event.shiftKey) this.selected.clear();
-    if (id && this.snapshot.entities.some((entity) => entity.id === id && entity.owner === this.seat)) {
-      if (event.shiftKey && this.selected.has(id)) this.selected.delete(id);
-      else this.selected.add(id);
-    }
-    this.syncView();
-  };
-
-  // eslint-disable-next-line complexity -- Context orders distinguish visible targets and terrain.
-  private readonly onContextMenu = (event: MouseEvent): void => {
-    event.preventDefault();
-    if (!this.snapshot || this.snapshot.result || !this.selected.size || !this.modalLayer.hidden) return;
-    const picked = this.presentation.scene.pick(event.offsetX, event.offsetY);
-    const id = this.presentation.entityIdOfMesh(picked?.pickedMesh ?? null) ?? undefined;
-    const units = this.selectedEntities().filter((entity) => entity.kind === 'unit');
-    if (!units.length) return;
-    if (id && this.snapshot.entities.some((entity) => entity.id === id && entity.owner !== this.seat)) {
-      this.command({ type: 'Attack', unitIds: units.map((unit) => unit.id), targetId: id });
-    } else if (id && this.snapshot.entities.some((entity) => entity.id === id && entity.owner === this.seat && entity.status === 'constructing')) {
-      const worker = units.find((unit) => unit.type === 'worker');
-      if (worker) this.command({ type: 'ResumeConstruction', workerId: worker.id, buildingId: id });
-    } else if (picked?.pickedPoint) {
-      const world = this.presentation.space.toWorld(picked.pickedPoint.x, picked.pickedPoint.z);
-      this.issueGroundOrder(units, world.x, world.y, event.altKey);
-    }
-  };
-
-  private issueGroundOrder(units: readonly EntityView[], x: number, y: number, altKey: boolean): void {
-    const destination = { x, y };
+  private issueGroundOrder(ids: readonly EntityId[], destination: Vec2): void {
+    const units = this.unitViews(ids);
+    if (units.length === 0) return;
     const workers = units.filter((unit) => unit.type === 'worker');
-    const tile = this.grid.worldToTile(destination);
-    const field = MAP_CONFIG.resourceFields.find((candidate) =>
-      Math.hypot(candidate.center.tx - tile.tx, candidate.center.ty - tile.ty) <= candidate.radiusTiles,
-    );
-    if (field && workers.length) this.command({ type: 'Gather', unitIds: workers.map((unit) => unit.id), fieldId: field.id });
-    else {
-      this.command({
-        type: this.attackMoveArmed || altKey ? 'AttackMove' : 'Move',
-        unitIds: units.map((unit) => unit.id),
-        destination,
-      });
+    const fieldId = this.visibleFieldAt(destination);
+    if (fieldId !== null && workers.length > 0) {
+      this.command({ type: 'Gather', unitIds: workers.map((unit) => unit.id as EntityId), fieldId });
+    } else {
+      this.command({ type: 'Move', unitIds: units.map((unit) => unit.id as EntityId), destination });
     }
-    this.attackMoveArmed = false;
+  }
+
+  private issueFriendlyTarget(ids: readonly EntityId[], targetId: EntityId): void {
+    const target = this.snapshot?.entities.find((entity) => entity.id === targetId);
+    const worker = this.unitViews(ids).find((unit) => unit.type === 'worker');
+    if (target?.kind === 'building' && target.status === 'constructing' && worker !== undefined) {
+      this.command({ type: 'ResumeConstruction', workerId: worker.id as EntityId, buildingId: targetId });
+    }
+  }
+
+  private issueAttack(ids: readonly EntityId[], targetId: EntityId): void {
+    const units = this.unitViews(ids);
+    if (units.length > 0) this.command({ type: 'Attack', unitIds: units.map((unit) => unit.id as EntityId), targetId });
+  }
+
+  private issueAttackMove(ids: readonly EntityId[], destination: Vec2): void {
+    const units = this.unitViews(ids);
+    if (units.length > 0) this.command({ type: 'AttackMove', unitIds: units.map((unit) => unit.id as EntityId), destination });
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -669,11 +695,13 @@ export class OnlineMatch {
       event.preventDefault();
       this.armAttackMove();
     } else if (event.code === 'Escape') {
-      this.buildType = null;
-      this.attackMoveArmed = false;
-      this.help.hidden = true;
-      this.confirm.hidden = true;
+      if (!this.help.hidden) this.help.hidden = true;
+      else if (!this.confirm.hidden) this.confirm.hidden = true;
+      else if (this.selection.isAttackMoveArmed()) this.selection.setAttackMoveArmed(false);
+      else if (this.placement.isActive()) this.placement.cancel();
+      else this.selection.select(null);
       this.notify('Command mode cancelled.', '', 1000);
+      event.preventDefault();
     }
   };
 
@@ -684,9 +712,50 @@ export class OnlineMatch {
     this.presentation.cameraController.focus({ x, y });
   };
 
+  private setBattleInputEnabled(enabled: boolean): void {
+    this.selection.setEnabled(enabled);
+    this.placement.setEnabled(enabled);
+    if (!enabled) {
+      this.selection.setAttackMoveArmed(false);
+      this.placement.cancel();
+    }
+  }
+
+  private battleEntity(id: EntityId): ReadonlyEntity | undefined {
+    return this.battleState?.entities.find((entity) => entity.id === id);
+  }
+
+  private visibleFieldAt(point: Vec2): string | null {
+    if (this.battleFog === null || this.seat === null) return null;
+    return inspectResourceField(this.grid, this.battleFog, this.seat, point)?.id ?? null;
+  }
+
+  private isValidPlacement(buildingType: BuildingTypeId, topLeft: TileCoord): boolean {
+    if (this.battleFog === null || this.seat === null) return false;
+    const footprint = BUILDING_CONFIG[buildingType].footprint;
+    for (let dy = 0; dy < footprint.height; dy++) {
+      for (let dx = 0; dx < footprint.width; dx++) {
+        if (cellVisibility(this.battleFog, this.seat, topLeft.tx + dx, topLeft.ty + dy) !== 'visible') {
+          return false;
+        }
+      }
+    }
+    const buildings = (): readonly ReadonlyBuilding[] => (this.battleState?.entities ?? [])
+      .filter((entity): entity is ReadonlyBuilding => entity.kind === 'building');
+    return checkBuildingPlacement({ buildings }, this.grid, buildingType, topLeft).valid;
+  }
+
+  private unitViews(ids: readonly EntityId[]): EntityView[] {
+    if (!this.snapshot) return [];
+    const selected = new Set<string>(ids);
+    return this.snapshot.entities.filter((entity) =>
+      selected.has(entity.id) && entity.owner === this.seat && entity.kind === 'unit',
+    );
+  }
+
   private selectedEntities(): EntityView[] {
     if (!this.snapshot) return [];
-    return [...this.selected]
+    return this.selection.selectedIds()
       .map((id) => this.snapshot!.entities.find((entity) => entity.id === id))
       .filter((entity): entity is EntityView => entity !== undefined && entity.owner === this.seat);
   }

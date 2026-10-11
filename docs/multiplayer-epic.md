@@ -59,7 +59,8 @@ validation before starting the next task.
 | Multiplayer foundation | Merged into epic base | `feat/multiplayer-alpha` / `9e8d709`, `56265ae` | Authoritative server, private room flow, filtered snapshots, core commands, reconnect, playable prototype HUD |
 | Task 1 — shared battle presentation | Complete, awaiting merge | `codex/shared-battle-presentation` / `9378b46` | Shared Babylon scene, terrain, entities, fog, camera, effects, and battle view state |
 | Task 2 — online shared battlefield | Complete, awaiting merge | `codex/online-shared-battlefield` / `2fc5985` | `OnlineMatch` renders server snapshots through the shared battlefield instead of prototype primitives |
-| Tasks 3–7 | Not started | — | Must be implemented and validated one at a time |
+| Task 3 — shared battle interaction | Complete, awaiting validation | `codex/online-shared-battlefield` | Shared selection, contextual orders, attack-move, and building placement preview |
+| Tasks 4–7 | Not started | — | Must be implemented and validated one at a time |
 
 ## Epic acceptance criteria
 
@@ -143,7 +144,7 @@ read-only battle view without creating client authority or restoring a full simu
 
 ## Task 3 — Share selection, orders, and placement interaction
 
-**Status:** Not started.
+**Status:** Complete, awaiting product validation.
 
 ### Description
 

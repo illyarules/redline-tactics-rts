@@ -6,11 +6,14 @@
  * Pure TypeScript: this module must not import Babylon, `game/` or `ui/`.
  */
 import { BUILDING_CONFIG } from '../config/buildings';
-import { footprintRect } from './entities';
+import { footprintRect, type ReadonlyBuilding } from './entities';
 import { tileRectsOverlap, type TileCoord, type TileRect } from './geometry';
 import type { BuildingTypeId } from './ids';
 import type { MapGrid } from './map';
-import type { World } from './world';
+
+export interface PlacementOccupancy {
+  buildings(): readonly ReadonlyBuilding[];
+}
 
 export type PlacementInvalidReason = 'out-of-bounds' | 'blocked-terrain' | 'occupied';
 
@@ -25,7 +28,7 @@ export interface PlacementCheck {
  * footprint (which a `constructing` site occupies exactly as fully as a finished one).
  */
 export function checkBuildingPlacement(
-  world: World,
+  occupancy: PlacementOccupancy,
   grid: MapGrid,
   buildingType: BuildingTypeId,
   topLeft: TileCoord,
@@ -54,7 +57,7 @@ export function checkBuildingPlacement(
     reasons.push('blocked-terrain');
   }
 
-  if (allInBounds && world.buildings().some((building) => tileRectsOverlap(rect, footprintRect(building)))) {
+  if (allInBounds && occupancy.buildings().some((building) => tileRectsOverlap(rect, footprintRect(building)))) {
     reasons.push('occupied');
   }
 
