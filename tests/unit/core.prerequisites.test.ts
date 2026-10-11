@@ -35,6 +35,19 @@ describe('checkPrerequisites', () => {
     expect(checkPrerequisites(world, 'player', 'factory')).toEqual({ allowed: true, missing: [] });
   });
 
+  it('unlocks the Unmanned Systems Forces Center without a Factory', () => {
+    const world = newWorld();
+    world.createBuilding({ type: 'hq', owner: 'player', faction: 'meridian', topLeft: { tx: 0, ty: 0 } });
+    expect([...checkPrerequisites(world, 'player', 'unmannedSystemsCenter').missing].sort())
+      .toEqual(['barracks', 'powerPlant']);
+
+    world.createBuilding({ type: 'barracks', owner: 'player', faction: 'meridian', topLeft: { tx: 10, ty: 0 } });
+    world.createBuilding({ type: 'powerPlant', owner: 'player', faction: 'meridian', topLeft: { tx: 20, ty: 0 } });
+
+    expect(checkPrerequisites(world, 'player', 'unmannedSystemsCenter')).toEqual({ allowed: true, missing: [] });
+    expect(world.buildings('player').some((building) => building.type === 'factory')).toBe(false);
+  });
+
   it('does not count a still-constructing building as satisfying a prerequisite', () => {
     const world = newWorld();
     world.createBuilding({
