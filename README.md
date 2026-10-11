@@ -63,12 +63,14 @@ Attack-Move; E entrenches selected FPV Drone Operators; A pans the camera. The m
 Single-player gameplay and saves require no backend. For private multiplayer, start the Node server
 with `npm run build:server && npm run start:server` alongside `npm run dev`. Select Multiplayer on
 the title screen, create a room, share the invite link, and have both players select Ready. The
-server starts a Meridian mirror match after both clients load. Click a unit to select it, Shift-click
-to add one, right-click ground to move, Alt-right-click ground to attack-move, or right-click a visible
-enemy to attack. Select a Worker and choose a building, then click a visible footprint to construct;
-select a production building and choose a unit to queue it. Right-click a visible resource field
-with a Worker to gather. Surrender ends the match. Refreshing the same tab resumes its seat while
-the server is running. Escape and local save are single-player controls.
+server starts a Meridian mirror match after both clients load. The online HUD shows the match clock,
+connection state, credits, selection details, production queue and actions available to the selected
+unit or building. Click or Shift-click units to select them, right-click ground to move, press Q then
+click ground to attack-move, or right-click a visible enemy to attack. Select a Worker and choose a
+building, then click a visible footprint to construct; select a production building and choose a unit
+to queue it. Right-click a visible resource field with a Worker to gather. WASD or arrow keys move the
+camera; the minimap recenters it. Escape clears an active order or selection. Surrender requires
+confirmation and ends the match. Refreshing the same tab resumes its seat while the server is running.
 
 The browser uses `ws://localhost:8787/ws` by default. Set `VITE_MULTIPLAYER_URL` to the public WSS
 endpoint when building the client. Set `MULTIPLAYER_ORIGIN` to the exact HTTPS frontend origin on

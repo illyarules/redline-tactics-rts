@@ -57,8 +57,8 @@ test('two private seats can start, refresh and finish an online match', async ({
   try {
     await west.goto('/');
     await west.getByTestId('title-multiplayer').click();
-    await west.getByRole('button', { name: 'Create room' }).click();
-    const invite = await west.getByRole('textbox', { name: 'Invite link' }).inputValue();
+    await west.getByTestId('multiplayer-create').click();
+    const invite = await west.getByTestId('multiplayer-invite-link').inputValue();
     await east.goto(invite);
     await expect(east.getByText(/East: connected/)).toBeVisible();
     await west.getByRole('button', { name: 'Ready' }).click();
@@ -67,7 +67,8 @@ test('two private seats can start, refresh and finish an online match', async ({
     await expect(east.getByText(/Playing as east/)).toBeVisible();
     await east.reload();
     await expect(east.getByText(/Playing as east/)).toBeVisible();
-    await west.getByRole('button', { name: 'Surrender' }).click();
+    await west.getByTestId('multiplayer-surrender').click();
+    await west.getByRole('button', { name: 'Surrender', exact: true }).last().click();
     await expect(east.getByText(/Victory/)).toBeVisible();
     await expect(west.getByText(/Defeat/)).toBeVisible();
   } finally {
@@ -79,5 +80,5 @@ test('mode selection opens the multiplayer room entry', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('title-start-game').click();
   await page.getByTestId('game-mode-multiplayer').click();
-  await expect(page.getByRole('button', { name: 'Create room' })).toBeVisible();
+  await expect(page.getByTestId('multiplayer-create')).toBeVisible();
 });
