@@ -44,9 +44,9 @@ matches while retaining the information and controls each mode needs.
 
 ## Branch and review workflow
 
-Each task below must be implemented in its own branch and reviewed before the next task begins.
-Create the next branch from the latest accepted task branch. Merge the accepted branches into
-`feat/multiplayer-alpha` in order. Do not combine unrelated cleanup with an epic task.
+Continue all remaining tasks in `codex/online-shared-battlefield`. Each task below must produce its
+own commit and be reviewed before the next task begins. When the epic is accepted, merge the branch
+into `feat/multiplayer-alpha`. Do not combine unrelated cleanup with an epic task.
 
 Every task must leave the repository runnable and satisfy the project Definition of Done in
 `AGENTS.md`. UI tasks require a live visual check. After a task is complete, stop for product
@@ -315,7 +315,8 @@ needed for the private alpha.
 
 ## Release evidence checklist
 
-- [ ] Tasks 1–7 are merged into `feat/multiplayer-alpha` in order.
+- [ ] Tasks 1–7 have separate commits in `codex/online-shared-battlefield`, and the completed branch
+  is merged into `feat/multiplayer-alpha`.
 - [ ] All epic acceptance criteria are demonstrated.
 - [ ] Full unit, server integration, and E2E suites pass from the final epic branch.
 - [ ] Both player viewpoints receive a final visual review.
