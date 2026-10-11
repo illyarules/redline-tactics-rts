@@ -2,6 +2,7 @@ import type { Engine } from '@babylonjs/core/Engines/engine';
 import { BUILDING_CONFIG } from '../config/buildings';
 import { MAP_CONFIG } from '../config/map';
 import { UNIT_CONFIG } from '../config/units';
+import { PRODUCTION_CONFIG } from '../config/production';
 import type { ReadonlyBuilding, ReadonlyEntity } from '../core/entities';
 import { cellVisibility, type FogState } from '../core/fog';
 import type { TileCoord, Vec2 } from '../core/geometry';
@@ -14,6 +15,7 @@ import { BattlePresentation } from '../game/BattlePresentation';
 import { PlacementController } from '../game/PlacementController';
 import { SelectionController } from '../game/SelectionController';
 import type { BattleViewState } from '../game/battleViewState';
+import { BattleHud, type BattleHudAction, type BattleHudViewModel } from '../ui/BattleHud';
 import {
   OnlineBattleViewAdapter,
   type OnlineBattleSnapshot,
@@ -47,17 +49,7 @@ export class OnlineMatch {
   private readonly modalCard = element('section', 'online-card');
   private readonly modalStatus = element('p', 'online-status');
   private readonly gameUi = element('div', 'online-game-ui');
-  private readonly commandTitle = element('strong');
-  private readonly connectionLine = element('span');
-  private readonly clock = element('div', 'online-match-clock');
-  private readonly selectionName = element('div', 'online-selection-name');
-  private readonly selectionDetail = element('div', 'online-selection-detail');
-  private readonly healthFill = element('div', 'online-health-fill');
-  private readonly credits = element('strong');
-  private readonly actionTitle = element('div', 'online-action-title');
-  private readonly actionGrid = element('div', 'online-action-grid');
-  private readonly queue = element('div', 'online-queue');
-  private readonly minimap = document.createElement('canvas');
+  private readonly hud: BattleHud;
   private readonly toast = element('div', 'online-toast');
   private readonly help = element('section', 'online-help');
   private readonly confirm = element('div', 'online-confirm');
@@ -90,6 +82,17 @@ export class OnlineMatch {
     this.presentation.cameraController.setEnabled(false);
     this.createUi();
     container.append(this.root);
+    this.hud = new BattleHud(this.gameUi, {
+      topActions: [
+        hudAction('controls', 'Controls', '', () => this.toggleHelp()),
+        hudAction('surrender', 'Surrender', '', () => this.showSurrenderConfirmation(), 'multiplayer-surrender'),
+      ],
+      onMinimapNavigate: ({ x, y }) => this.presentation.cameraController.focus({
+        x: x * this.grid.bounds.width,
+        y: y * this.grid.bounds.height,
+      }),
+      selectionTestId: 'multiplayer-selection',
+    });
     this.selection = new SelectionController(
       this.presentation.scene,
       this.presentation.camera,
@@ -149,6 +152,7 @@ export class OnlineMatch {
     this.socket?.close();
     this.selection.dispose();
     this.placement.dispose();
+    this.hud.destroy();
     this.presentation.dispose();
     this.root.remove();
     window.removeEventListener('keydown', this.onKeyDown, true);
@@ -159,55 +163,12 @@ export class OnlineMatch {
     this.root.dataset.connection = 'offline';
     this.modalLayer.append(this.modalCard);
     this.root.append(this.modalLayer);
-    this.createGameUi();
+    this.createHelp();
+    this.gameUi.append(this.help);
     this.gameUi.hidden = true;
     this.root.append(this.gameUi, this.toast);
     this.createConfirmation();
     this.root.append(this.confirm);
-  }
-
-  private createGameUi(): void {
-    const topbar = element('div', 'online-topbar');
-    const command = element('div', 'online-command-status');
-    this.commandTitle.textContent = 'ONLINE COMMAND';
-    this.connectionLine.innerHTML = '<i class="online-connection-dot"></i>Connecting';
-    command.append(this.commandTitle, this.connectionLine);
-    this.clock.innerHTML = '15:00<small>MATCH TIME</small>';
-    const topActions = element('div', 'online-top-actions');
-    topActions.append(
-      this.makeButton('Controls', () => this.toggleHelp(), 'secondary compact'),
-      this.makeButton('Surrender', () => this.showSurrenderConfirmation(), 'danger compact', 'multiplayer-surrender'),
-    );
-    topbar.append(command, this.clock, topActions);
-
-    const bottom = element('div', 'online-bottom-hud');
-    const selection = element('section', 'online-hud-panel online-selection-panel');
-    selection.dataset.testid = 'multiplayer-selection';
-    this.selectionName.textContent = 'No selection';
-    this.selectionDetail.textContent = 'Select a friendly unit or structure';
-    const health = element('div', 'online-health-track');
-    health.append(this.healthFill);
-    const resource = element('div', 'online-resource');
-    this.credits.textContent = '900';
-    resource.append(this.credits, textElement('span', 'Credits'));
-    selection.append(this.selectionName, this.selectionDetail, health, resource);
-
-    const actions = element('section', 'online-hud-panel');
-    this.actionTitle.textContent = 'Tactical commands';
-    actions.append(this.actionTitle, this.actionGrid, this.queue);
-    const minimapPanel = element('section', 'online-hud-panel online-minimap-panel');
-    this.minimap.width = 160;
-    this.minimap.height = 160;
-    this.minimap.className = 'online-minimap';
-    this.minimap.setAttribute('aria-label', 'Tactical minimap');
-    this.minimap.addEventListener('click', this.onMinimapClick);
-    minimapPanel.append(this.minimap);
-    bottom.append(selection, actions, minimapPanel);
-
-    const hint = element('div', 'online-hint');
-    hint.innerHTML = '<kbd>WASD</kbd> camera &nbsp; <kbd>Wheel</kbd> zoom &nbsp; <kbd>Right click</kbd> order &nbsp; <kbd>Q</kbd> attack-move';
-    this.createHelp();
-    this.gameUi.append(topbar, bottom, hint, this.help);
   }
 
   private createHelp(): void {
@@ -295,7 +256,7 @@ export class OnlineMatch {
     socket.addEventListener('open', () => {
       this.reconnectDelay = 500;
       this.root.dataset.connection = 'online';
-      this.connectionLine.innerHTML = '<i class="online-connection-dot"></i>Connected';
+      this.updateHud();
       this.send({ type, protocolVersion: VERSION, ...data });
     });
     socket.addEventListener('message', (event) => this.receive(event.data as string));
@@ -309,7 +270,7 @@ export class OnlineMatch {
   private handleDisconnect(socket: WebSocket): void {
     if (this.disposed || this.socket !== socket) return;
     this.root.dataset.connection = 'offline';
-    this.connectionLine.innerHTML = '<i class="online-connection-dot"></i>Reconnecting…';
+    this.updateHud();
     if (this.roomId && this.credential) {
       this.notify('Connection lost. Rejoining your seat…', 'error', 5000);
       const delay = this.reconnectDelay;
@@ -454,8 +415,6 @@ export class OnlineMatch {
     this.gameUi.hidden = false;
     this.presentation.cameraController.setEnabled(true);
     this.setBattleInputEnabled(true);
-    this.commandTitle.textContent = `${this.sideName(this.seat)} COMMAND`;
-    this.connectionLine.innerHTML = `<i class="online-connection-dot"></i>Playing as ${this.sideName(this.seat).toLowerCase()} · Connected`;
     this.updateHud();
   }
 
@@ -493,108 +452,100 @@ export class OnlineMatch {
 
   private updateHud(): void {
     if (!this.snapshot) return;
-    this.credits.textContent = Math.floor(this.snapshot.credits).toLocaleString();
-    this.clock.innerHTML = `${formatTime(this.snapshot.tick)}<small>MATCH TIME</small>`;
-    this.updateSelectionPanel();
-    this.updateActions();
-    this.drawMinimap();
+    this.hud.update(this.hudModel());
   }
 
-  private updateSelectionPanel(): void {
+  private selectionView(): BattleHudViewModel['selection'] {
     const entities = this.selectedEntities();
     if (entities.length === 0) {
-      this.selectionName.textContent = 'No selection';
-      this.selectionDetail.textContent = 'Select a friendly unit or structure';
-      this.healthFill.style.width = '0';
-      return;
+      return { name: 'No selection', detail: 'Select a friendly unit or structure', healthFraction: 0 };
     }
     if (entities.length > 1) {
-      this.selectionName.textContent = `${entities.length} units selected`;
-      this.selectionDetail.textContent = 'Right-click the battlefield to issue a group order';
       const fraction = entities.reduce((total, entity) => total + entity.health / entity.maxHealth, 0) / entities.length;
-      this.setHealth(fraction);
-      return;
+      return { name: `${entities.length} units selected`, detail: 'Right-click the battlefield to issue a group order', healthFraction: fraction };
     }
     const entity = entities[0]!;
-    this.selectionName.textContent = entityName(entity);
     const health = `${Math.ceil(entity.health)} / ${entity.maxHealth} integrity`;
     const progress = entity.status === 'constructing' ? ` · ${Math.floor((entity.constructionProgress ?? 0) * 100)}% built` : '';
     const deployed = entity.entrenchment && entity.entrenchment !== 'mobile' ? ` · ${entity.entrenchment}` : '';
-    this.selectionDetail.textContent = `${health}${progress}${deployed}`;
-    this.setHealth(entity.health / entity.maxHealth);
+    return { name: entityName(entity), detail: `${health}${progress}${deployed}`, healthFraction: entity.health / entity.maxHealth };
   }
 
-  // eslint-disable-next-line complexity -- Context actions intentionally branch by the selected entity role.
-  private updateActions(): void {
-    this.actionGrid.replaceChildren();
-    this.queue.replaceChildren();
+  // eslint-disable-next-line complexity -- The view model exposes each contextual command without owning its rule.
+  private hudModel(): BattleHudViewModel {
     const entities = this.selectedEntities();
+    const base = {
+      commandTitle: `${this.sideName(this.seat)} command`,
+      status: this.root.dataset.connection === 'offline'
+        ? 'Reconnecting…'
+        : `Playing as ${this.sideName(this.seat).toLowerCase()} · Connected`,
+      connected: this.root.dataset.connection !== 'offline',
+      clock: formatTime(this.snapshot!.tick),
+      clockLabel: 'Match time',
+      selection: this.selectionView(),
+      credits: this.snapshot!.credits,
+      economyStatus: this.hasFriendlyCompleted('powerPlant') ? 'Power online' : 'No power',
+      economyWarning: !this.hasFriendlyCompleted('powerPlant'),
+      minimap: this.minimapView(),
+      queue: [] as const,
+    };
     if (entities.length === 0) {
-      this.actionTitle.textContent = 'Tactical commands';
-      this.actionGrid.append(textElement('div', 'Select a Worker to construct a base, a production building to train units, or combat units to attack.', 'online-action-empty'));
-      return;
+      return { ...base, actionTitle: 'Tactical commands', actions: [], emptyMessage: 'Select a Worker to construct a base, a production building to train units, or combat units to attack.' };
     }
     const single = entities.length === 1 ? entities[0] : undefined;
     if (single?.kind === 'unit' && single.type === 'worker') {
-      this.actionTitle.textContent = 'Construction';
-      for (const type of BUILDABLE_TYPES) {
+      const actions = BUILDABLE_TYPES.map((type) => {
         const config = BUILDING_CONFIG[type];
-        const button = this.makeActionButton(config.name, `${config.cost} Credits · ${config.buildTimeSeconds}s`, () => this.armBuild(single.id, type));
-        button.disabled = this.snapshot!.credits < config.cost;
-        this.actionGrid.append(button);
-      }
-      return;
+        const missing = config.requires.filter((required) => !this.hasFriendlyCompleted(required));
+        const disabledReason = missing.length > 0
+          ? `Requires ${missing.map((required) => BUILDING_CONFIG[required].name).join(', ')}`
+          : this.snapshot!.credits < config.cost ? `Needs ${config.cost} Credits` : undefined;
+        return hudAction(type, config.name, `${config.cost} Credits · ${config.buildTimeSeconds}s`, () => this.armBuild(single.id, type), `build-${type}`, disabledReason !== undefined, disabledReason);
+      });
+      return { ...base, actionTitle: 'Construction', actionTestId: 'build-menu', actions };
     }
     if (single?.kind === 'building') {
-      this.showProductionActions(single);
-      return;
+      return this.productionHudModel(base, single);
     }
     if (entities.every((entity) => entity.kind === 'unit')) {
-      this.actionTitle.textContent = 'Unit orders';
-      this.actionGrid.append(this.makeActionButton('Attack-move', 'Q · engage enemies en route', () => this.armAttackMove()));
+      const actions: BattleHudAction[] = [hudAction('attack-move', 'Attack-move', 'Q · engage enemies en route', () => this.armAttackMove())];
       const fpv = entities.filter((entity) => entity.type === 'fpvOperators');
       if (fpv.length > 0) {
         const entrenched = fpv.every((entity) => entity.entrenchment === 'entrenched');
-        this.actionGrid.append(this.makeActionButton(
+        actions.push(hudAction('entrench',
           entrenched ? 'Pack up' : 'Entrench',
           entrenched ? 'Return to mobile formation' : 'Deploy to enable attacks',
           () => this.command({ type: 'SetEntrenchment', unitIds: fpv.map((entity) => entity.id), entrenched: !entrenched }),
-        ));
+          'entrench-fpv-operators'));
       }
-      return;
+      return { ...base, actionTitle: 'Unit orders', ...(fpv.length > 0 ? { actionTestId: 'entrench-menu' } : {}), actions };
     }
-    this.actionTitle.textContent = 'Mixed selection';
-    this.actionGrid.append(textElement('div', 'Select units or one structure to show available commands.', 'online-action-empty'));
+    return { ...base, actionTitle: 'Mixed selection', actions: [], emptyMessage: 'Select units or one structure to show available commands.' };
   }
 
-  private showProductionActions(building: EntityView): void {
+  private productionHudModel(base: Omit<BattleHudViewModel, 'actionTitle' | 'actions'>, building: EntityView): BattleHudViewModel {
     const type = building.type as BuildingTypeId;
     const config = BUILDING_CONFIG[type];
-    this.actionTitle.textContent = `${config.name} production`;
     if (building.status === 'constructing') {
-      this.actionGrid.append(textElement('div', 'Construction must finish before this structure can operate.', 'online-action-empty'));
-      return;
+      return { ...base, actionTitle: `${config.name} production`, actions: [], emptyMessage: 'Construction must finish before this structure can operate.' };
     }
     if (config.produces.length === 0) {
-      this.actionGrid.append(textElement('div', 'This structure supports your base and has no production queue.', 'online-action-empty'));
-      return;
+      return { ...base, actionTitle: `${config.name} production`, actions: [], emptyMessage: 'This structure supports your base and has no production queue.' };
     }
-    for (const unitType of config.produces) {
+    const actions = config.produces.map((unitType) => {
       const unit = UNIT_CONFIG[unitType];
-      const button = this.makeActionButton(unit.name, `${unit.cost} Credits · ${unit.buildTimeSeconds}s`, () => {
-        this.command({ type: 'Produce', buildingId: building.id, unitType });
-      });
-      button.disabled = this.snapshot!.credits < unit.cost;
-      this.actionGrid.append(button);
-    }
-    for (const item of building.queue ?? []) {
+      const missing = unit.requires.filter((required) => !this.hasFriendlyCompleted(required));
+      const disabledReason = missing.length > 0
+        ? `Requires ${missing.map((required) => BUILDING_CONFIG[required].name).join(', ')}`
+        : (building.queue?.length ?? 0) >= PRODUCTION_CONFIG.queueCapacity ? 'Queue full'
+          : this.snapshot!.credits < unit.cost ? `Needs ${unit.cost} Credits` : undefined;
+      return hudAction(unitType, unit.name, `${unit.cost} Credits · ${unit.buildTimeSeconds}s`, () => this.command({ type: 'Produce', buildingId: building.id, unitType }), `produce-${unitType}`, disabledReason !== undefined, disabledReason);
+    });
+    const queue = (building.queue ?? []).map((item) => {
       const unit = UNIT_CONFIG[item.type];
-      const row = textElement('button', `${unit.name} · ${Math.min(100, Math.floor(item.progress / unit.buildTimeSeconds * 100))}%`, 'online-queue-item') as HTMLButtonElement;
-      row.type = 'button';
-      row.title = `Cancel ${unit.name}`;
-      row.addEventListener('click', () => this.command({ type: 'CancelProduction', buildingId: building.id, queueEntryId: item.id }));
-      this.queue.append(row);
-    }
+      return { id: item.id, label: `${unit.name} · ${Math.min(100, Math.floor(item.progress / unit.buildTimeSeconds * 100))}%`, onCancel: () => this.command({ type: 'CancelProduction', buildingId: building.id, queueEntryId: item.id }) };
+    });
+    return { ...base, actionTitle: `${config.name} production`, actionTestId: 'production-menu', actions, queue };
   }
 
   private armBuild(workerId: string, buildingType: BuildingTypeId): void {
@@ -629,34 +580,15 @@ export class OnlineMatch {
     this.updateHud();
   }
 
-  // eslint-disable-next-line complexity -- The minimap paints fog and entities in one small canvas pass.
-  private drawMinimap(): void {
-    if (!this.snapshot) return;
-    const context = this.minimap.getContext('2d');
-    if (!context) return;
-    context.fillStyle = '#03080b';
-    context.fillRect(0, 0, 160, 160);
-    const cell = 160 / 64;
-    for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
-      const visibility = this.snapshot.fog[y]?.[x];
-      if (visibility === 'hidden') continue;
-      context.fillStyle = visibility === 'visible' ? '#253d35' : '#111f1d';
-      context.fillRect(x * cell, y * cell, Math.ceil(cell), Math.ceil(cell));
-    }
-    for (const entity of this.snapshot.entities) {
-      context.fillStyle = entity.owner === this.seat ? '#63ccff' : '#ff745c';
-      const size = entity.kind === 'building' ? 5 : 3;
-      context.fillRect(entity.x / 30 / 64 * 160 - size / 2, entity.y / 30 / 64 * 160 - size / 2, size, size);
-    }
-    const visible = this.presentation.cameraController.visibleBounds();
-    context.strokeStyle = '#f2f6c3';
-    context.lineWidth = 1;
-    context.strokeRect(
-      visible.x / this.grid.bounds.width * 160,
-      visible.y / this.grid.bounds.height * 160,
-      visible.width / this.grid.bounds.width * 160,
-      visible.height / this.grid.bounds.height * 160,
-    );
+  private minimapView(): BattleHudViewModel['minimap'] {
+    return {
+      width: this.grid.bounds.width,
+      height: this.grid.bounds.height,
+      cells: this.snapshot!.fog,
+      fields: this.grid.resourceFields.map((field) => ({ position: this.grid.tileCenter(field.center.tx, field.center.ty), visible: this.snapshot!.fog[field.center.ty]?.[field.center.tx] !== 'hidden' })),
+      entities: this.snapshot!.entities.map((entity) => ({ position: { x: entity.x, y: entity.y }, friendly: entity.owner === this.seat, building: entity.kind === 'building' })),
+      viewport: this.presentation.cameraController.visibleBounds(),
+    };
   }
 
   private issueGroundOrder(ids: readonly EntityId[], destination: Vec2): void {
@@ -705,12 +637,6 @@ export class OnlineMatch {
     }
   };
 
-  private readonly onMinimapClick = (event: MouseEvent): void => {
-    const bounds = this.minimap.getBoundingClientRect();
-    const x = (event.clientX - bounds.left) / bounds.width * this.grid.bounds.width;
-    const y = (event.clientY - bounds.top) / bounds.height * this.grid.bounds.height;
-    this.presentation.cameraController.focus({ x, y });
-  };
 
   private setBattleInputEnabled(enabled: boolean): void {
     this.selection.setEnabled(enabled);
@@ -760,6 +686,12 @@ export class OnlineMatch {
       .filter((entity): entity is EntityView => entity !== undefined && entity.owner === this.seat);
   }
 
+  private hasFriendlyCompleted(type: BuildingTypeId): boolean {
+    return this.snapshot?.entities.some((entity) =>
+      entity.owner === this.seat && entity.kind === 'building' && entity.type === type && entity.status !== 'constructing',
+    ) ?? false;
+  }
+
   private command(command: PvpCommand): void {
     if (!this.matchId || this.socket?.readyState !== WebSocket.OPEN) {
       this.notify('Waiting for the server connection…', 'error');
@@ -791,11 +723,6 @@ export class OnlineMatch {
     return button;
   }
 
-  private makeActionButton(label: string, detail: string, action: () => void): HTMLButtonElement {
-    const button = this.makeButton(label, action, 'secondary');
-    button.append(textElement('small', detail));
-    return button;
-  }
 
   private cardHeading(eyebrow: string, title: string, subtitle: string): DocumentFragment {
     const fragment = document.createDocumentFragment();
@@ -816,10 +743,6 @@ export class OnlineMatch {
     this.toastTimer = window.setTimeout(() => { this.toast.dataset.show = 'false'; }, duration);
   }
 
-  private setHealth(fraction: number): void {
-    this.healthFill.style.width = `${Math.round(clamp(fraction, 0, 1) * 100)}%`;
-    this.healthFill.style.background = fraction > 0.6 ? '#62d793' : fraction > 0.3 ? '#dfbf57' : '#db6e59';
-  }
 
   private inviteUrl(): string {
     return `${location.origin}${location.pathname}#room=${encodeURIComponent(this.roomId ?? '')}&invite=${encodeURIComponent(this.invite ?? '')}`;
@@ -860,7 +783,6 @@ function entityName(entity: EntityView): string {
     : BUILDING_CONFIG[entity.type as BuildingTypeId].name;
 }
 
-function clamp(value: number, min: number, max: number): number { return Math.max(min, Math.min(max, value)); }
 function isEditable(target: EventTarget | null): boolean { return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement; }
 function resultReason(reason: string): string {
   switch (reason) {
@@ -870,4 +792,24 @@ function resultReason(reason: string): string {
     case 'timeout': return 'The fifteen-minute limit expired.';
     default: return 'The match was ended by the server.';
   }
+}
+
+function hudAction(
+  id: string,
+  label: string,
+  detail: string,
+  onTrigger: () => void,
+  testId?: string,
+  disabled = false,
+  disabledReason?: string,
+): BattleHudAction {
+  return {
+    id,
+    label,
+    detail,
+    onTrigger,
+    disabled,
+    ...(testId === undefined ? {} : { testId }),
+    ...(disabledReason === undefined ? {} : { disabledReason }),
+  };
 }

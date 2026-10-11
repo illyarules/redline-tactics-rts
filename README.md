@@ -57,15 +57,17 @@ Quit to Title from the battle report clears the completed save.
 
 Use WASD or arrow keys to pan, the mouse wheel or +/− to zoom, left-click/drag to select, and
 right-click to move, attack visible enemies, or gather with Workers. Q then left-click issues
-Attack-Move; E entrenches selected FPV Drone Operators; A pans the camera. The minimap is read-only. Full controls are in
+Attack-Move; E entrenches selected FPV Drone Operators; A pans the camera. Click the minimap to recenter the camera. Full controls are in
 [`docs/gameplay.md`](./docs/gameplay.md).
 
 Single-player gameplay and saves require no backend. For private multiplayer, start the Node server
 with `npm run build:server && npm run start:server` alongside `npm run dev`. Select Multiplayer on
 the title screen, create a room, share the invite link, and have both players select Ready. The
-server starts a Meridian mirror match after both clients load. The online HUD shows the match clock,
-connection state, credits, selection details, production queue and actions available to the selected
-unit or building. Online matches use the same Open Field terrain, unit and building models, camera,
+server starts a Meridian mirror match after both clients load. Online and single-player use the same
+tactical HUD structure: match status and clock at the top, selection and Credits at bottom left,
+contextual construction, production, queue and unit actions in the center, and the minimap at bottom
+right. Online adds connection and surrender controls; single-player keeps its pause/save lifecycle.
+Online matches use the same Open Field terrain, unit and building models, camera,
 and fog-of-war presentation as single-player matches. Click, Shift-click, or drag to select units;
 right-click ground to move, press Q then
 click ground to attack-move, or right-click a visible enemy to attack. Select a Worker and choose a

@@ -1,6 +1,10 @@
 import type { Engine } from '@babylonjs/core/Engines/engine';
 import type { MapConfig } from '../config/types';
 import { PERSISTENCE_CONFIG } from '../config/persistence';
+import { ECONOMY_CONFIG } from '../config/economy';
+import { PRODUCTION_CONFIG } from '../config/production';
+import { BUILDING_CONFIG } from '../config/buildings';
+import { ENTRENCHMENT_CONFIG } from '../config/entrenchment';
 import { RENDER_CONFIG } from '../config/render';
 import { createMapGrid, type MapGrid } from '../core/map';
 import type { TileCoord, Vec2 } from '../core/geometry';
@@ -13,11 +17,11 @@ import { stepAttackCooldowns } from '../core/combat';
 import { stepEntrenchment, toggleEntrenchment } from '../core/entrenchment';
 import { createEconomy, type Economy } from '../core/economy';
 import { fogTargetPredicate, isEntityVisibleToPlayer, createFogState, stepFogVisibility, updateFogVisibility, type FogState } from '../core/fog';
-import type { ReadonlyEntity, ReadonlyUnit } from '../core/entities';
+import type { ReadonlyBuilding, ReadonlyEntity, ReadonlyUnit } from '../core/entities';
 import { issueGroupMoveOrders } from '../core/formation';
 import { issueGatherOrder, stepGather } from '../core/gather';
 import { stepMovement } from '../core/movement';
-import { cancelProduction, queueProduction, stepProduction } from '../core/production';
+import { cancelProduction, checkProductionRequest, queueProduction, stepProduction } from '../core/production';
 import { checkBuildingPlacement } from '../core/placement';
 import { populateStartingEntities } from '../core/matchSetup';
 import { inspectResourceField } from '../core/resourceFieldInspection';
@@ -30,17 +34,11 @@ import { executeAiMilitaryDecisions, type AiMilitaryReadout } from '../core/aiMi
 import { createAiState, observeAiStrategy, stepAi, type AiState } from '../core/ai';
 import { executeAiDefenseDecisions } from '../core/aiDefense';
 import { executeAiEconomyDecisions } from '../core/aiEconomy';
-import { BuildMenu } from '../ui/buildMenu';
 import { ConfirmDialog } from '../ui/confirmDialog';
-import { ControlsOverlay } from '../ui/controlsOverlay';
 import { PauseMenu } from '../ui/pauseMenu';
-import { SelectionPanel } from '../ui/selectionPanel';
-import { ProductionMenu } from '../ui/productionMenu';
-import { TacticalHud } from '../ui/tacticalHud';
-import { EntrenchMenu } from '../ui/entrenchMenu';
 import { MatchResultOverlay } from '../ui/matchResultOverlay';
 import type { AudioManager } from '../audio/AudioManager';
-import { TitleBanner } from '../ui/titleBanner';
+import { BattleHud, type BattleHudAction, type BattleHudViewModel } from '../ui/BattleHud';
 import { AiDebugReadout } from './AiDebugReadout';
 import { deathEffectAt, mapAttackHitToCombatEffect } from './combatEffectEvents';
 import { DebugLabelsView } from './DebugLabelsView';
@@ -58,11 +56,15 @@ import {
   recordProducedUnits,
   resolveMatchOutcome,
   stepMatchElapsedTime,
+  formatMatchCountdown,
   type CombatDestructionEvent,
   type MatchLifecycleState,
 } from '../core/matchLifecycle';
 import { areHostile } from '../core/teams';
 import { cellVisibility } from '../core/fog';
+import { checkPrerequisites, isCompleted } from '../core/prerequisites';
+import { isPowerAvailable } from '../core/power';
+import { resolveUnitStats } from '../core/factionStats';
 
 /**
  * The single gameplay scene. It builds the map grid and the world from typed config, renders both in
@@ -98,13 +100,7 @@ export class MatchScene {
   private readonly defenseRecoveryReadout = { latestAction: '—' };
   private readonly militaryReadout: AiMilitaryReadout = { latestAction: '—' };
   private readonly aiDebug: AiDebugReadout | null;
-  private readonly hud: TacticalHud;
-  private readonly titleBanner: TitleBanner;
-  private readonly controlsOverlay: ControlsOverlay;
-  private readonly selectionPanel: SelectionPanel;
-  private readonly buildMenu: BuildMenu;
-  private readonly productionMenu: ProductionMenu;
-  private readonly entrenchMenu: EntrenchMenu;
+  private readonly hud: BattleHud;
   private readonly placement: PlacementController;
   private readonly pauseMenu: PauseMenu;
   private readonly quitConfirm: ConfirmDialog;
@@ -124,6 +120,8 @@ export class MatchScene {
   private paused = false;
   private terminalSnapshotSaved = false;
   private selectedFieldId: string | null = null;
+  private productionMessage = '';
+  private productionBuildingId: EntityId | null = null;
 
   // eslint-disable-next-line complexity -- Construction wires independent scene systems and guarded restore state.
   public constructor(
@@ -219,30 +217,12 @@ export class MatchScene {
       },
     );
 
-    // The title, the controls card and the selection readout sit in the HTML layer above the canvas,
-    // so no camera movement can scale them and they stay crisp at any zoom.
-    this.hud = new TacticalHud(overlayContainer, this.grid.name);
-    this.hud.updateTimer(this.lifecycle.elapsedActiveSeconds);
-    this.titleBanner = new TitleBanner(
-      overlayContainer,
-      this.debugNoFog ? `${GAME_TITLE} · DEBUG NO FOG` : GAME_TITLE,
-    );
-    this.controlsOverlay = new ControlsOverlay(overlayContainer);
-    this.selectionPanel = new SelectionPanel(overlayContainer);
-    this.buildMenu = new BuildMenu(overlayContainer, (buildingType) => {
-      const workerId = this.selectedWorkerId();
-      if (workerId !== null) {
-        this.placement.start(buildingType, workerId);
-      }
-    });
-    this.productionMenu = new ProductionMenu(
-      overlayContainer,
-      (unitType) => this.queueSelectedProduction(unitType),
-      (queueIndex) => this.cancelSelectedProduction(queueIndex),
-    );
-    this.entrenchMenu = new EntrenchMenu(overlayContainer, () => {
-      toggleEntrenchment(this.world, PLAYER_ID, this.selection.selectedIds());
-      this.showSelection();
+    this.hud = new BattleHud(overlayContainer, {
+      topActions: [hudAction('pause', 'Pause', 'Save and pause', () => this.setPaused(true), 'pause-match')],
+      onMinimapNavigate: ({ x, y }) => this.presentation.cameraController.focus({
+        x: x * this.grid.bounds.width,
+        y: y * this.grid.bounds.height,
+      }),
     });
     this.placement = new PlacementController(
       this.presentation.scene,
@@ -376,7 +356,6 @@ export class MatchScene {
       return;
     }
     const activeDeltaSeconds = stepMatchElapsedTime(this.lifecycle, deltaSeconds);
-    this.hud.updateTimer(this.lifecycle.elapsedActiveSeconds);
     this.presentation.cameraController.update(activeDeltaSeconds);
     stepMovement(this.world, activeDeltaSeconds);
     stepGather(this.world, this.grid, this.resourceFieldState, this.economy, activeDeltaSeconds);
@@ -422,15 +401,6 @@ export class MatchScene {
 
     this.hudElapsedSeconds += activeDeltaSeconds;
     if (this.hudElapsedSeconds >= RENDER_CONFIG.hudUpdateIntervalSeconds) {
-      this.hud.update(
-        this.world,
-        this.grid,
-        this.presentation.cameraController.visibleBounds(),
-        this.economy,
-        this.fog,
-        PLAYER_ID,
-        this.debugNoFog,
-      );
       const ai = this.ais.get('ai');
       if (ai !== undefined) this.aiDebug?.update(ai, this.world, this.economy, this.militaryReadout, { world: this.world, grid: this.grid, fog: this.fog }, this.defenseRecoveryReadout.latestAction);
       this.hudElapsedSeconds = 0;
@@ -451,12 +421,6 @@ export class MatchScene {
     this.debugLabels.dispose();
     this.aiDebug?.dispose();
     this.hud.destroy();
-    this.titleBanner.destroy();
-    this.controlsOverlay.destroy();
-    this.selectionPanel.destroy();
-    this.buildMenu.destroy();
-    this.productionMenu.destroy();
-    this.entrenchMenu.destroy();
     this.placement.dispose();
     this.pauseMenu.destroy();
     this.quitConfirm.destroy();
@@ -530,17 +494,146 @@ export class MatchScene {
       .flatMap((id) => { const entity = this.world.get(id); return entity === undefined ? [] : [entity]; });
     this.presentation.sync(this.battleViewState(this.selection.selectedIds()), deltaSeconds);
     this.routeDebug.update(entities);
+    this.hud.update(this.hudModel(entities));
+  }
+
+  // eslint-disable-next-line complexity -- The controller maps each selection kind to presentation-only HUD data.
+  private hudModel(entities: readonly ReadonlyEntity[]): BattleHudViewModel {
+    const base = {
+      commandTitle: this.debugNoFog ? `${GAME_TITLE} · Debug no fog` : `${GAME_TITLE} command`,
+      status: `${this.grid.name.toUpperCase()} · Single-player`,
+      connected: true,
+      clock: formatMatchCountdown(this.lifecycle.elapsedActiveSeconds),
+      clockLabel: 'Match time',
+      selection: this.selectionView(entities),
+      credits: this.economy.balance(PLAYER_ID),
+      economyStatus: isPowerAvailable(this.world, PLAYER_ID) ? 'Power online' : 'No power',
+      economyWarning: !isPowerAvailable(this.world, PLAYER_ID),
+      minimap: this.minimapView(),
+      queue: [] as const,
+    };
+    if (entities.length === 0) {
+      this.productionMessage = '';
+      this.productionBuildingId = null;
+      return { ...base, actionTitle: 'Tactical commands', actions: [], emptyMessage: 'Select a Worker to construct a base, a production building to train units, or combat units to attack.' };
+    }
+    const single = entities.length === 1 ? entities[0] : undefined;
+    if (single?.kind !== 'building') {
+      this.productionMessage = '';
+      this.productionBuildingId = null;
+    }
+    if (single?.kind === 'unit' && single.type === 'worker' && single.owner === PLAYER_ID) {
+      const actions = (Object.keys(BUILDING_CONFIG) as BuildingTypeId[])
+        .filter((type) => BUILDING_CONFIG[type].buildable)
+        .map((type) => this.buildAction(single.id, type));
+      return { ...base, actionTitle: 'Construction', actionTestId: 'build-menu', actions };
+    }
+    if (single?.kind === 'building' && single.owner === PLAYER_ID) return this.productionHudModel(base, single);
+    if (entities.every((entity) => entity.kind === 'unit')) {
+      const actions: BattleHudAction[] = [hudAction('attack-move', 'Attack-move', 'Q · engage enemies en route', () => {
+        this.placement.cancel();
+        this.selection.setAttackMoveArmed(true);
+      })];
+      const fpv = entities.filter((entity): entity is ReadonlyUnit => entity.kind === 'unit' && entity.type === 'fpvOperators' && entity.owner === PLAYER_ID);
+      if (fpv.length > 0) {
+        const entrenched = fpv.every((entity) => entity.entrenchment === 'entrenched');
+        const entrenching = fpv.some((entity) => entity.entrenchment === 'entrenching');
+        const progress = Math.floor(Math.max(...fpv.map((entity) => entity.entrenchElapsedSeconds)) / ENTRENCHMENT_CONFIG.durationSeconds * 100);
+        actions.push(hudAction(
+          'entrench',
+          entrenched ? 'PACK UP' : entrenching ? `ENTRENCHING ${progress}%` : 'ENTRENCH',
+          entrenched ? 'Return to mobile formation' : entrenching ? 'Return to mobile formation' : 'Deploy to enable attacks',
+          () => { toggleEntrenchment(this.world, PLAYER_ID, fpv.map((entity) => entity.id)); this.showSelection(); },
+          'entrench-fpv-operators',
+        ));
+      }
+      return { ...base, actionTitle: 'Unit orders', ...(fpv.length > 0 ? { actionTestId: 'entrench-menu' } : {}), actions };
+    }
+    return { ...base, actionTitle: 'Mixed selection', actions: [], emptyMessage: 'Select units or one structure to show available commands.' };
+  }
+
+  // eslint-disable-next-line complexity -- Compact selection copy covers fields, groups and entity-specific status.
+  private selectionView(entities: readonly ReadonlyEntity[]): BattleHudViewModel['selection'] {
     const field = entities.length === 0
       ? this.grid.resourceFields.find((candidate) => candidate.id === this.selectedFieldId)
       : undefined;
     if (field !== undefined && cellVisibility(this.fog, PLAYER_ID, field.center.tx, field.center.ty) === 'visible') {
-      this.selectionPanel.updateResourceField(this.resourceFieldState.remaining(field.id), field.credits);
-    } else {
-      this.selectionPanel.update(entities);
+      const remaining = this.resourceFieldState.remaining(field.id);
+      return { name: 'Gas Extraction Site', detail: `${Math.floor(remaining)} / ${field.credits} Credits remaining · ${remaining > 0 ? 'Resource field' : 'Depleted'}`, healthFraction: field.credits === 0 ? 0 : remaining / field.credits };
     }
-    this.buildMenu.update(entities, this.world, this.economy);
-    this.productionMenu.update(entities, this.world, this.economy, PLAYER_ID);
-    this.entrenchMenu.update(entities);
+    if (entities.length === 0) return { name: 'No selection', detail: 'Select a friendly unit or structure', healthFraction: 0 };
+    if (entities.length > 1) {
+      const healthFraction = entities.reduce((total, entity) => total + entity.health / entity.stats.maxHealth, 0) / entities.length;
+      return { name: `${entities.length} units selected`, detail: 'Right-click the battlefield to issue a group order', healthFraction };
+    }
+    const entity = entities[0]!;
+    const progress = entity.kind === 'building' && entity.status === 'constructing' ? ` · ${Math.floor(entity.constructionProgress * 100)}% built` : '';
+    const carrying = entity.kind === 'unit' && entity.carriedCredits > 0 ? ` · carrying ${Math.floor(entity.carriedCredits)} Credits` : '';
+    const entrenchment = entity.kind === 'unit' && entity.type === 'fpvOperators'
+      ? entity.entrenchment === 'mobile' ? ' · must entrench to attack' : ` · ${entity.entrenchment}`
+      : '';
+    return { name: entity.stats.name, detail: `${Math.ceil(entity.health)} / ${entity.stats.maxHealth} integrity · ${capitalize(entity.status)}${progress}${entrenchment}${carrying}`, healthFraction: entity.health / entity.stats.maxHealth };
+  }
+
+  private buildAction(workerId: EntityId, type: BuildingTypeId): BattleHudAction {
+    const config = BUILDING_CONFIG[type];
+    const prerequisite = checkPrerequisites(this.world, PLAYER_ID, type);
+    const affordable = this.economy.canAfford(PLAYER_ID, config.cost);
+    const disabledReason = !prerequisite.allowed
+      ? `Requires ${prerequisite.missing.map((missing) => BUILDING_CONFIG[missing].name).join(', ')}`
+      : !affordable ? `Needs ${config.cost} Credits` : undefined;
+    return hudAction(type, config.name, `${config.cost} Credits · ${config.buildTimeSeconds}s`, () => this.placement.start(type, workerId), `build-${type}`, disabledReason !== undefined, disabledReason);
+  }
+
+  private productionHudModel(base: Omit<BattleHudViewModel, 'actionTitle' | 'actions'>, building: ReadonlyBuilding): BattleHudViewModel {
+    if (this.productionBuildingId !== building.id) {
+      this.productionBuildingId = building.id;
+      this.productionMessage = '';
+    }
+    if (!isCompleted(building)) return { ...base, actionTitle: `${building.stats.name} production`, actions: [], emptyMessage: 'Construction must finish before this structure can operate.' };
+    if (building.stats.produces.length === 0) return { ...base, actionTitle: `${building.stats.name} production`, actions: [], emptyMessage: 'This structure supports your base and has no production queue.' };
+    const actions = building.stats.produces.map((unitType) => {
+      const stats = resolveUnitStats(unitType, building.faction);
+      const check = checkProductionRequest(this.world, this.economy, PLAYER_ID, building.id, unitType);
+      const reason = productionReason(check.reason, stats.cost, stats.requires);
+      return hudAction(unitType, stats.name, `${stats.cost} Credits · ${stats.buildTimeSeconds}s`, () => { this.productionMessage = ''; this.queueSelectedProduction(unitType); this.showSelection(); }, `produce-${unitType}`, !check.allowed, reason, `Queue ${stats.name} (${stats.buildTimeSeconds}s)`);
+    });
+    const queue = building.productionQueue.map((item, index) => {
+      const stats = resolveUnitStats(item.unitType, building.faction);
+      const progress = index === 0 ? Math.min(100, Math.floor(item.elapsedSeconds / stats.buildTimeSeconds * 100)) : 0;
+      return {
+        id: `${building.id}-${index}`,
+        label: `${index + 1}. ${stats.name} · ${progress}%`,
+        detail: `Cancel and refund ${Math.round(item.paidCost * ECONOMY_CONFIG.cancelRefundFraction)} Credits`,
+        testId: `cancel-production-${index}`,
+        onCancel: () => {
+          const result = this.cancelSelectedProduction(index);
+          this.productionMessage = result.cancelled ? `Cancelled — refunded ${result.refunded} Credits` : 'Cannot cancel that queue item';
+          this.showSelection();
+        },
+      };
+    });
+    const powerPaused = building.stats.requiresPower && !isPowerAvailable(this.world, PLAYER_ID);
+    return {
+      ...base,
+      actionTitle: `${building.stats.name} production · ${powerPaused ? 'Paused — no power' : `Queue ${queue.length}/${PRODUCTION_CONFIG.queueCapacity}`}${this.productionMessage === '' ? '' : ` · ${this.productionMessage}`}`,
+      actionTestId: 'production-menu',
+      actions,
+      queue,
+    };
+  }
+
+  private minimapView(): BattleHudViewModel['minimap'] {
+    const cells = Array.from({ length: this.grid.heightTiles }, (_, ty) =>
+      Array.from({ length: this.grid.widthTiles }, (_, tx) => this.debugNoFog ? 'visible' as const : cellVisibility(this.fog, PLAYER_ID, tx, ty)));
+    return {
+      width: this.grid.bounds.width,
+      height: this.grid.bounds.height,
+      cells,
+      fields: this.grid.resourceFields.map((field) => ({ position: this.grid.tileCenter(field.center.tx, field.center.ty), visible: this.debugNoFog || cellVisibility(this.fog, PLAYER_ID, field.center.tx, field.center.ty) !== 'hidden' })),
+      entities: this.world.entities().filter(this.isVisibleToObserver).map((entity) => ({ position: entity.position, friendly: entity.owner === PLAYER_ID, building: entity.kind === 'building' })),
+      viewport: this.presentation.cameraController.visibleBounds(),
+    };
   }
 
   private battleViewState(selectedIds: readonly EntityId[]) {
@@ -605,16 +698,6 @@ export class MatchScene {
     this.placement.setEnabled(false);
     this.pauseMenu.setVisible(false);
     this.resultOverlay.show(this.lifecycle);
-  }
-
-  /** The single selected friendly Worker's id, or `null` when the selection is not exactly that. */
-  private selectedWorkerId(): EntityId | null {
-    const ids = this.selection.selectedIds();
-    if (ids.length !== 1) {
-      return null;
-    }
-    const unit = this.world.unit(ids[0] as EntityId);
-    return unit !== undefined && unit.owner === PLAYER_ID && unit.type === 'worker' ? unit.id : null;
   }
 
   /** Queues at the one selected friendly production building; the menu presents any failure. */
@@ -725,4 +808,47 @@ export class MatchScene {
     }
     return best;
   }
+}
+
+function hudAction(
+  id: string,
+  label: string,
+  detail: string,
+  onTrigger: () => void,
+  testId?: string,
+  disabled = false,
+  disabledReason?: string,
+  title?: string,
+): BattleHudAction {
+  return {
+    id,
+    label,
+    detail,
+    onTrigger,
+    disabled,
+    ...(testId === undefined ? {} : { testId }),
+    ...(disabledReason === undefined ? {} : { disabledReason }),
+    ...(title === undefined ? {} : { title }),
+  };
+}
+
+function productionReason(
+  reason: ReturnType<typeof checkProductionRequest>['reason'],
+  cost: number,
+  requires: readonly BuildingTypeId[],
+): string | undefined {
+  switch (reason) {
+    case null: return undefined;
+    case 'queue-full': return 'Queue full';
+    case 'insufficient-credits': return `Needs ${cost} Credits`;
+    case 'incomplete-building': return 'Building is not complete';
+    case 'unsupported-unit': return 'This building cannot produce that unit';
+    case 'missing-prerequisite': return `Requires ${requires.map((type) => BUILDING_CONFIG[type].name).join(', ')}`;
+    case 'not-owner': return 'That building is not yours';
+    default: return 'Production is unavailable';
+  }
+}
+
+function capitalize(value: string): string {
+  return value.length === 0 ? value : value[0]!.toUpperCase() + value.slice(1);
 }

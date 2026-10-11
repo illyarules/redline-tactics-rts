@@ -29,22 +29,9 @@
         outline: none;
         touch-action: none;
       }
-      .tactical-hud { position: fixed; inset: auto 0 0; height: 120px; pointer-events: none; background: linear-gradient(0deg, #101d26f2, #101d26df 80%, transparent); border-bottom: 3px solid #467b97; }
-      .credits { position: absolute; left: 24px; bottom: 39px; display: grid; gap: 3px; }
-      .credits span, .sector, .commands small { font-size: 10px; letter-spacing: .14em; color: #9ab3c1; }
-      .credits strong { color: #e7c881; font-size: 26px; font-weight: 500; }
-      .credits small { font-size: 9px; color: #75929f; letter-spacing: .09em; }
-      .commands { position: absolute; left: 490px; bottom: 38px; display: flex; gap: 8px; }
-      .commands button { width: 60px; height: 58px; border: 1px solid #405563; border-radius: 4px; background: #192c38; color: #7796a5; font-size: 23px; opacity: .65; }
-      .commands small { display: block; font-size: 8px; margin-top: 4px; }
-      .minimap { position: absolute; right: 20px; bottom: 20px; width: 160px; height: 160px; border: 5px solid #162630; outline: 1px solid #5b7480; border-radius: 3px; }
-      .sector { position: fixed; right: 24px; top: 24px; }
-      .sector span { display: block; margin-top: 6px; font-size: 8px; text-align: right; color: #aab29c; }
-      .match-timer { position: fixed; top: 22px; left: 50%; transform: translateX(-50%); color: #e9f8ff; font: 600 22px/1 system-ui,sans-serif; letter-spacing: .08em; text-shadow: 0 2px 8px #000; }
       .settings-control:focus-visible { outline: 2px solid #9ee6ff; outline-offset: 2px; }
       .quick-audio-toggle:hover { filter: brightness(1.18); transform: scale(1.04); }
       .quick-audio-toggle:active { filter: brightness(.92); transform: scale(.97); }
-      @media (max-width: 850px) { .commands { display: none; } .minimap { width: 110px; height: 110px; } }
     </style>
   </head>
   <body>

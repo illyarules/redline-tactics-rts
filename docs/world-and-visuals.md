@@ -86,9 +86,9 @@ Each resource field remains a grounded cyan crystal deposit generated determinis
 
 A warm directional sun and cool hemispheric fill separate model faces with soft percentage-closer shadows. The opening camera uses a 58-degree pitch and fits roughly 26 tiles across on smaller desktop windows, up to the configured opening zoom. The HQ is selected on arrival.
 
-The compact HUD shows the live Credits balance, power state, match countdown, selection health and
-status, contextual build/production panels, disabled decorative command buttons, and a read-only
-minimap of fog, entities, resources and the camera footprint.
+The shared tactical HUD shows live Credits, power or connection state, match countdown, selection
+health and status, contextual build/production/unit actions, queue progress, and a navigable minimap
+of fog, entities, resources and the camera footprint in both match modes.
 
 Feedback is kept minimal at this stage:
 
