@@ -164,6 +164,12 @@ export class CameraController {
       width: size.width, height: size.height };
   }
 
+  /** Recentres the shared camera for a spawn or minimap jump. */
+  public focus(position: Vec2): void {
+    this.view = initialCamera3dView(this.viewport(), this.bounds, this.config, position);
+    this.apply();
+  }
+
   /** Pausing must also freeze wheel/keyboard camera input, not only simulation movement. */
   public setEnabled(enabled: boolean): void {
     this.enabled = enabled;

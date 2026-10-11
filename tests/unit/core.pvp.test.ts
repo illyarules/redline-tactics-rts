@@ -13,6 +13,9 @@ describe('authoritative PvP match', () => {
     expect(west.entities.some((entity) => entity.owner === 'ai')).toBe(false);
     expect(east.entities.some((entity) => entity.owner === 'player')).toBe(false);
     expect(west.entities[0]?.id).not.toBe('e1');
+    expect(west.entities.find((entity) => entity.type === 'worker')).toMatchObject({
+      status: 'idle', facingRadians: 0, entrenchment: 'mobile',
+    });
   });
 
   it('rejects forged and mixed-owner commands without moving either actor', () => {

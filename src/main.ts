@@ -57,7 +57,7 @@ const render = (): void => {
   const deltaSeconds = framePacer.next(performance.now());
   if (deltaSeconds !== null) {
     scene?.render(deltaSeconds);
-    online?.render();
+    online?.render(deltaSeconds);
   }
 };
 

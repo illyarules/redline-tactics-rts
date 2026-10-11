@@ -178,8 +178,8 @@ export class PvpMatch {
       entities: this.world.entities().filter((entity) => isEntityVisibleToPlayer(this.fog, seat, entity)).map((entity) => ({
         id: this.toPublicId(entity.id), owner: entity.owner, kind: entity.kind, type: entity.type,
         x: entity.position.x, y: entity.position.y, health: entity.health, maxHealth: entity.stats.maxHealth,
-        ...(entity.kind === 'unit' && entity.owner === seat ? { status: entity.status, entrenchment: entity.entrenchment } : {}),
-        ...(entity.kind === 'building' && entity.owner === seat ? { status: entity.status, constructionProgress: entity.constructionProgress } : {}),
+        ...(entity.kind === 'unit' ? { status: entity.status, facingRadians: entity.facingRadians, entrenchment: entity.entrenchment } : {}),
+        ...(entity.kind === 'building' ? { status: entity.status, constructionProgress: entity.constructionProgress } : {}),
         ...(entity.kind === 'building' && entity.owner === seat ? { queue: entity.productionQueue.map((entry) => ({ id: entry.id, type: entry.unitType, progress: entry.elapsedSeconds })) } : {}),
       })),
       fog: Array.from({ length: this.grid.heightTiles }, (_, ty) => Array.from({ length: this.grid.widthTiles }, (_, tx) => cellVisibility(this.fog, seat, tx, ty))),
