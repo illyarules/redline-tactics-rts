@@ -2,6 +2,7 @@ import { AI_CONFIG } from '../config/ai';
 import { BUILDING_CONFIG } from '../config/buildings';
 import type { AiConfig } from '../config/types';
 import type { AiState, AiStepResult } from './ai';
+import { shouldBuildAiResourceDepot } from './aiInfrastructure';
 import { planAiPlacement } from './aiPlacement';
 import { startConstruction } from './construction';
 import type { Economy } from './economy';
@@ -29,10 +30,17 @@ export interface AiEconomyContext {
 export function planAiEconomy(ai: AiState, context: AiEconomyContext, config: AiConfig = AI_CONFIG, owner: PlayerId = 'ai'):
   { readonly buildOrderIndex: number; readonly intent: AiEconomyIntent | null } {
   const { world, grid, economy, resourceFieldState } = context;
-  let index = 0;
-  while (index < config.buildOrder.length && world.buildings(owner).some((b) => b.type === config.buildOrder[index] && isCompleted(b))) index++;
-  const result = (intent: AiEconomyIntent | null) => ({ buildOrderIndex: index, intent });
   const base = world.buildings(owner).find((b) => b.type === 'hq' && isCompleted(b));
+  let index = 0;
+  while (index < config.buildOrder.length) {
+    const type = config.buildOrder[index];
+    const completed = world.buildings(owner).some((b) => b.type === type && isCompleted(b));
+    const skipped = type === 'resourceDepot' && base !== undefined &&
+      !shouldBuildAiResourceDepot(base, grid, owner, config);
+    if (!completed && !skipped) break;
+    index++;
+  }
+  const result = (intent: AiEconomyIntent | null) => ({ buildOrderIndex: index, intent });
   if (base === undefined) return result(null);
   const dropoff = base ?? world.buildings(owner).find((b) => b.stats.acceptsDeliveries && isCompleted(b));
   if (dropoff === undefined) return result(null);
@@ -54,7 +62,9 @@ export function planAiEconomy(ai: AiState, context: AiEconomyContext, config: Ai
     }
   }
   const buildingType = ai.state === 'recover'
-    ? config.recoveryBuildOrder.find((type) => !world.buildings(owner).some((b) => b.type === type && isCompleted(b)))
+    ? config.recoveryBuildOrder.find((type) =>
+      !(type === 'resourceDepot' && !shouldBuildAiResourceDepot(base, grid, owner, config)) &&
+      !world.buildings(owner).some((b) => b.type === type && isCompleted(b)))
     : config.buildOrder[index];
   if (buildingType === undefined || world.buildings(owner).some((b) => isAlive(b) && b.status === 'constructing') ||
     workers.some((w) => w.order?.kind === 'Build') || !economy.canAfford(owner, BUILDING_CONFIG[buildingType].cost) ||

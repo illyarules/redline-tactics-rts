@@ -139,6 +139,8 @@ describe('building values', () => {
     expect(BUILDING_CONFIG.barracks.requires).toContain('hq');
     expect(BUILDING_CONFIG.factory.requires).toEqual(expect.arrayContaining(['barracks', 'powerPlant']));
     expect(BUILDING_CONFIG.factory.requiresPower).toBe(true);
+    expect(BUILDING_CONFIG.unmannedSystemsCenter.requires).toEqual(['barracks', 'powerPlant']);
+    expect(BUILDING_CONFIG.unmannedSystemsCenter.requires).not.toContain('factory');
     expect(BUILDING_CONFIG.hq.acceptsDeliveries).toBe(true);
     expect(BUILDING_CONFIG.resourceDepot.acceptsDeliveries).toBe(true);
   });

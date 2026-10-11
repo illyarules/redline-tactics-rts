@@ -125,9 +125,9 @@ describe('AI simulation boundaries', () => {
     const simulation = createSimulation();
     addCompletedAiBase(simulation);
     simulation.economy.earn('ai', 10_000);
-    const depot = simulation.world.buildings('ai').find((building) => building.type === 'resourceDepot');
-    expect(depot).toBeDefined();
-    simulation.world.remove(depot!.id);
+    const factory = simulation.world.buildings('ai').find((building) => building.type === 'factory');
+    expect(factory).toBeDefined();
+    simulation.world.remove(factory!.id);
 
     const armyBefore = simulation.world.units('ai').filter((unit) => unit.stats.attack !== null).length;
     stepSimulation(simulation, 10);

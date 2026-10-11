@@ -131,6 +131,26 @@ describe('AI military', () => {
     expect(c.barracks.productionQueue.map((item) => item.unitType)).toEqual(['infantry']);
     expect(c.factory.productionQueue).toEqual([]);
   });
+  it('builds its first army before reserving credits for the FPV tech center', () => {
+    const c = setup();
+    c.world.createBuilding({
+      type: 'resourceDepot', owner: 'ai', faction: 'ember', topLeft: { tx: 38, ty: 30 },
+    });
+    c.economy.spend('ai', c.economy.balance('ai') - 700);
+
+    const firstPlan = planAiMilitary(c.ai, c);
+    expect(firstPlan.some((intent) => intent.kind === 'produce' && intent.unitType === 'infantry')).toBe(true);
+    executeDecision(c);
+    expect(c.barracks.productionQueue.map((item) => item.unitType)).toEqual(['infantry']);
+
+    for (let index = 0; index < AI_CONFIG.minimumAttackArmyUnits; index++) {
+      c.world.createUnit({
+        type: 'infantry', owner: 'ai', faction: 'ember', position: c.grid.tileCenter(20 + index, 40),
+      });
+    }
+    c.world.setProductionQueue(c.barracks.id, []);
+    expect(planAiMilitary(c.ai, c).some((intent) => intent.kind === 'produce')).toBe(false);
+  });
   it('does not count a queued Worker toward the combat reinforcement target', () => {
     const c = setup();
     c.economy.earn('ai', 10_000);
@@ -195,6 +215,7 @@ describe('AI military', () => {
   });
   it('gates attacks on both memory and army, issues normal routes, then preserves them', () => {
     const c = setup();
+    c.economy.earn('ai', 1000);
     c.ai.state = 'attack';
     for (let i = 0; i < AI_CONFIG.minimumAttackArmyUnits; i++) c.world.createUnit({ type: 'infantry', owner: 'ai', faction: 'ember', position: c.grid.tileCenter(20 + i, 40) });
     expect(planAiMilitary(c.ai, c).some((p) => p.kind === 'attack')).toBe(false);

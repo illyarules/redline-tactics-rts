@@ -91,7 +91,7 @@ export const BUILDING_CONFIG: Readonly<Record<BuildingTypeId, BuildingConfig>> =
     footprint: { width: 3, height: 3 },
     visionRangeTiles: 6,
     produces: [],
-    requires: ['barracks', 'factory'],
+    requires: ['barracks', 'powerPlant'],
     requiresPower: true,
     acceptsDeliveries: false,
     armor: 'structure',

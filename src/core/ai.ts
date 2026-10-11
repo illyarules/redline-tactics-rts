@@ -6,6 +6,7 @@
  */
 import { AI_CONFIG } from '../config/ai';
 import type { AiConfig } from '../config/types';
+import { shouldBuildAiResourceDepot } from './aiInfrastructure';
 import { isAlive } from './entities';
 import { isEntityVisibleToPlayer, type FogState } from './fog';
 import { BUILDING_TYPE_IDS, UNIT_TYPE_IDS, type BuildingTypeId, type PlayerId } from './ids';
@@ -273,6 +274,9 @@ function assertAiConfig(config: AiConfig): void {
   if (!Number.isInteger(config.placementRadiusTiles) || config.placementRadiusTiles < 0) {
     throw new Error('AI placement radius must be a non-negative integer');
   }
+  if (!Number.isFinite(config.resourceDepotMinimumDistanceTiles) || config.resourceDepotMinimumDistanceTiles < 0) {
+    throw new Error('AI resource depot distance must be non-negative and finite');
+  }
   if (config.buildOrder.length === 0 || config.buildOrder.some((type) => !(BUILDING_TYPE_IDS as readonly string[]).includes(type))) {
     throw new Error('AI build order must contain buildable building types');
   }
@@ -306,7 +310,10 @@ export function updateAiKnowledge(ai: AiState, world: World, fog: FogState, owne
 export function observeAiStrategy(ai: AiState, world: World, grid: MapGrid, fog: FogState, owner: PlayerId = 'ai'): AiObservation {
   updateAiKnowledge(ai, world, fog, owner);
   const observation = observeAiWorld(world, grid, fog, AI_CONFIG, owner);
+  const base = world.buildings(owner).find((building) => building.type === 'hq' && isCompleted(building));
   const lostOpening = AI_CONFIG.buildOrder.slice(0, ai.buildOrderIndex).some((type) =>
+    !(type === 'resourceDepot' && base !== undefined &&
+      !shouldBuildAiResourceDepot(base, grid, owner, AI_CONFIG)) &&
     !world.buildings(owner).some((b) => b.type === type && isCompleted(b)));
   return { ...observation, essentialInfrastructureIntact: observation.essentialInfrastructureIntact && !lostOpening,
     playerBaseKnown: ai.lastKnownPlayerBasePosition !== null };
