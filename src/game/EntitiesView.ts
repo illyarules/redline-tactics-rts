@@ -10,7 +10,6 @@ import { SQUAD_CONFIG } from '../config/squad';
 import { healthFraction, isAlive, type ReadonlyEntity, type ReadonlyUnit } from '../core/entities';
 import { clamp } from '../core/geometry';
 import type { EntityId } from '../core/ids';
-import type { World } from '../core/world';
 import { shouldShowHealthBar } from './healthBar';
 import type { MaterialLibrary } from './materials';
 import type { ModelLibrary } from './models/library';
@@ -118,7 +117,7 @@ export class EntitiesView {
    * nothing but the Infantry walk cycle, which is likewise display state.
    */
   public sync(
-    world: World,
+    entities: readonly ReadonlyEntity[],
     selectedIds: readonly EntityId[] = [],
     deltaSeconds = 0,
     isVisible: EntityVisibility = ALWAYS_VISIBLE,
@@ -126,7 +125,7 @@ export class EntitiesView {
     const selected = new Set(selectedIds);
     const present = new Set<EntityId>();
 
-    for (const entity of world.entities()) {
+    for (const entity of entities) {
       present.add(entity.id);
       let display = this.displays.get(entity.id);
       if (display === undefined) {

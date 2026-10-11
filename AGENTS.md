@@ -18,11 +18,13 @@ The first milestone is a complete, playable single-player match. Prefer a modest
 
 ## Hard scope limits
 
-- Single-player skirmish against one AI on Open Field or two allied AIs on Trident Basin.
-- No gameplay backend, server, accounts, database, cloud sync, lobby, multiplayer, ranking, or map
-  editor. Vercel Web Analytics is the only current networked integration.
-- Local browser persistence through `localStorage` is limited to the current browser/device. No
-  gameplay state or personal match data is persisted to a backend or synchronized between devices.
+- Single-player skirmish against one AI on Open Field or two allied AIs on Trident Basin, plus
+  private two-human Open Field matches as described in `docs/multiplayer-architecture.md`.
+- The multiplayer exception permits one in-memory authoritative Node/WebSocket service, private
+  rooms, and short-lived seat credentials. No accounts, database, cloud sync, public lobby,
+  matchmaking, ranking, persistent match history, or map editor.
+- Single-player `localStorage` persistence remains local to the current browser/device. Online
+  seat credentials use `sessionStorage`; running online matches exist only in server memory.
 - Two selectable maps, two original factions (player fixed to Meridian), one resource, four unit roles, five building roles.
 - Use original placeholder shapes, colors, icons, names, and sounds. Do not import or imitate assets from Command & Conquer or any other commercial game.
 - Do not add a feature unless the current implementation task explicitly asks for it.

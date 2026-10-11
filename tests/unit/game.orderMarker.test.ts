@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAP_CONFIG } from '../../src/config/map';
-import { orderMarkerFor } from '../../src/game/orderMarker';
+import { attackMarkerDiameterTiles, orderMarkerFor } from '../../src/game/orderMarker';
 import { attackMoveOrder, attackOrder, buildOrder, moveOrder, produceOrder } from '../../src/core/orders';
 import { createWorld, type World } from '../../src/core/world';
 import type { ReadonlyEntity } from '../../src/core/entities';
@@ -92,6 +92,14 @@ describe('orderMarkerFor', () => {
     world.remove(target.id);
 
     expect(orderMarkerFor(world.get(attacker.id) ?? null, positionsIn(world))).toBeNull();
+  });
+
+  it('sizes attack markers outside both unit and building silhouettes', () => {
+    const world = newWorld();
+    const unit = world.createUnit({ type: 'tank', owner: 'ai', faction: 'ember', position: { x: 0, y: 0 } });
+    const building = world.createBuilding({ type: 'hq', owner: 'ai', faction: 'ember', topLeft: { tx: 1, ty: 1 } });
+    expect(attackMarkerDiameterTiles(unit)).toBeGreaterThan(unit.stats.bodySizeTiles);
+    expect(attackMarkerDiameterTiles(building)).toBeGreaterThan(Math.max(building.footprint.width, building.footprint.height));
   });
 
   it('leaves orders with no single point on the map unmarked', () => {

@@ -4,10 +4,10 @@ This backlog begins after the MVP tasks in [`implementation-plan.md`](../impleme
 Items are grouped by dependency rather than promised release dates.
 
 The current desktop game has selectable Open Field (1v1) and Trident Basin (1v2 against allied AI),
-a fixed Meridian-versus-Ember matchup, a fifteen-minute active-time limit, local saves, a read-only
-minimap, ground units only and no defensive weapons. Start Game resumes a valid save or opens mode
-selection; Multiplayer is disabled. Phones and tablets are blocked at entry because touch controls
-and mobile layouts are not implemented.
+a fixed Meridian-versus-Ember matchup, a fifteen-minute active-time limit, local saves, a navigable
+minimap, ground units only and no defensive weapons. Start Game opens mode selection; Single Game
+resumes a valid save or opens battlefield selection. Private multiplayer is available when its server
+is running. Phones and tablets are blocked at entry because touch controls and mobile layouts are not implemented.
 
 ## Maps and environment
 

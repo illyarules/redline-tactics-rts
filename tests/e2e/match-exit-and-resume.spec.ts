@@ -26,7 +26,7 @@ test('Cancel leaves the live match active and untouched', async ({ page }) => {
   await expect(page.getByTestId('tactical-hud')).toBeVisible();
 });
 
-test('Save and Quit returns to the start page and Start Game resumes the save', async ({ page }) => {
+test('Save and Quit returns to the start page and Single Game resumes the save', async ({ page }) => {
   await clearSnapshot(page);
   await startMatch(page);
 
@@ -41,6 +41,8 @@ test('Save and Quit returns to the start page and Start Game resumes the save', 
   expect(saved.entities.length).toBeGreaterThan(0);
 
   await page.getByTestId('title-start-game').click();
+  await expect(page.getByTestId('game-mode-selection')).toBeVisible();
+  await page.getByTestId('game-mode-single').click();
   await expect(page.getByTestId('game-canvas')).toBeVisible();
   await expect(page.getByTestId('game-mode-selection')).toHaveCount(0);
 });
@@ -64,6 +66,7 @@ test('Resume Game restores the saved match', async ({ page }) => {
 
   await expect(page.getByTestId('title-start-game')).toBeVisible();
   await page.getByTestId('title-start-game').click();
+  await page.getByTestId('game-mode-single').click();
 
   await expect(page.getByTestId('game-canvas')).toBeVisible();
   // `persistenceScenario` pre-selects its one friendly Infantry, so a genuine restore shows it
@@ -71,12 +74,13 @@ test('Resume Game restores the saved match', async ({ page }) => {
   await expect(page.getByTestId('selection-panel')).toContainText('Infantry');
 });
 
-test('Start Game with a save resumes immediately without opening mode selection', async ({ page }) => {
+test('Start Game with a save opens mode selection before resuming Single Game', async ({ page }) => {
   await seedSnapshot(page, persistenceScenario());
   await page.goto('/');
 
   await page.getByTestId('title-start-game').click();
-  await expect(page.getByTestId('game-mode-selection')).toHaveCount(0);
+  await expect(page.getByTestId('game-mode-selection')).toBeVisible();
+  await page.getByTestId('game-mode-single').click();
   await expect(page.getByTestId('game-canvas')).toBeVisible();
   await expect(page.getByTestId('selection-panel')).toContainText('Infantry');
 });

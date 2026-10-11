@@ -1,6 +1,5 @@
 /**
- * The first screen a player sees. It deliberately exposes one action only: an existing save is
- * resumed by Start Game, while a fresh session continues to mode selection.
+ * The first screen a player sees. Its single game action continues to mode selection.
  */
 const OPEN_FIELD_RENDER = new URL('../../assets/concepts/open-field-map-render-v2.png', import.meta.url).href;
 const UNSUPPORTED_DEVICE_MESSAGE =

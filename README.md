@@ -14,7 +14,10 @@ Phones and tablets are detected and blocked at the start screen. Touch controls 
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Start the Vite development server |
+| `npm run dev:server` | Start the authoritative multiplayer server on port 8787 |
 | `npm run build` | Produce a production build in `dist/` |
+| `npm run build:server` | Produce the Node server build in `dist-server/` |
+| `npm run start:server` | Run the built multiplayer server |
 | `npm run preview` | Serve the production build locally |
 | `npm test` | Run the Vitest unit suite once (`tests/unit/`) |
 | `npm run test:watch` | Run Vitest in watch mode |
@@ -35,10 +38,10 @@ Gameplay, world, camera and per-task build notes live in [`docs/`](./docs/README
 
 ## Match flow
 
-The title screen offers Start Game. With a valid save it resumes that match, including a completed
-battle report. Without a save it opens mode selection: Single Game leads to battlefield selection;
-Multiplayer is disabled. Choose Open Field (64 × 64, 1v1) or Trident Basin (80 × 80, 1v2 against two
-allied AI commanders), then Start Match. The player is always Meridian and the AI is Ember.
+The title screen offers Start Game, which opens the Single Game / Multiplayer mode selection.
+Single Game resumes a valid save, including a completed battle report, or leads to battlefield
+selection when there is no save. Choose Open Field (64 × 64, 1v1) or Trident Basin (80 × 80, 1v2
+against two allied AI commanders), then Start Match. The player is always Meridian and the AI is Ember.
 The lower title-screen footer shows the application version, current build identifier, developer,
 source repository, bug-report and feedback links.
 
@@ -54,8 +57,34 @@ Quit to Title from the battle report clears the completed save.
 
 Use WASD or arrow keys to pan, the mouse wheel or +/− to zoom, left-click/drag to select, and
 right-click to move, attack visible enemies, or gather with Workers. Q then left-click issues
-Attack-Move; E entrenches selected FPV Drone Operators; A pans the camera. The minimap is read-only. Full controls are in
+Attack-Move; E entrenches selected FPV Drone Operators; A pans the camera. Click the minimap to recenter the camera. Full controls are in
 [`docs/gameplay.md`](./docs/gameplay.md).
 
-Gameplay and saves require no backend. The deployed client initializes Vercel Web Analytics; it does
-not synchronize match state or provide accounts, cloud saves, multiplayer, or other online gameplay.
+Single-player gameplay and saves require no backend. For private multiplayer, start the Node server
+with `npm run build:server && npm run start:server` alongside `npm run dev`. Select Start Game, then
+Multiplayer, create a room, share the invite link, and have both players select Ready. The
+server starts a Meridian mirror match after both clients load. Online and single-player use the same
+tactical HUD structure: match status and clock at the top, selection and Credits at bottom left,
+contextual construction, production, queue and unit actions in the center, and the minimap at bottom
+right. Online adds connection and surrender controls; single-player keeps its pause/save lifecycle.
+Online matches use the same Open Field terrain, unit and building models, camera,
+and fog-of-war presentation as single-player matches. Click, Shift-click, or drag to select units;
+right-click ground to move, press Q then
+click ground to attack-move, or right-click a visible enemy to attack. Select a Worker and choose a
+building, then click a visible footprint to construct; select a production building and choose a unit
+to queue it. Right-click a visible resource field with a Worker to gather. WASD or arrow keys move the
+camera; the minimap recenters it. Escape clears an active order or selection. Surrender requires
+confirmation and ends the match. Refreshing the same tab resumes its seat while the server is running.
+Visible online movement is smoothed between the server's authoritative snapshots. The command panel
+shows pending, confirmed, and rejected order states; movement and attack markers remain local visual
+feedback until the server applies or rejects the command.
+Confirmed PvP attacks keep a marker on the visible target and use the shared muzzle, projectile,
+impact, target-flash, and destruction effects from the single-player battlefield.
+
+The browser uses `ws://localhost:8787/ws` in development. Production keeps the static Vite client
+on Vercel and runs the authoritative process as a separate single-instance Render Web Service; set
+`VITE_MULTIPLAYER_URL` to its `wss://.../ws` endpoint. The online service keeps rooms in memory and
+has no accounts or persistent match history. Environment variables, health checks, draining,
+capacity testing and rollback are documented in
+[`docs/multiplayer-deployment.md`](./docs/multiplayer-deployment.md). The deployed client also
+initializes Vercel Web Analytics.

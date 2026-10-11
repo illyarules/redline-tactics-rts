@@ -2,10 +2,10 @@
 
 ## Current state
 
-The desktop-only game opens on a title screen with Start Game. A valid saved match resumes directly;
-otherwise Start Game opens mode selection. Single Game opens battlefield selection, while Multiplayer
-is disabled. Open Field is a 64 × 64 1v1 map; Trident Basin is an 80 × 80 1v2 map against two allied
-AI commanders. Select a battlefield and press Start Match. Phones and tablets cannot enter a match.
+The desktop-only game opens on a title screen with Start Game, which opens mode selection. Single Game
+resumes a valid saved match or opens battlefield selection when there is no save. Multiplayer opens
+the private-room flow. Open Field is a 64 × 64 1v1 map; Trident Basin is an 80 × 80 1v2 map against
+two allied AI commanders. Select a battlefield and press Start Match. Phones and tablets cannot enter a match.
 
 The selected battlefield renders in a Babylon.js scene under a high angled RTS camera. Menus,
 controls and selection readouts sit in an HTML layer above the canvas. The player faction is fixed
@@ -57,15 +57,15 @@ panel shows queue progress and capacity, explains full queues or insufficient Cr
 player cancel any paid entry for the normal 75% refund. Factory production pauses without a completed
 Power Plant and resumes from the same progress when power returns.
 
-An active or completed match can be resumed through Start Game after a browser reload on the same device: units mid-route resume
-their route, the selection is restored, and a completed match reopens on its frozen battlefield with
+An active or completed match can be resumed through Start Game and Single Game after a browser reload
+on the same device: units mid-route resume their route, the selection is restored, and a completed match reopens on its frozen battlefield with
 the same battle report. From Pause, `New Match` opens battlefield selection, while
 `Quit to Main Menu` opens a confirmation instead of leaving right away: `Save and Quit` persists the
 match before returning to the title screen, `Quit Without Saving` discards it, and `Cancel` returns to
 the unchanged live match. `Play Again` also opens battlefield selection. The prior save is cleared
 when `Start Match` starts the selected battlefield; `Quit to Title` from the report clears the
-completed save. The title screen's `Start Game` resumes a valid save or opens mode selection when
-none exists. Local saves are not
+completed save. The title screen's `Start Game` opens mode selection; `Single Game` resumes a valid
+save or opens battlefield selection when none exists. Local saves are not
 synchronized, transferable, or backed by any server — see `implementation-plan.md`'s Task 12.5 for
 scope.
 
@@ -191,8 +191,8 @@ can click. A health bar appears above an entity while it is selected and wheneve
 | `Save and Quit` (quit confirmation) | Persist the match, then return to the title screen |
 | `Quit Without Saving` (quit confirmation) | Discard the match, then return to the title screen |
 | `Cancel` (quit confirmation) | Close the confirmation; the live match is unchanged |
-| `Start Game` (title screen) | Resume a valid save, otherwise open mode selection |
-| `Single Game` (mode selection) | Open battlefield selection |
+| `Start Game` (title screen) | Open mode selection |
+| `Single Game` (mode selection) | Resume a valid save, otherwise open battlefield selection |
 | `Start Match` (battlefield selection) | Clear the prior save and start on the selected map |
 
 During local development, open `/?debug=no-fog` to reveal the entire battlefield and all entities

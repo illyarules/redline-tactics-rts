@@ -23,6 +23,14 @@ export interface OrderMarker {
   readonly position: Vec2;
 }
 
+/** Sizes an attack ring beyond the target silhouette so units and large structures cannot hide it. */
+export function attackMarkerDiameterTiles(target: ReadonlyEntity): number {
+  const diameter = target.kind === 'building'
+    ? Math.max(target.footprint.width, target.footprint.height)
+    : target.stats.bodySizeTiles;
+  return diameter + 0.7;
+}
+
 /**
  * The mark for `entity`'s current order, or `null` when it has none worth marking.
  *

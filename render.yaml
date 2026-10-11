@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: redline-tactics-multiplayer
+    runtime: node
+    buildCommand: npm ci && npm run build:server
+    startCommand: npm run start:server
+    healthCheckPath: /healthz
+    maxShutdownDelaySeconds: 300
+    envVars:
+      - key: MULTIPLAYER_ORIGIN
+        sync: false
+      - key: MULTIPLAYER_ADMIN_TOKEN
+        sync: false
+      - key: MULTIPLAYER_MAX_ROOMS
+        value: "5"
+      - key: MULTIPLAYER_MAX_ROOM_LIFETIME_SECONDS
+        value: "2700"
+      - key: MULTIPLAYER_DRAIN_TIMEOUT_SECONDS
+        value: "1200"

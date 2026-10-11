@@ -10,6 +10,10 @@ import { distanceSquared, pointToTile, rectContains, tileRectContains, type Rect
 import type { EntityId, PlayerId } from './ids';
 import type { World } from './world';
 
+export interface SelectionEntitySource {
+  get(id: EntityId): ReadonlyEntity | undefined;
+}
+
 /** Stable IDs of the currently selected friendly entities, in selection order. */
 export type Selection = readonly EntityId[];
 
@@ -36,9 +40,9 @@ export function updateSelection(
 }
 
 /** Removes gone and destroyed entities while retaining the order of surviving selections. */
-export function pruneSelection(world: World, current: Selection, player: PlayerId): Selection {
+export function pruneSelection(source: SelectionEntitySource, current: Selection, player: PlayerId): Selection {
   return current.filter((id) => {
-    const entity = world.get(id);
+    const entity = source.get(id);
     return entity !== undefined && entity.owner === player && isAlive(entity);
   });
 }
