@@ -169,8 +169,8 @@ describe('AI defense and recovery', () => {
           }
         }
         for (const b of c.world.buildings('ai')) if (b.type !== 'hq' && isCompleted(b) && !rebuilt.includes(b.type)) rebuilt.push(b.type);
-        if (rebuilt.length===4 && c.ai.state!=='recover') break;
-        if (rebuilt.length<4 && i>=3) expect(c.ai.state).toBe('recover');
+        if (rebuilt.length===AI_CONFIG.recoveryBuildOrder.length && c.ai.state!=='recover') break;
+        if (rebuilt.length<AI_CONFIG.recoveryBuildOrder.length && i>=3) expect(c.ai.state).toBe('recover');
       }
       expect(rebuilt).toEqual(AI_CONFIG.recoveryBuildOrder);
       expect(gathering).toBe(true);

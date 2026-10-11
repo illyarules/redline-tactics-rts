@@ -9,6 +9,8 @@ export const AI_CONFIG: AiConfig = {
   commandArrivalRadiusTiles: 2,
   buildOrder: ['barracks', 'powerPlant', 'factory', 'resourceDepot', 'unmannedSystemsCenter'],
   placementRadiusTiles: 12,
+  // Current home fields are about 11-14 tiles from HQ; eight extra tiles avoid redundant depots.
+  resourceDepotMinimumDistanceTiles: 22,
   decisionIntervalSeconds: 1,
   minimumAttackArmyUnits: 3,
   criticalArmyUnits: 1,
@@ -16,7 +18,7 @@ export const AI_CONFIG: AiConfig = {
   maximumDefenders: 4,
   defenderSelectionRadiusTiles: 32,
   defenderPriority: 'distanceThenId',
-  recoveryBuildOrder: ['barracks', 'powerPlant', 'factory', 'resourceDepot'],
+  recoveryBuildOrder: ['barracks', 'powerPlant', 'factory'],
   essentialBuildingTypes: ['hq'],
-  minimumViableBuildingTypes: ['hq', 'barracks', 'powerPlant', 'factory', 'resourceDepot'],
+  minimumViableBuildingTypes: ['hq', 'barracks', 'powerPlant', 'factory'],
 };

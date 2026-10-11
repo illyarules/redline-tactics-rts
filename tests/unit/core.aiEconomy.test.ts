@@ -4,6 +4,7 @@ import { BUILDING_CONFIG } from '../../src/config/buildings';
 import { MAP_CONFIG } from '../../src/config/map';
 import { createAiState, isAiSnapshotShape, observeAiWorld, restoreAiState, serializeAiState, stepAi } from '../../src/core/ai';
 import { executeAiEconomyDecisions, executeAiEconomyIntent, planAiEconomy } from '../../src/core/aiEconomy';
+import { shouldBuildAiResourceDepot } from '../../src/core/aiInfrastructure';
 import { planAiPlacement } from '../../src/core/aiPlacement';
 import { stepConstruction } from '../../src/core/construction';
 import { createEconomy } from '../../src/core/economy';
@@ -26,6 +27,19 @@ function setup() {
 }
 
 describe('AI economy', () => {
+  it('builds a Resource Depot only when its home gas field is beyond the configured distance', () => {
+    const nearby = setup();
+    const nearbyHq = nearby.world.buildings('ai').find((building) => building.type === 'hq')!;
+    expect(shouldBuildAiResourceDepot(nearbyHq, nearby.grid, 'ai', AI_CONFIG)).toBe(false);
+
+    const remoteConfig = {
+      ...MAP_CONFIG,
+      resourceFields: MAP_CONFIG.resourceFields.map((field) =>
+        field.homeFor === 'ai' ? { ...field, center: { tx: 22, ty: 16 } } : field),
+    };
+    const remoteGrid = createMapGrid(remoteConfig);
+    expect(shouldBuildAiResourceDepot(nearbyHq, remoteGrid, 'ai', AI_CONFIG)).toBe(true);
+  });
   it('plans without mutation and assigns a deterministic field through the normal API', () => {
     const context = setup();
     const ai = createAiState();
@@ -128,7 +142,7 @@ describe('AI economy', () => {
           ai = restored.ai;
         }
       }
-      expect(completed).toEqual(AI_CONFIG.buildOrder);
+      expect(completed).toEqual(AI_CONFIG.buildOrder.filter((type) => type !== 'resourceDepot'));
       expect(ai.buildOrderIndex).toBe(AI_CONFIG.buildOrder.length);
       const spent = context.world.buildings('ai').reduce((n, b) => n + b.stats.cost, 0);
       const carried = context.world.units('ai').reduce((n, w) => n + w.carriedCredits, 0);

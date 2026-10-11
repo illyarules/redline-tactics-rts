@@ -3,6 +3,7 @@ import { AI_CONFIG } from '../config/ai';
 import { BUILDING_CONFIG } from '../config/buildings';
 import type { AiConfig } from '../config/types';
 import type { AiState, AiStepResult } from './ai';
+import { shouldBuildAiResourceDepot } from './aiInfrastructure';
 import { issueAttackMoveOrders } from './attackMove';
 import type { Economy } from './economy';
 import { isAlive, type ReadonlyBuilding, type ReadonlyUnit } from './entities';
@@ -102,9 +103,11 @@ function infantryProductionLimit(ai: AiState, world: World, owner: PlayerId, con
 }
 
 /** Construction sites are already paid; reserve only the next build-order structure not yet started. */
-function nextBuildingReserve(world: World, owner: PlayerId, config: AiConfig): number {
+function nextBuildingReserve(world: World, grid: MapGrid, owner: PlayerId, config: AiConfig): number {
+  const base = completedHq(world, owner);
   const next = config.buildOrder.find((type) =>
-    !world.buildings(owner).some((building) => building.type === type && isAlive(building)));
+    !world.buildings(owner).some((building) => building.type === type && isAlive(building)) &&
+    !(type === 'resourceDepot' && base !== undefined && !shouldBuildAiResourceDepot(base, grid, owner, config)));
   // The optional FPV tech building must not postpone the AI's first fighting force. Otherwise an
   // AI with completed Barracks and Factory can display ARMY 0/3 while saving every credit for tech.
   if (next === 'unmannedSystemsCenter' &&
@@ -153,7 +156,7 @@ function combatProductionChoiceFor(
   const producer = world.building(producerId);
   if (producer === undefined || producer.owner !== owner || !isCompleted(producer) ||
     !isProductionActive(world, owner, producer.stats.requiresPower)) return null;
-  const reserve = ai.state === 'defend' ? 0 : nextBuildingReserve(world, owner, config);
+  const reserve = ai.state === 'defend' ? 0 : nextBuildingReserve(world, context.grid, owner, config);
   const choice = chooseCombatUnit({ ai, world, producer, economy, owner, spendableCredits: economy.balance(owner) - reserve, config });
   if (choice?.unitType === 'infantry' && infantryForceSize(world, owner) >= infantryProductionLimit(ai, world, owner, config)) {
     return null;
@@ -178,7 +181,8 @@ function planCombatProduction(
   }
   const intents: AiMilitaryIntent[] = [];
   let remainingSlots = config.targetArmyUnits - aiArmy(world, owner).length - queuedCombatUnits(world, owner);
-  let spendableCredits = economy.balance(owner) - (ai.state === 'defend' ? 0 : nextBuildingReserve(world, owner, config));
+  let spendableCredits = economy.balance(owner) -
+    (ai.state === 'defend' ? 0 : nextBuildingReserve(world, context.grid, owner, config));
   let cycleIndex = ai.productionCycleIndex;
   let infantryCount = infantryForceSize(world, owner);
   const infantryLimit = infantryProductionLimit(ai, world, owner, config);

@@ -255,6 +255,8 @@ export interface AiConfig {
   readonly commandArrivalRadiusTiles: number;
   readonly buildOrder: readonly BuildingTypeId[];
   readonly placementRadiusTiles: number;
+  /** A Resource Depot is optional until the nearest home gas field is farther than this. */
+  readonly resourceDepotMinimumDistanceTiles: number;
   /** Simulation time between state evaluations; never tied to render frames or wall-clock time. */
   readonly decisionIntervalSeconds: number;
   /** Combat units required before a known player base can turn scouting into an attack state. */

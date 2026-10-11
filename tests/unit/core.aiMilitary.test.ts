@@ -215,6 +215,7 @@ describe('AI military', () => {
   });
   it('gates attacks on both memory and army, issues normal routes, then preserves them', () => {
     const c = setup();
+    c.economy.earn('ai', 1000);
     c.ai.state = 'attack';
     for (let i = 0; i < AI_CONFIG.minimumAttackArmyUnits; i++) c.world.createUnit({ type: 'infantry', owner: 'ai', faction: 'ember', position: c.grid.tileCenter(20 + i, 40) });
     expect(planAiMilitary(c.ai, c).some((p) => p.kind === 'attack')).toBe(false);
