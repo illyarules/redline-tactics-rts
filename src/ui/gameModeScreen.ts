@@ -1,7 +1,7 @@
 import type { AudioManager } from '../audio/AudioManager';
 import { QuickAudioToggle } from './quickAudioToggle';
 
-const OPEN_FIELD_RENDER = new URL('../../assets/concepts/open-field-map-render.png', import.meta.url).href;
+const OPEN_FIELD_RENDER = new URL('../../assets/concepts/open-field-map-render-v2.png', import.meta.url).href;
 
 /** Single-player entry point with the future multiplayer mode visible but intentionally disabled. */
 export class GameModeScreen {
