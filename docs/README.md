@@ -7,6 +7,7 @@
 - [Build log](./build-log.md) — task-by-task notes for movement, formation, persistence and economy
 - [Post-MVP roadmap](./roadmap.md) — maps, combat expansion and multiplayer backlog
 - [Multiplayer architecture](./multiplayer-architecture.md) — proposed private 1v1 format, server boundaries, protocol, lifecycle and implementation gates
+- [Playable private PvP epic](./multiplayer-epic.md) — current implementation status, task breakdown, acceptance criteria and test scenarios
 
 See also [`game-design.md`](../game-design.md) for the current design and scope, and
 [`implementation-plan.md`](../implementation-plan.md) for the historical task-by-task build order

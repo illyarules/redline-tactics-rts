@@ -1,7 +1,8 @@
 # Multiplayer architecture and first PvP format
 
-Status: proposed design; no multiplayer implementation or deployment is included.
-Reviewed on 2026-10-11 against repository commit `a5e3a31`.
+Status: accepted architecture baseline; implementation is in progress and deployment is not included.
+Originally reviewed on 2026-10-11 against repository commit `a5e3a31`. Current task status is tracked
+in [Playable private PvP epic](./multiplayer-epic.md).
 Task: [Define the multiplayer architecture and first format](https://app.todoist.com/app/task/define-the-multiplayer-architecture-and-first-format-6hgGP99VfRj2Rr4G).
 
 ## Decision
