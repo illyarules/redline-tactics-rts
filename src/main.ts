@@ -16,6 +16,7 @@ import { GameModeScreen } from './ui/gameModeScreen';
 import { detectCurrentDeviceSupport } from './platform/deviceSupport';
 import { readDebugOptions } from './game/debugOptions';
 import { BUILD_METADATA } from './buildMetadata';
+import { OnlineMatch } from './network/OnlineMatch';
 
 // Initialize Vercel Analytics
 inject();
@@ -40,6 +41,7 @@ const engine = new Engine(canvas, true, { stencil: false, preserveDrawingBuffer:
 const physicalPixelRatio = window.devicePixelRatio || 1;
 engine.setHardwareScalingLevel(Math.max(1, physicalPixelRatio / RENDER_CONFIG.maxDevicePixelRatio));
 let scene: MatchScene | null = null;
+let online: OnlineMatch | null = null;
 let titleScreen: TitleScreen | null = null;
 let gameModeScreen: GameModeScreen | null = null;
 let mapSelection: MapSelectionScreen | null = null;
@@ -55,6 +57,7 @@ const render = (): void => {
   const deltaSeconds = framePacer.next(performance.now());
   if (deltaSeconds !== null) {
     scene?.render(deltaSeconds);
+    online?.render();
   }
 };
 
@@ -77,6 +80,8 @@ const showTitle = (): void => {
   audio.stopAllMusic();
   scene?.dispose();
   scene = null;
+  online?.dispose();
+  online = null;
   canvas.style.display = 'none';
   titleScreen?.destroy();
   gameModeScreen?.destroy();
@@ -92,8 +97,21 @@ const showTitle = (): void => {
       gameStartSupported: deviceSupport.supported,
       version: BUILD_METADATA.version,
       buildId: BUILD_METADATA.buildId,
+      onMultiplayer: () => showMultiplayer(),
     },
   );
+};
+
+const showMultiplayer = (invite?: { roomId: string; invite: string }): void => {
+  if (!deviceSupport.supported) return;
+  scene?.dispose(); scene = null;
+  titleScreen?.destroy(); titleScreen = null;
+  gameModeScreen?.destroy(); gameModeScreen = null;
+  mapSelection?.destroy(); mapSelection = null;
+  canvas.style.display = 'block';
+  online?.dispose();
+  online = new OnlineMatch(engine, canvas, container, showTitle, invite);
+  framePacer.reset();
 };
 
 const showGameModeSelection = (): void => {
@@ -107,7 +125,7 @@ const showGameModeSelection = (): void => {
   mapSelection?.destroy();
   mapSelection = null;
   gameModeScreen?.destroy();
-  gameModeScreen = new GameModeScreen(container, audio, showMapSelection);
+  gameModeScreen = new GameModeScreen(container, audio, showMapSelection, () => showMultiplayer());
 };
 
 const startMatch = (map: MapConfig, snapshot: WorldSnapshot | null): void => {
@@ -174,6 +192,11 @@ const showMapSelection = (): void => {
   );
 };
 
-showTitle();
+const inviteParts = new URLSearchParams(window.location.hash.slice(1));
+const invitedRoom = inviteParts.get('room');
+const invitedToken = inviteParts.get('invite');
+if (invitedRoom && invitedToken) showMultiplayer({ roomId: invitedRoom, invite: invitedToken });
+else if (sessionStorage.getItem('redline-online-seat')) showMultiplayer();
+else showTitle();
 
 export { engine };

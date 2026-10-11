@@ -14,7 +14,10 @@ Phones and tablets are detected and blocked at the start screen. Touch controls 
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Start the Vite development server |
+| `npm run dev:server` | Start the authoritative multiplayer server on port 8787 |
 | `npm run build` | Produce a production build in `dist/` |
+| `npm run build:server` | Produce the Node server build in `dist-server/` |
+| `npm run start:server` | Run the built multiplayer server |
 | `npm run preview` | Serve the production build locally |
 | `npm test` | Run the Vitest unit suite once (`tests/unit/`) |
 | `npm run test:watch` | Run Vitest in watch mode |
@@ -35,9 +38,9 @@ Gameplay, world, camera and per-task build notes live in [`docs/`](./docs/README
 
 ## Match flow
 
-The title screen offers Start Game. With a valid save it resumes that match, including a completed
-battle report. Without a save it opens mode selection: Single Game leads to battlefield selection;
-Multiplayer is disabled. Choose Open Field (64 × 64, 1v1) or Trident Basin (80 × 80, 1v2 against two
+The title screen offers Start Game and Multiplayer. With a valid save, Start Game resumes that match,
+including a completed battle report. Without a save it opens mode selection: Single Game leads to
+battlefield selection. Choose Open Field (64 × 64, 1v1) or Trident Basin (80 × 80, 1v2 against two
 allied AI commanders), then Start Match. The player is always Meridian and the AI is Ember.
 The lower title-screen footer shows the application version, current build identifier, developer,
 source repository, bug-report and feedback links.
@@ -57,5 +60,18 @@ right-click to move, attack visible enemies, or gather with Workers. Q then left
 Attack-Move; E entrenches selected FPV Drone Operators; A pans the camera. The minimap is read-only. Full controls are in
 [`docs/gameplay.md`](./docs/gameplay.md).
 
-Gameplay and saves require no backend. The deployed client initializes Vercel Web Analytics; it does
-not synchronize match state or provide accounts, cloud saves, multiplayer, or other online gameplay.
+Single-player gameplay and saves require no backend. For private multiplayer, start the Node server
+with `npm run build:server && npm run start:server` alongside `npm run dev`. Select Multiplayer on
+the title screen, create a room, share the invite link, and have both players select Ready. The
+server starts a Meridian mirror match after both clients load. Click a unit to select it, Shift-click
+to add one, right-click ground to move, Alt-right-click ground to attack-move, or right-click a visible
+enemy to attack. Select a Worker and choose a building, then click a visible footprint to construct;
+select a production building and choose a unit to queue it. Right-click a visible resource field
+with a Worker to gather. Surrender ends the match. Refreshing the same tab resumes its seat while
+the server is running. Escape and local save are single-player controls.
+
+The browser uses `ws://localhost:8787/ws` by default. Set `VITE_MULTIPLAYER_URL` to the public WSS
+endpoint when building the client. Set `MULTIPLAYER_ORIGIN` to the exact HTTPS frontend origin on
+the server; the default is `http://localhost:5173`. `MULTIPLAYER_MAX_ROOMS` sets the room cap.
+The online service keeps rooms in memory and loses them on process restart. It has no accounts or
+persistent match history. The deployed client also initializes Vercel Web Analytics.

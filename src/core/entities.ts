@@ -14,6 +14,8 @@ import type { Order } from './orders';
 
 /** A paid unit waiting at a producer. Only index zero is allowed to accumulate elapsed time. */
 export interface ProductionQueueItem {
+  /** Stable row identity for online cancellation; older local saves may omit it. */
+  readonly id?: string;
   readonly unitType: UnitTypeId;
   readonly elapsedSeconds: number;
   /** Captured at queue time, so cancellation refunds exactly what this faction paid. */

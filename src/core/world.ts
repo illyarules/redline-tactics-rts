@@ -439,8 +439,15 @@ function validatedProductionQueue(
     if (!Number.isFinite(item.paidCost) || item.paidCost < 0) {
       throw new Error(`Production paid cost must be non-negative, got ${item.paidCost}`);
     }
-    return { unitType: item.unitType, elapsedSeconds: item.elapsedSeconds, paidCost: item.paidCost };
+    if (!validQueueId(item.id)) {
+      throw new Error('Production queue id is invalid');
+    }
+    return { unitType: item.unitType, elapsedSeconds: item.elapsedSeconds, paidCost: item.paidCost, ...(item.id === undefined ? {} : { id: item.id }) };
   });
+}
+
+function validQueueId(id: string | undefined): boolean {
+  return id === undefined || (typeof id === 'string' && id.length > 0 && id.length <= 64);
 }
 
 function normalizeRadians(angle: number): number {

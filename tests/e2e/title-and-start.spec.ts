@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { clearSnapshot, readSnapshot } from './helpers/storage';
 import { selectMapAndStart } from './helpers/match';
 
-test('starts through mode and map selection with multiplayer disabled', async ({ page }) => {
+test('starts offline through mode and map selection while multiplayer is available', async ({ page }) => {
   await clearSnapshot(page);
   await page.goto('/');
 
@@ -14,7 +14,7 @@ test('starts through mode and map selection with multiplayer disabled', async ({
   await startGameButton.click();
   await expect(page.getByTestId('game-mode-selection')).toBeVisible();
   await expect(page.getByTestId('game-mode-single')).toBeEnabled();
-  await expect(page.getByTestId('game-mode-multiplayer')).toBeDisabled();
+  await expect(page.getByTestId('game-mode-multiplayer')).toBeEnabled();
   await expect(page.getByTestId('mode-quick-audio-toggle')).toHaveAttribute('aria-label', 'Mute audio');
   await page.getByTestId('game-mode-single').click();
   await expect(page.getByTestId('map-selection')).toBeVisible();

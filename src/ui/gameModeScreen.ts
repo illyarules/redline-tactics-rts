@@ -3,12 +3,12 @@ import { QuickAudioToggle } from './quickAudioToggle';
 
 const OPEN_FIELD_RENDER = new URL('../../assets/concepts/open-field-map-render-v2.png', import.meta.url).href;
 
-/** Single-player entry point with the future multiplayer mode visible but intentionally disabled. */
+/** Choose between the offline skirmish and a private online room. */
 export class GameModeScreen {
   private readonly root = document.createElement('div');
   private readonly quickAudioToggle: QuickAudioToggle;
 
-  public constructor(container: HTMLElement, audio: AudioManager, onSingleGame: () => void) {
+  public constructor(container: HTMLElement, audio: AudioManager, onSingleGame: () => void, onMultiplayer: () => void) {
     this.root.dataset.testid = 'game-mode-selection';
     Object.assign(this.root.style, {
       position: 'fixed', inset: '0', display: 'grid', placeItems: 'center', zIndex: '60',
@@ -30,7 +30,7 @@ export class GameModeScreen {
     Object.assign(actions.style, { display: 'grid', gap: '14px' });
     actions.append(
       this.modeButton('Single Game', 'game-mode-single', false, onSingleGame),
-      this.modeButton('🔒  Multiplayer', 'game-mode-multiplayer', true),
+      this.modeButton('Multiplayer', 'game-mode-multiplayer', false, onMultiplayer),
     );
     panel.append(actions);
     this.root.append(panel);

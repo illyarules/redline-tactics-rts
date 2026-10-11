@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-server/
 .npm-cache/
 .idea/
 .DS_Store
