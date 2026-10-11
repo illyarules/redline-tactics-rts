@@ -63,4 +63,14 @@ describe('OnlineBattleViewAdapter', () => {
 
     expect(hidden.state.fieldFractions.get('west-home')).toBe(0.5);
   });
+
+  it('resets remembered resource amounts before a rematch', () => {
+    const adapter = new OnlineBattleViewAdapter(grid);
+    adapter.project(snapshot([{ id: 'west-home', remaining: 0 }]), []);
+
+    adapter.reset();
+    const fresh = adapter.project(snapshot([]), []);
+
+    expect(fresh.state.fieldFractions.get('west-home')).toBe(1);
+  });
 });

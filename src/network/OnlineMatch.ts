@@ -307,13 +307,14 @@ export class OnlineMatch {
 
   private receiveSession(message: Record<string, unknown>): void {
     const previousMatchId = this.matchId;
+    const nextMatchId = message.matchId as string | null;
+    if (previousMatchId !== nextMatchId) this.resetMatchState();
     this.roomId = message.roomId as string;
     this.invite = message.invite as string;
     this.credential = message.credential as string;
     this.seat = message.seat as Seat;
     this.epoch = message.connectionEpoch as number;
-    this.matchId = message.matchId as string | null;
-    if (previousMatchId !== this.matchId) this.resetTransientPresentation();
+    this.matchId = nextMatchId;
     this.seq = message.lastSeq as number;
     const start = this.grid.startFor(this.seat);
     if (start) this.presentation.cameraController.focus(this.grid.tileCenter(start.rallyPoint.tx, start.rallyPoint.ty));
@@ -322,7 +323,9 @@ export class OnlineMatch {
   }
 
   private receiveLobby(message: Record<string, unknown>): void {
-    this.matchId = message.matchId as string | null;
+    const nextMatchId = message.matchId as string | null;
+    if (this.matchId !== nextMatchId) this.resetMatchState();
+    this.matchId = nextMatchId;
     const phase = String(message.phase);
     if (phase === 'running') this.showGame();
     else if (phase === 'finished') this.showResult();
@@ -626,6 +629,17 @@ export class OnlineMatch {
   private resetTransientPresentation(): void {
     this.snapshotInterpolator.reset();
     this.commandFeedback.clear();
+  }
+
+  private resetMatchState(): void {
+    this.resetTransientPresentation();
+    this.battleView.reset();
+    this.snapshot = null;
+    this.battleState = null;
+    this.battleFog = null;
+    this.seq = 0;
+    this.selection.select(null);
+    this.placement.cancel();
   }
 
   private minimapView(): BattleHudViewModel['minimap'] {

@@ -165,9 +165,16 @@ export class PvpMatch {
         return { ok: result.cancelled, actorIds: result.cancelled ? [this.toPublicId(command.buildingId)] : [] };
       }
       case 'SetEntrenchment': {
-        if (command.entrenched) return { ok: true, actorIds: startEntrenchment(this.world, seat, command.unitIds).map((id) => this.toPublicId(id)) };
-        command.unitIds.forEach((id) => clearEntrenchment(this.world, id));
-        return { ok: true, actorIds: command.unitIds.map((id) => this.toPublicId(id)) };
+        if (command.entrenched) {
+          const actors = startEntrenchment(this.world, seat, command.unitIds);
+          return { ok: actors.length > 0, actorIds: actors.map((id) => this.toPublicId(id)) };
+        }
+        const actors = command.unitIds.filter((id) => {
+          const unit = this.world.unit(id);
+          return unit?.type === 'fpvOperators' && unit.entrenchment !== 'mobile';
+        });
+        actors.forEach((id) => clearEntrenchment(this.world, id));
+        return { ok: actors.length > 0, actorIds: actors.map((id) => this.toPublicId(id)) };
       }
     }
     return { ok: false, actorIds: [] };

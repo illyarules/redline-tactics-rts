@@ -62,6 +62,11 @@ export class OnlineBattleViewAdapter {
     this.fieldFractions = new Map(grid.resourceFields.map((field) => [field.id, 1]));
   }
 
+  public reset(): void {
+    this.fieldFractions.clear();
+    for (const field of this.grid.resourceFields) this.fieldFractions.set(field.id, 1);
+  }
+
   public project(
     snapshot: OnlineBattleSnapshot,
     selectedIds: readonly EntityId[],

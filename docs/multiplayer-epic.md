@@ -61,8 +61,9 @@ validation before starting the next task.
 | Task 2 — online shared battlefield | Complete, awaiting merge | `codex/online-shared-battlefield` / `2fc5985` | `OnlineMatch` renders server snapshots through the shared battlefield instead of prototype primitives |
 | Task 3 — shared battle interaction | Complete and validated | `codex/online-shared-battlefield` / `cc613ce` | Shared selection, contextual orders, attack-move, and building placement preview |
 | Task 4 — shared PvP-style tactical HUD | Complete and validated | `codex/online-shared-battlefield` / `b8582b0` | One presentation-only HUD for both modes, with mode-specific status and lifecycle controls |
-| Task 5 — online command feedback and interpolation | Complete, awaiting validation | `codex/online-shared-battlefield` | Buffered visible movement, local command status, shared order markers, and safe resync reset |
-| Tasks 6–7 | Not started | — | Must be implemented and validated one at a time |
+| Task 5 — online command feedback and interpolation | Complete and validated | `codex/online-shared-battlefield` / `76b757c`, `04b32d4` | Buffered visible movement, local command status, shared order markers, safe resync reset, and explicit combat feedback |
+| Task 6 — playable PvP loop audit | Complete, awaiting validation | `codex/online-shared-battlefield` | Complete command audit plus clean result, rematch, command-sequence, and return lifecycle |
+| Task 7 — private alpha deployment | Not started | — | Production configuration, operations, capacity evidence, and deployment guide |
 
 ## Epic acceptance criteria
 
@@ -263,7 +264,7 @@ remains visible.
 
 ## Task 6 — Complete and audit the playable PvP loop
 
-**Status:** Not started.
+**Status:** Complete, awaiting product validation.
 
 ### Description
 

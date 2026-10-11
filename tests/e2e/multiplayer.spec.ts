@@ -49,7 +49,7 @@ test('server applies owned orders once and rejects a forged actor', async () => 
   } finally { west.close(); east.close(); }
 });
 
-test('two private seats can start, refresh and finish an online match', async ({ browser }) => {
+test('two private seats can refresh, finish, rematch and leave without stale state', async ({ browser }) => {
   const westContext = await browser.newContext();
   const eastContext = await browser.newContext();
   const west = await westContext.newPage();
@@ -79,6 +79,27 @@ test('two private seats can start, refresh and finish an online match', async ({
     await west.getByRole('button', { name: 'Surrender', exact: true }).last().click();
     await expect(east.getByText(/Victory/)).toBeVisible();
     await expect(west.getByText(/Defeat/)).toBeVisible();
+
+    await west.getByRole('button', { name: 'Rematch lobby' }).click();
+    await expect(west.getByText(/Prepare for battle/)).toBeVisible();
+    await expect(east.getByText(/Prepare for battle/)).toBeVisible();
+    await west.getByRole('button', { name: 'Ready for battle' }).click();
+    await east.getByRole('button', { name: 'Ready for battle' }).click();
+    await expect(west.getByText(/Playing as west/)).toBeVisible();
+    await expect(east.getByText(/Playing as east/)).toBeVisible();
+    await expect(west.getByTestId('multiplayer-selection')).toContainText('No selection');
+
+    await west.mouse.click(worker.x, worker.y);
+    await expect(west.getByTestId('multiplayer-selection')).toContainText('Worker');
+    await west.mouse.click(worker.x + 100, worker.y + 60, { button: 'right' });
+    await expect(west.getByText('Order confirmed.')).toBeVisible();
+
+    await east.getByTestId('multiplayer-surrender').click();
+    await east.getByRole('button', { name: 'Surrender', exact: true }).last().click();
+    await expect(west.getByText(/Victory/)).toBeVisible();
+    await west.getByRole('button', { name: 'Return to title' }).click();
+    await expect(west.getByTestId('title-screen')).toBeVisible();
+    expect(await west.evaluate(() => sessionStorage.getItem('redline-online-seat'))).toBeNull();
   } finally {
     await westContext.close(); await eastContext.close();
   }

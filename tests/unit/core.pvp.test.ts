@@ -53,12 +53,64 @@ describe('authoritative PvP match', () => {
     expect(match.apply('player', { type: 'Build', workerId: westWorker.id, buildingType: 'powerPlant', topLeft: { tx: 3, ty: 26 } }).ok).toBe(false);
     expect(match.view('player').credits).toBe(650);
     expect(match.apply('player', { type: 'Produce', buildingId: westHq.id, unitType: 'worker' }).ok).toBe(true);
-    const queue = match.view('player').entities.find((entity) => entity.id === westHq.id)?.queue;
+    expect(match.apply('player', { type: 'Produce', buildingId: westHq.id, unitType: 'worker' }).ok).toBe(true);
+    let queue = match.view('player').entities.find((entity) => entity.id === westHq.id)?.queue;
+    expect(queue).toHaveLength(2);
+    for (let ticks = 0; queue?.length === 2 && ticks < 1_000; ticks++) {
+      match.step();
+      queue = match.view('player').entities.find((entity) => entity.id === westHq.id)?.queue;
+    }
     expect(queue).toHaveLength(1);
     expect(match.apply('player', { type: 'CancelProduction', buildingId: westHq.id, queueEntryId: 'wrong-row' }).ok).toBe(false);
     expect(match.apply('player', { type: 'CancelProduction', buildingId: westHq.id, queueEntryId: queue![0]!.id! }).ok).toBe(true);
     expect(match.view('player').entities.find((entity) => entity.id === westHq.id)?.queue).toHaveLength(0);
     expect(match.view('ai').entities.some((entity) => entity.id === westHq.id)).toBe(false);
+  });
+
+  it('supports gather, attack-move, construction resume and entrenchment through public IDs', () => {
+    const match = new PvpMatch();
+    const fieldCenter = match.grid.tileCenter(
+      match.grid.resourceFields[0]!.center.tx,
+      match.grid.resourceFields[0]!.center.ty,
+    );
+    const combatPosition = match.grid.tileCenter(8, 28);
+    match.world.createUnit({ type: 'worker', owner: 'player', faction: 'meridian', position: fieldCenter });
+    match.world.createUnit({ type: 'infantry', owner: 'player', faction: 'meridian', position: combatPosition });
+    updateFogVisibility(match.fog, match.world, match.grid);
+    const opening = match.view('player');
+    const worker = opening.entities.find((entity) => entity.type === 'worker' && entity.x === fieldCenter.x)!;
+    const baseWorker = opening.entities.find((entity) => entity.type === 'worker' && entity.id !== worker.id)!;
+    const infantry = opening.entities.find((entity) => entity.type === 'infantry')!;
+    const field = opening.fields[0]!;
+
+    expect(match.apply('player', { type: 'Gather', unitIds: [worker.id], fieldId: field.id }).ok).toBe(true);
+    expect(match.apply('player', {
+      type: 'AttackMove', unitIds: [infantry.id], destination: { x: 640, y: 900 },
+    }).ok).toBe(true);
+    expect(match.apply('player', {
+      type: 'Build', workerId: baseWorker.id, buildingType: 'powerPlant', topLeft: { tx: 3, ty: 26 },
+    }).ok).toBe(true);
+
+    const site = match.view('player').entities.find((entity) => entity.type === 'powerPlant')!;
+    const coreWorker = match.world.units('player').find((unit) => unit.type === 'worker')!;
+    match.world.setOrder(coreWorker.id, null);
+    match.world.setStatus(coreWorker.id, 'idle');
+    expect(match.apply('player', {
+      type: 'ResumeConstruction', workerId: baseWorker.id, buildingId: site.id,
+    }).ok).toBe(true);
+
+    match.world.createUnit({ type: 'fpvOperators', owner: 'player', faction: 'meridian', position: combatPosition });
+    updateFogVisibility(match.fog, match.world, match.grid);
+    const operators = match.view('player').entities.find((entity) => entity.type === 'fpvOperators')!;
+    expect(match.apply('player', {
+      type: 'SetEntrenchment', unitIds: [operators.id], entrenched: true,
+    }).ok).toBe(true);
+    expect(match.apply('player', {
+      type: 'SetEntrenchment', unitIds: [baseWorker.id], entrenched: true,
+    }).ok).toBe(false);
+    expect(match.apply('player', {
+      type: 'SetEntrenchment', unitIds: [operators.id], entrenched: false,
+    }).ok).toBe(true);
   });
 
   it('resolves elimination symmetrically and simultaneous structure loss as a draw', () => {
