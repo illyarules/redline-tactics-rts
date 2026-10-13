@@ -49,16 +49,27 @@ export function checkProductionRequest(
   if (building.owner !== player) return { allowed: false, reason: 'not-owner' };
   if (!isCompleted(building)) return { allowed: false, reason: 'incomplete-building' };
   if (!building.stats.produces.includes(unitType)) return { allowed: false, reason: 'unsupported-unit' };
-  const required = resolveUnitStats(unitType, building.faction).requires;
-  if (required.some((type) => !world.buildings(player).some(
-    (candidate) => candidate.type === type && isAlive(candidate) && isCompleted(candidate),
-  ))) return { allowed: false, reason: 'missing-prerequisite' };
-  const unitNeedsPower = building.stats.requiresPower || resolveUnitStats(unitType, building.faction).requiresPower;
-  if (!isProductionActive(world, player, unitNeedsPower)) return { allowed: false, reason: 'no-power' };
+  const unitBlock = unitRequirementBlock(world, player, building, unitType);
+  if (unitBlock !== null) return { allowed: false, reason: unitBlock };
   if (building.productionQueue.length >= config.queueCapacity) return { allowed: false, reason: 'queue-full' };
   const cost = resolveUnitStats(unitType, building.faction).cost;
   if (!economy.canAfford(player, cost)) return { allowed: false, reason: 'insufficient-credits' };
   return { allowed: true, reason: null };
+}
+
+/** The building and power requirements of one unit, independent of queue space and Credits. */
+function unitRequirementBlock(
+  world: World,
+  player: PlayerId,
+  building: ReadonlyBuilding,
+  unitType: UnitTypeId,
+): 'missing-prerequisite' | 'no-power' | null {
+  const stats = resolveUnitStats(unitType, building.faction);
+  if (stats.requires.some((type) => !world.buildings(player).some(
+    (candidate) => candidate.type === type && isAlive(candidate) && isCompleted(candidate),
+  ))) return 'missing-prerequisite';
+  if (!isProductionActive(world, player, building.stats.requiresPower || stats.requiresPower)) return 'no-power';
+  return null;
 }
 
 /**
