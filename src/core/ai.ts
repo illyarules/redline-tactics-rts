@@ -229,12 +229,11 @@ export function observeAiWorld(
       isProductionActive(world, aiPlayer, building.stats.requiresPower),
   );
   const radiusWorld = config.baseThreatRadiusTiles * grid.tileSizePixels;
-  const baseUnderThreat = hq !== undefined && world.units(opponent).some(
-    (unit) =>
-      isAlive(unit) &&
-      unit.stats.attack !== null &&
-      isEntityVisibleToPlayer(fog, aiPlayer, unit) &&
-      Math.hypot(unit.position.x - hq.position.x, unit.position.y - hq.position.y) <= radiusWorld,
+  const baseUnderThreat = hq !== undefined && world.entities().some((entity) =>
+    entity.owner === opponent && isAlive(entity) &&
+    (entity.kind === 'unit' ? entity.stats.attack !== null : entity.constructionProgress < 1) &&
+    isEntityVisibleToPlayer(fog, aiPlayer, entity) &&
+    Math.hypot(entity.position.x - hq.position.x, entity.position.y - hq.position.y) <= radiusWorld,
   );
   return {
     hasOperationalProduction,

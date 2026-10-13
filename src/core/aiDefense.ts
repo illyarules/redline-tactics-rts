@@ -23,9 +23,11 @@ export function observeAiDefense({ world, grid, fog }: AiDefenseContext, config:
   const distance = (p: Vec2) => base === undefined ? Infinity : Math.hypot(p.x - base.position.x, p.y - base.position.y);
   const nearest = (a: { position: Vec2; id: string }, b: { position: Vec2; id: string }) =>
     distance(a.position) - distance(b.position) || a.id.localeCompare(b.id);
-  const threats = base === undefined ? [] : world.units(opponent).filter((u) =>
-    isAlive(u) && u.stats.attack !== null && isEntityVisibleToPlayer(fog, owner, u) &&
-    distance(u.position) <= config.baseThreatRadiusTiles * grid.tileSizePixels).slice().sort(nearest);
+  const threats = base === undefined ? [] : world.entities().filter((entity) =>
+    entity.owner === opponent && isAlive(entity) &&
+    (entity.kind === 'unit' ? entity.stats.attack !== null : entity.constructionProgress < 1) &&
+    isEntityVisibleToPlayer(fog, owner, entity) &&
+    distance(entity.position) <= config.baseThreatRadiusTiles * grid.tileSizePixels).slice().sort(nearest);
   const defenders = base === undefined ? [] : world.units(owner).filter((u) =>
     isAlive(u) && u.type !== 'worker' && u.stats.attack !== null &&
     distance(u.position) <= config.defenderSelectionRadiusTiles * grid.tileSizePixels)
@@ -44,7 +46,7 @@ export function planAiDefense(ai: AiState, context: AiDefenseContext, config: Ai
     (!active || !defenders.some((d) => d.id === u.id))).map((u) => ({ kind: 'release', unitId: u.id }));
   if (!active || base === undefined) return intents;
   for (const unit of defenders) {
-    const target = threats.find((t) => unit.stats.attack?.targetCategories.includes('unit') && isAlive(t));
+    const target = threats.find((t) => unit.stats.attack?.targetCategories.includes(t.kind) && isAlive(t));
     if (target !== undefined) {
       if (unit.order?.kind !== 'Attack' || unit.order.targetId !== target.id) {
         intents.push({ kind: 'defend', unitId: unit.id, targetId: target.id });

@@ -28,6 +28,30 @@ function setup() {
 }
 
 describe('AI defense and recovery', () => {
+  it('attacks a visible enemy construction site near its base', () => {
+    const c = setup();
+    const base = c.world.buildings('ai')[0]!;
+    const tile = c.grid.worldToTile(base.position);
+    const site = c.world.createBuilding({
+      type: 'powerPlant', owner: 'player', faction: 'meridian',
+      topLeft: { tx: tile.tx + 3, ty: tile.ty }, status: 'constructing', constructionProgress: 0.4,
+    });
+    const defender = c.world.createUnit({
+      type: 'infantry', owner: 'ai', faction: 'ember',
+      position: { x: site.position.x - c.grid.tileSizePixels * 3, y: site.position.y },
+    });
+    updateFogVisibility(c.fog, c.world, c.grid);
+    expect(observeAiStrategy(c.ai, c.world, c.grid, c.fog).baseUnderThreat).toBe(true);
+    c.ai.state = 'defend';
+    const intent = { kind: 'defend' as const, unitId: defender.id, targetId: site.id };
+    expect(planAiDefense(c.ai, c)).toContainEqual(intent);
+    expect(executeAiDefenseIntent(c.ai, c, intent)).toBe(true);
+    expect(stepAttackOrders(c.world, c.grid, 0.25, fogTargetPredicate(c.fog))).toEqual([
+      expect.objectContaining({ attackerId: defender.id, targetId: site.id }),
+    ]);
+    expect(site.health).toBeLessThan(site.stats.maxHealth);
+  });
+
   it('filters fog/radius/noncombat threats, sorts and caps defenders, preserves identical orders and exits defense', () => {
     const c = setup();
     const base = c.world.buildings('ai')[0]!;
