@@ -138,6 +138,24 @@ describe('serializeWorld / restoreWorld round trip (AC-001)', () => {
   });
 });
 
+describe('Combat Buggy persistence', () => {
+  it('restores a Buggy and a power-paused Tank queue behind a Factory', () => {
+    const { grid, world, economy, resourceFieldState, fog } = setup();
+    const buggy = world.createUnit({ type: 'combatBuggy', owner: 'player', faction: 'meridian', position: grid.tileCenter(8, 8), health: 33 });
+    const factory = world.createBuilding({ type: 'factory', owner: 'player', faction: 'meridian', topLeft: { tx: 24, ty: 30 } });
+    world.setProductionQueue(factory.id, [
+      { unitType: 'tank', elapsedSeconds: 4, paidCost: 450 },
+      { unitType: 'combatBuggy', elapsedSeconds: 0, paidCost: 150 },
+    ]);
+    const { world: restored } = restoreWorld(serializeWorld(world, [], economy, resourceFieldState, fog, grid), grid);
+    const restoredBuggy = restored.units().find((unit) => unit.type === 'combatBuggy');
+    expect(restoredBuggy?.health).toBe(33);
+    expect(restoredBuggy?.stats.speedTilesPerSecond).toBe(buggy.stats.speedTilesPerSecond);
+    expect(restored.buildings().find((building) => building.type === 'factory')?.productionQueue)
+      .toEqual(factory.productionQueue);
+  });
+});
+
 describe('AI snapshot persistence', () => {
   it('restores the AI state and decision timer remainder without resetting it', () => {
     const { grid, world, economy, resourceFieldState, fog } = setup();

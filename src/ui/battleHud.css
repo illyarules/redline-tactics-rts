@@ -24,6 +24,7 @@
 .battle-hud__clock { justify-self: center; text-align: center; color: #ecfaff; font: 700 19px/1 ui-monospace, monospace; letter-spacing: .08em; }
 .battle-hud__clock small { display: block; margin-top: 5px; color: #78929f; font: 700 8px/1 system-ui, sans-serif; letter-spacing: .17em; }
 .battle-hud__top-actions { justify-self: end; display: flex; gap: 7px; pointer-events: auto; }
+.battle-hud__top-actions:empty { display: none; }
 .battle-hud__bottom { position: absolute; left: 16px; right: 16px; bottom: 16px; display: grid; grid-template-columns: minmax(210px,280px) minmax(330px,1fr) 172px; gap: 10px; align-items: end; }
 .battle-hud__panel { min-height: 120px; padding: 14px; border: 1px solid var(--hud-border); border-radius: 6px; background: linear-gradient(180deg,rgba(9,25,34,.91),rgba(5,15,21,.96)); box-shadow: 0 14px 35px rgba(0,0,0,.42); pointer-events: auto; }
 .battle-hud__selection-name { color: var(--hud-cyan-bright); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }

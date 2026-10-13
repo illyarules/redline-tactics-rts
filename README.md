@@ -72,7 +72,8 @@ and fog-of-war presentation as single-player matches. Click, Shift-click, or dra
 right-click ground to move, press Q then
 click ground to attack-move, or right-click a visible enemy to attack. Select a Worker and choose a
 building, then click a visible footprint to construct; select a production building and choose a unit
-to queue it. Right-click a visible resource field with a Worker to gather. WASD or arrow keys move the
+to queue it. A Factory builds the fast Combat Buggy with no Power Plant; Tanks and Rockets are
+unavailable ("Needs Power Plant") until one is complete; a Tank or Rocket already queued pauses if power is lost. Right-click a visible resource field with a Worker to gather. WASD or arrow keys move the
 camera; the minimap recenters it. Escape clears an active order or selection. Surrender requires
 confirmation and ends the match. Refreshing the same tab resumes its seat while the server is running.
 Visible online movement is smoothed between the server's authoritative snapshots. The command panel

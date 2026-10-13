@@ -21,6 +21,7 @@ export type ProductionBlockedReason =
   | 'incomplete-building'
   | 'unsupported-unit'
   | 'missing-prerequisite'
+  | 'no-power'
   | 'queue-full'
   | 'insufficient-credits';
 
@@ -48,19 +49,32 @@ export function checkProductionRequest(
   if (building.owner !== player) return { allowed: false, reason: 'not-owner' };
   if (!isCompleted(building)) return { allowed: false, reason: 'incomplete-building' };
   if (!building.stats.produces.includes(unitType)) return { allowed: false, reason: 'unsupported-unit' };
-  const required = resolveUnitStats(unitType, building.faction).requires;
-  if (required.some((type) => !world.buildings(player).some(
-    (candidate) => candidate.type === type && isAlive(candidate) && isCompleted(candidate),
-  ))) return { allowed: false, reason: 'missing-prerequisite' };
+  const unitBlock = unitRequirementBlock(world, player, building, unitType);
+  if (unitBlock !== null) return { allowed: false, reason: unitBlock };
   if (building.productionQueue.length >= config.queueCapacity) return { allowed: false, reason: 'queue-full' };
   const cost = resolveUnitStats(unitType, building.faction).cost;
   if (!economy.canAfford(player, cost)) return { allowed: false, reason: 'insufficient-credits' };
   return { allowed: true, reason: null };
 }
 
+/** The building and power requirements of one unit, independent of queue space and Credits. */
+function unitRequirementBlock(
+  world: World,
+  player: PlayerId,
+  building: ReadonlyBuilding,
+  unitType: UnitTypeId,
+): 'missing-prerequisite' | 'no-power' | null {
+  const stats = resolveUnitStats(unitType, building.faction);
+  if (stats.requires.some((type) => !world.buildings(player).some(
+    (candidate) => candidate.type === type && isAlive(candidate) && isCompleted(candidate),
+  ))) return 'missing-prerequisite';
+  if (!isProductionActive(world, player, building.stats.requiresPower || stats.requiresPower)) return 'no-power';
+  return null;
+}
+
 /**
- * Pays for and appends one unit. A Factory may accept a request while power is down; the front item
- * simply remains paused until a Power Plant is available, which avoids losing a valid paid request.
+ * Pays for and appends one unit. Units that need power cannot be queued while power is down. An item
+ * already paid for when power is lost simply stays paused until a Power Plant is available again.
  */
 export function queueProduction(
   world: World,
@@ -124,10 +138,12 @@ export function stepProduction(
 
   for (const building of world.buildings()) {
     if (!isAlive(building) || !isCompleted(building) || building.productionQueue.length === 0) continue;
-    if (!isProductionActive(world, building.owner, building.stats.requiresPower)) continue;
-
     const front = building.productionQueue[0]!;
-    const buildTimeSeconds = resolveUnitStats(front.unitType, building.faction).buildTimeSeconds;
+    const frontStats = resolveUnitStats(front.unitType, building.faction);
+    // Power is required per unit (Tank, Rocket) as well as per building (Unmanned Systems Center).
+    if (!isProductionActive(world, building.owner, building.stats.requiresPower || frontStats.requiresPower)) continue;
+
+    const buildTimeSeconds = frontStats.buildTimeSeconds;
     const elapsedSeconds = Math.min(buildTimeSeconds, front.elapsedSeconds + deltaSeconds);
     if (elapsedSeconds < buildTimeSeconds) {
       replaceFront(world, building, { ...front, elapsedSeconds });

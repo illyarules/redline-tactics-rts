@@ -56,10 +56,10 @@ describe('AI military', () => {
     executeDecision(c);
     executeDecision(c);
     expect(c.barracks.productionQueue.map((q) => q.unitType)).toEqual(['infantry', 'infantry']);
-    expect(c.factory.productionQueue.map((q) => q.unitType)).toEqual(['tank', 'rocket']);
+    expect(c.factory.productionQueue.map((q) => q.unitType)).toEqual(['combatBuggy', 'tank']);
     expect(c.ai.productionCycleIndex).toBe(3);
     expect(c.economy.balance('ai')).toBe(before - resolveUnitStats('infantry', 'ember').cost * 2 -
-      resolveUnitStats('tank', 'ember').cost - resolveUnitStats('rocket', 'ember').cost);
+      resolveUnitStats('combatBuggy', 'ember').cost - resolveUnitStats('tank', 'ember').cost);
   });
   it('caps normal Infantry at two once an operational Factory can provide vehicles', () => {
     const c = setup();
@@ -68,7 +68,7 @@ describe('AI military', () => {
     executeDecision(c);
     executeDecision(c);
     expect(c.barracks.productionQueue.map((item) => item.unitType)).toEqual(['infantry', 'infantry']);
-    expect(c.factory.productionQueue.map((item) => item.unitType)).toEqual(['tank', 'rocket', 'tank']);
+    expect(c.factory.productionQueue.map((item) => item.unitType)).toEqual(['combatBuggy', 'tank', 'rocket']);
   });
   it('allows a third Infantry without a Factory, then waits for vehicle production', () => {
     const c = setup();
@@ -94,12 +94,11 @@ describe('AI military', () => {
     }
     expect(planAiMilitary(c.ai, c).some((intent) => intent.kind === 'produce' && intent.unitType === 'infantry')).toBe(true);
   });
-  it.each(['incomplete', 'unpowered', 'enemy', 'credits', 'full'] as const)('rejects %s production without mutation', (failure) => {
+  it.each(['incomplete', 'enemy', 'credits', 'full'] as const)('rejects %s production without mutation', (failure) => {
     const c = setup();
     c.world.remove(c.barracks.id);
     c.ai.productionCycleIndex = 1;
     if (failure === 'incomplete') c.world.setConstructionProgress(c.factory.id, 0);
-    if (failure === 'unpowered') c.world.remove(c.power.id);
     if (failure === 'enemy') {
       c.world.remove(c.factory.id);
       c.world.createBuilding({ type: 'factory', owner: 'player', faction: 'meridian', topLeft: { tx: 24, ty: 30 } });
@@ -110,6 +109,24 @@ describe('AI military', () => {
     expect(planAiMilitary(c.ai, c).some((intent) => intent.kind === 'produce' && intent.producerId === c.factory.id)).toBe(false);
     expect(executeAiMilitaryIntent(c.ai, c, { kind: 'produce', producerId: c.factory.id, unitType: 'tank' })).toBe(false);
     expect(JSON.stringify([c.world.buildings(), c.economy.balance('ai'), c.ai])).toBe(before);
+  });
+  it('builds Combat Buggies without power but never queues Tank or Rocket while unpowered', () => {
+    const c = setup();
+    c.world.remove(c.barracks.id);
+    c.world.remove(c.power.id);
+    c.economy.earn('ai', 10_000);
+    for (const unitType of ['tank', 'rocket'] as const) {
+      c.ai.productionCycleIndex = AI_CONFIG.productionCycle.indexOf(unitType);
+      const before = JSON.stringify([c.world.buildings(), c.economy.balance('ai'), c.ai]);
+      expect(planAiMilitary(c.ai, c).some((intent) => intent.kind === 'produce' &&
+        (intent.unitType === 'tank' || intent.unitType === 'rocket'))).toBe(false);
+      expect(executeAiMilitaryIntent(c.ai, c, { kind: 'produce', producerId: c.factory.id, unitType })).toBe(false);
+      expect(JSON.stringify([c.world.buildings(), c.economy.balance('ai'), c.ai])).toBe(before);
+    }
+    c.ai.productionCycleIndex = 0;
+    expect(planAiMilitary(c.ai, c)).toContainEqual({ kind: 'produce', producerId: c.factory.id, unitType: 'combatBuggy' });
+    expect(queueNext(c)).toBe(true);
+    expect(c.factory.productionQueue.map((item) => item.unitType)).toEqual(['combatBuggy']);
   });
   it('produces before opening completion while preserving the next unstarted building cost', () => {
     const c = setup();

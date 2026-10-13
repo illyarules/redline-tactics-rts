@@ -134,11 +134,27 @@ describe('building values', () => {
     }
   });
 
+  it('keeps the Combat Buggy cheap, fast and weak relative to the other combat units', () => {
+    const { combatBuggy: buggy, infantry, rocket, tank } = UNIT_CONFIG;
+    expect(buggy.cost).toBeGreaterThan(infantry.cost);
+    expect(buggy.cost).toBeLessThan(Math.min(rocket.cost, tank.cost));
+    expect(buggy.speedTilesPerSecond).toBeGreaterThan(
+      Math.max(infantry.speedTilesPerSecond, rocket.speedTilesPerSecond, tank.speedTilesPerSecond));
+    expect(buggy.attack!.damage).toBeGreaterThan(infantry.attack!.damage);
+    expect(buggy.attack!.damage).toBeLessThan(Math.min(rocket.attack!.damage, tank.attack!.damage));
+    const dps = (unit: typeof buggy) => unit.attack!.damage / unit.attack!.cooldownSeconds;
+    expect(dps(buggy)).toBeLessThan(Math.min(dps(rocket), dps(tank)));
+    expect(buggy.bodySizeTiles).toBeLessThan(infantry.bodySizeTiles);
+  });
+
   it('follows the designed technology chain', () => {
     expect(BUILDING_CONFIG.hq.requires).toEqual([]);
     expect(BUILDING_CONFIG.barracks.requires).toContain('hq');
-    expect(BUILDING_CONFIG.factory.requires).toEqual(expect.arrayContaining(['barracks', 'powerPlant']));
-    expect(BUILDING_CONFIG.factory.requiresPower).toBe(true);
+    expect(BUILDING_CONFIG.factory.requires).toEqual(['barracks']);
+    expect(BUILDING_CONFIG.factory.requiresPower).toBe(false);
+    expect(UNIT_CONFIG.combatBuggy.requiresPower).toBe(false);
+    expect(UNIT_CONFIG.tank.requiresPower).toBe(true);
+    expect(UNIT_CONFIG.rocket.requiresPower).toBe(true);
     expect(BUILDING_CONFIG.unmannedSystemsCenter.requires).toEqual(['barracks', 'powerPlant']);
     expect(BUILDING_CONFIG.unmannedSystemsCenter.requires).not.toContain('factory');
     expect(BUILDING_CONFIG.hq.acceptsDeliveries).toBe(true);
@@ -148,7 +164,7 @@ describe('building values', () => {
 
 describe('damage table', () => {
   it('rates each attacker against every armor category', () => {
-    for (const attacker of ['fpvOperators', 'infantry', 'tank', 'rocket'] as const) {
+    for (const attacker of ['fpvOperators', 'infantry', 'combatBuggy', 'tank', 'rocket'] as const) {
       for (const armor of ARMOR_CATEGORIES) {
         expect(isPositiveFinite(DAMAGE_TABLE[attacker][armor])).toBe(true);
       }
@@ -156,7 +172,7 @@ describe('damage table', () => {
   });
 
   it('has no entry for the worker', () => {
-    expect(Object.keys(DAMAGE_TABLE).sort()).toEqual(['fpvOperators', 'infantry', 'rocket', 'tank']);
+    expect(Object.keys(DAMAGE_TABLE).sort()).toEqual(['combatBuggy', 'fpvOperators', 'infantry', 'rocket', 'tank']);
   });
 });
 

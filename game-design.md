@@ -98,10 +98,11 @@ Base configured values before faction modifiers:
 |---|---:|---:|
 | Worker | 150 | 8 s |
 | Infantry | 100 | 6 s |
+| Combat Buggy | 150 | 8 s |
 | Tank | 450 | 18 s |
 | Rocket | 300 | 14 s |
 | Barracks | 300 | 12 s |
-| Factory | 700 | 22 s |
+| Factory | 600 | 22 s |
 | Power Plant | 250 | 10 s |
 | Resource Depot | 400 | 15 s |
 
@@ -121,6 +122,12 @@ Start with 900 Credits. Economy rates and costs are config values.
 - Cheap, quick anti-light unit.
 - Short-to-medium attack range and low durability.
 - Produced at Barracks.
+
+### Combat Buggy
+
+- Fast, compact, lightly armored skirmisher with low damage per second.
+- Hits slightly harder per shot than Infantry but has little staying power.
+- Produced at Factory; needs no Power Plant.
 
 ### Tank
 
@@ -152,12 +159,12 @@ Armor/damage categories can remain minimal: `light`, `armored`, and `structure`,
 
 ### Factory
 
-- Produces Tanks and Rockets.
-- Requires a Barracks and an active Power Plant.
+- Produces Combat Buggies, Tanks and Rockets.
+- Requires a Barracks. Combat Buggies need no power; Tanks and Rockets can only be queued while a Power Plant is complete, and queued ones pause if power is lost.
 
 ### Power Plant
 
-- Satisfies the single binary power prerequisite for Factory production.
+- Satisfies the single binary power requirement for Tank and Rocket production (and the Unmanned Systems Forces Center).
 - Power is either available or unavailable; no capacity calculation or low-power simulation.
 
 ### Resource Depot
@@ -222,7 +229,7 @@ commands as the player. The two AI commanders on Trident Basin belong to the sam
 States:
 
 1. **Develop:** keep a Worker gathering; build missing prerequisites and a Resource Depot when affordable.
-2. **Produce:** maintain a configurable mix of Infantry, Tanks, and Rockets.
+2. **Produce:** maintain a configurable mix of Infantry, Combat Buggies, Tanks, and Rockets.
 3. **Scout:** send the first available combat unit toward the configured player start or last known
    player-HQ location.
 4. **Attack:** once the player base is known and the combat-unit count reaches its threshold,

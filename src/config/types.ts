@@ -37,6 +37,8 @@ export interface UnitConfig {
   readonly armor: Exclude<ArmorCategory, 'structure'>;
   /** Completed buildings required before this unit may be queued. */
   readonly requires: readonly BuildingTypeId[];
+  /** Whether the producer only advances this unit while its owner has a completed Power Plant. */
+  readonly requiresPower: boolean;
   /** `null` for units that cannot attack. */
   readonly attack: AttackProfile | null;
 }
@@ -247,7 +249,7 @@ export interface PersistenceConfig {
 }
 
 /** Low-frequency, deterministic decision thresholds for the single skirmish AI. */
-export type AiMilitaryUnitType = Extract<UnitTypeId, 'infantry' | 'fpvOperators' | 'tank' | 'rocket'>;
+export type AiMilitaryUnitType = Extract<UnitTypeId, 'infantry' | 'fpvOperators' | 'combatBuggy' | 'tank' | 'rocket'>;
 
 export interface AiConfig {
   readonly productionCycle: readonly AiMilitaryUnitType[];

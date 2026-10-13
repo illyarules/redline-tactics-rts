@@ -98,11 +98,36 @@ const ROCKET: UnitParts = (b, palette) => {
   }
 };
 
+const BUGGY: UnitParts = (b, palette) => {
+  // Open tubular-frame runabout: a low, narrow chassis, a rear engine block, a roll bar over a
+  // single seat and a slim light gun on a post, riding on four oversized wheels.
+  b.box({ size: [0.3, 0.1, 0.62], at: [0, 0.2, 0] }, palette.body)
+    .box({ size: [0.26, 0.08, 0.2], at: [0, 0.3, 0.2] }, palette.shell)
+    .box({ size: [0.24, 0.12, 0.16], at: [0, 0.3, -0.22] }, NEUTRAL_TONES.metalDark)
+    .box({ size: [0.2, 0.04, 0.14], at: [0, 0.27, -0.02] }, palette.light);
+  for (const x of [-0.11, 0.11]) {
+    b.cylinder({ height: 0.26, diameter: 0.035, sides: 6, at: [x, 0.4, -0.08] }, NEUTRAL_TONES.metalLight);
+  }
+  b.box({ size: [0.26, 0.035, 0.035], at: [0, 0.53, -0.08] }, NEUTRAL_TONES.metalLight)
+    .cylinder({ height: 0.2, diameter: 0.03, sides: 6, at: [0, 0.34, 0.02] }, NEUTRAL_TONES.metal)
+    .cylinder(
+      { height: 0.34, diameter: 0.045, sides: 6, at: [0, 0.4, 0.2], turn: [QUARTER_TURN, 0, 0] },
+      NEUTRAL_TONES.metalDark,
+    )
+    .box({ size: [0.32, 0.03, 0.05], at: [0, 0.2, 0.34] }, palette.accent);
+  for (const x of [-0.25, 0.25]) {
+    for (const z of [-0.22, 0.22]) {
+      wheel(b, x, z, 0.3);
+    }
+  }
+};
+
 /** Every unit role except Infantry, which is built by `models/soldier.ts` instead. */
 export type MergedUnitTypeId = Exclude<UnitTypeId, 'infantry' | 'fpvOperators'>;
 
 const UNIT_PARTS: Readonly<Record<MergedUnitTypeId, UnitParts>> = {
   worker: WORKER,
+  combatBuggy: BUGGY,
   tank: TANK,
   rocket: ROCKET,
 };

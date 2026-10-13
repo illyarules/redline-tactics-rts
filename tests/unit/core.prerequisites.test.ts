@@ -23,15 +23,12 @@ describe('checkPrerequisites', () => {
     expect(checkPrerequisites(world, 'player', 'barracks')).toEqual({ allowed: true, missing: [] });
   });
 
-  it('blocks the Factory until both Barracks and a Power Plant are complete', () => {
+  it('blocks the Factory until Barracks is complete, without needing a Power Plant', () => {
     const world = newWorld();
     world.createBuilding({ type: 'hq', owner: 'player', faction: 'meridian', topLeft: { tx: 0, ty: 0 } });
-    expect([...checkPrerequisites(world, 'player', 'factory').missing].sort()).toEqual(['barracks', 'powerPlant']);
+    expect(checkPrerequisites(world, 'player', 'factory')).toEqual({ allowed: false, missing: ['barracks'] });
 
     world.createBuilding({ type: 'barracks', owner: 'player', faction: 'meridian', topLeft: { tx: 10, ty: 0 } });
-    expect(checkPrerequisites(world, 'player', 'factory')).toEqual({ allowed: false, missing: ['powerPlant'] });
-
-    world.createBuilding({ type: 'powerPlant', owner: 'player', faction: 'meridian', topLeft: { tx: 20, ty: 0 } });
     expect(checkPrerequisites(world, 'player', 'factory')).toEqual({ allowed: true, missing: [] });
   });
 

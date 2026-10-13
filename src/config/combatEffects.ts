@@ -88,6 +88,22 @@ export const COMBAT_EFFECTS_CONFIG: CombatEffectsConfig = {
       trailColor: 0x31383c,
       impactColor: 0xff8e6b,
     },
+    combatBuggy: {
+      projectileDurationSeconds: 0.1,
+      projectileHeightTiles: 0.4,
+      projectileLengthTiles: 0.5,
+      projectileWidthTiles: 0.05,
+      muzzleDurationSeconds: 0.06,
+      muzzleDiameterTiles: 0.2,
+      impactDurationSeconds: 0.18,
+      impactDiameterTiles: 0.26,
+      debrisDiameterTiles: 0.05,
+      debrisTravelTiles: 0.2,
+      ringDiameterTiles: 0,
+      projectileColor: 0x9bf2e6,
+      trailColor: 0x3fc4b4,
+      impactColor: 0xc4fff5,
+    },
     tank: {
       projectileDurationSeconds: 0.23,
       projectileHeightTiles: 0.64,
@@ -167,7 +183,7 @@ export function isValidCombatEffectsConfig(config: CombatEffectsConfig): boolean
   ) return false;
 
   // eslint-disable-next-line complexity -- Each weapon field is independently required by the render effect.
-  return (['infantry', 'tank', 'rocket'] as const).every((id) => {
+  return (['infantry', 'combatBuggy', 'tank', 'rocket'] as const).every((id) => {
     const weapon = config.weapons[id];
     return weapon !== undefined &&
       positive(weapon.projectileDurationSeconds) &&
