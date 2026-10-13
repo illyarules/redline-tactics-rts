@@ -117,8 +117,12 @@ function nextBuildingReserve(world: World, grid: MapGrid, owner: PlayerId, confi
 
 function chooseCombatUnit(selection: CombatProductionSelection): CombatProductionChoice | null {
   const { ai, world, producer, economy, owner, spendableCredits, config } = selection;
-  const supported = config.productionCycle.filter((unitType) =>
-    producer.stats.produces.includes(unitType) && resolveUnitStats(unitType, producer.faction).attack !== null);
+  // Units that need a Power Plant are not queued while unpowered: they would only stall a paid queue.
+  const supported = config.productionCycle.filter((unitType) => {
+    const stats = resolveUnitStats(unitType, producer.faction);
+    return producer.stats.produces.includes(unitType) && stats.attack !== null &&
+      isProductionActive(world, owner, stats.requiresPower);
+  });
   const eligibleSupported = supported.filter((unitType) => resolveUnitStats(unitType, producer.faction).requires.every(
     (type) => world.buildings(owner).some((building) =>
       building.type === type && isAlive(building) && isCompleted(building)),

@@ -21,6 +21,7 @@ export type ProductionBlockedReason =
   | 'incomplete-building'
   | 'unsupported-unit'
   | 'missing-prerequisite'
+  | 'no-power'
   | 'queue-full'
   | 'insufficient-credits';
 
@@ -52,6 +53,8 @@ export function checkProductionRequest(
   if (required.some((type) => !world.buildings(player).some(
     (candidate) => candidate.type === type && isAlive(candidate) && isCompleted(candidate),
   ))) return { allowed: false, reason: 'missing-prerequisite' };
+  const unitNeedsPower = building.stats.requiresPower || resolveUnitStats(unitType, building.faction).requiresPower;
+  if (!isProductionActive(world, player, unitNeedsPower)) return { allowed: false, reason: 'no-power' };
   if (building.productionQueue.length >= config.queueCapacity) return { allowed: false, reason: 'queue-full' };
   const cost = resolveUnitStats(unitType, building.faction).cost;
   if (!economy.canAfford(player, cost)) return { allowed: false, reason: 'insufficient-credits' };
@@ -59,8 +62,8 @@ export function checkProductionRequest(
 }
 
 /**
- * Pays for and appends one unit. A Factory may accept a request while power is down; the front item
- * simply remains paused until a Power Plant is available, which avoids losing a valid paid request.
+ * Pays for and appends one unit. Units that need power cannot be queued while power is down. An item
+ * already paid for when power is lost simply stays paused until a Power Plant is available again.
  */
 export function queueProduction(
   world: World,
@@ -124,10 +127,12 @@ export function stepProduction(
 
   for (const building of world.buildings()) {
     if (!isAlive(building) || !isCompleted(building) || building.productionQueue.length === 0) continue;
-    if (!isProductionActive(world, building.owner, building.stats.requiresPower)) continue;
-
     const front = building.productionQueue[0]!;
-    const buildTimeSeconds = resolveUnitStats(front.unitType, building.faction).buildTimeSeconds;
+    const frontStats = resolveUnitStats(front.unitType, building.faction);
+    // Power is required per unit (Tank, Rocket) as well as per building (Unmanned Systems Center).
+    if (!isProductionActive(world, building.owner, building.stats.requiresPower || frontStats.requiresPower)) continue;
+
+    const buildTimeSeconds = frontStats.buildTimeSeconds;
     const elapsedSeconds = Math.min(buildTimeSeconds, front.elapsedSeconds + deltaSeconds);
     if (elapsedSeconds < buildTimeSeconds) {
       replaceFront(world, building, { ...front, elapsedSeconds });

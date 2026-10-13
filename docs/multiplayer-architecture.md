@@ -34,7 +34,7 @@ rooms, and session credentials. Preserve the remaining limits.
 | Fog | `core/fog.ts` is pure, but the browser currently holds the full world; placement does not check fog | Filter network output and validate hidden-target/placement commands on the server |
 | Persistence | Schema 14 includes all entities, economies, fog, AI, selection; `restoreWorld()` remaps IDs | Local saves are neither a network protocol nor a safe reconnection payload |
 | Result | `matchLifecycle.ts` aggregates all bots, returns local victory/defeat, and gives player loss priority | Introduce a neutral PvP result and per-participant statistics |
-| Content | Open Field is 64×64 with asymmetric starts/terrain; Trident Basin is 1v2; current code has five unit and six building roles | Start with Open Field and freeze a tested content revision; old four/five-role scope text is stale |
+| Content | Open Field is 64×64 with asymmetric starts/terrain; Trident Basin is 1v2; current code has six unit and six building roles | Start with Open Field and freeze a tested content revision; old four/five-role scope text is stale |
 | Browser assumptions | Pause, save/quit, title resume, observer debug, and minimap colors assume one local human | Audit the complete second-player experience, not only command ownership |
 | Tests | `multiplayer-map.test.ts` tests three-owner single-player setup, not a network match | Add server integration coverage; do not treat that filename as existing PvP support |
 

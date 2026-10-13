@@ -2,7 +2,7 @@ import type { AttackerTypeId } from '../config/types';
 import type { PvpCombatEffect } from '../core/pvp';
 import type { CombatEffectEvent } from '../game/combatEffectEvents';
 
-const WEAPONS = new Set<AttackerTypeId>(['infantry', 'fpvOperators', 'rocket']);
+const WEAPONS = new Set<AttackerTypeId>(['infantry', 'fpvOperators', 'combatBuggy', 'rocket']);
 const MAX_REMEMBERED_EVENTS = 512;
 
 /** Validates and de-duplicates filtered server VFX without deriving combat from entity changes. */

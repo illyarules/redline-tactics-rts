@@ -37,8 +37,7 @@ vision.
 
 Selecting a lone friendly Worker opens a small build menu next to its readout, with one button per
 building role. A button is disabled with a tooltip explaining why when its prerequisites are unmet or
-its cost is unaffordable right now — Barracks needs an HQ, the Factory needs a completed Barracks
-*and* Power Plant, and the Unmanned Systems Forces Center needs a completed Barracks and Factory.
+its cost is unaffordable right now — Barracks needs an HQ, the Factory needs a completed Barracks, and the Unmanned Systems Forces Center needs a completed Barracks and Factory.
 Clicking an enabled button starts placement: the building's footprint follows the
 pointer, snapped to the grid, green while its full footprint is in bounds, on passable ground and
 clear of every other building, red otherwise. Left-click on a green footprint spends the cost once and
@@ -50,12 +49,11 @@ from its existing progress without paying again. Losing every Power Plant pauses
 chain needs power (the HUD's power line turns red); completing a new one resumes it immediately.
 
 Selecting a completed HQ, Barracks, or Factory opens its production panel. HQs queue Workers,
-Barracks queue Infantry and FPV Drone Operators, and Factories queue Tanks or Rockets. FPV Drone
+Barracks queue Infantry and FPV Drone Operators, and Factories queue Combat Buggies, Tanks or Rockets. FPV Drone
 Operators stay locked until a completed Unmanned Systems Forces Center exists. Each building has a configured FIFO
 queue: only its front item advances, and completion spawns the unit at a nearby passable tile. The
 panel shows queue progress and capacity, explains full queues or insufficient Credits, and lets the
-player cancel any paid entry for the normal 75% refund. Factory production pauses without a completed
-Power Plant and resumes from the same progress when power returns.
+player cancel any paid entry for the normal 75% refund. Tanks and Rockets cannot be queued without a completed Power Plant (Combat Buggies do not need one); queued ones pause if power is lost and resume from the same progress when power returns.
 
 An active or completed match can be resumed through Start Game and Single Game after a browser reload
 on the same device: units mid-route resume their route, the selection is restored, and a completed match reopens on its frozen battlefield with
@@ -109,8 +107,8 @@ states. Each AI controller follows this plan independently on Trident Basin.
 Military planning in `core/aiMilitary.ts` shares the strategic cadence. Combat production begins as
 soon as a producer is operational instead of waiting for the whole opening to finish. Before a Factory
 is available, the Barracks may train up to three Infantry squads so the first attack cannot stall. Once
-a completed, powered Factory is available, normal production retains two Infantry squads and spends
-later army slots on Tanks and Rockets; defense may temporarily exceed this Infantry cap. Every eligible
+a completed Factory is available, normal production retains two Infantry squads and spends
+later army slots on Combat Buggies, Tanks and Rockets; defense may temporarily exceed this Infantry cap. Every eligible
 producer can queue one unit per decision tick, up to nine living plus queued combat units. Unavailable
 types are skipped, Workers do not count toward the army target, and normal development reserves the
 cost of the next unstarted building. Defense may spend that reserve. Any three completed combat units —

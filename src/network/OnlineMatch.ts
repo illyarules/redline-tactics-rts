@@ -615,7 +615,8 @@ export class OnlineMatch {
       const disabledReason = missing.length > 0
         ? `Requires ${missing.map((required) => BUILDING_CONFIG[required].name).join(', ')}`
         : (building.queue?.length ?? 0) >= PRODUCTION_CONFIG.queueCapacity ? 'Queue full'
-          : this.snapshot!.credits < unit.cost ? `Needs ${unit.cost} Credits` : undefined;
+          : unit.requiresPower && !this.hasFriendlyCompleted('powerPlant') ? 'Needs Power Plant'
+            : this.snapshot!.credits < unit.cost ? `Needs ${unit.cost} Credits` : undefined;
       return hudAction(unitType, unit.name, `${unit.cost} Credits · ${unit.buildTimeSeconds}s`, () => this.command({ type: 'Produce', buildingId: building.id, unitType }), `produce-${unitType}`, disabledReason !== undefined, disabledReason);
     });
     const queue = (building.queue ?? []).map((item) => {

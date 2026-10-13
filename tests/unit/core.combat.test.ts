@@ -14,7 +14,7 @@ function setup(): World {
   return createWorld({ tileSizePixels: TILE });
 }
 
-function unit(world: World, type: 'worker' | 'infantry' | 'tank' | 'rocket', owner: 'player' | 'ai', x: number, y = 0) {
+function unit(world: World, type: 'worker' | 'infantry' | 'combatBuggy' | 'tank' | 'rocket', owner: 'player' | 'ai', x: number, y = 0) {
   return world.createUnit({ type, owner, faction: owner === 'player' ? 'meridian' : 'ember', position: { x, y } });
 }
 
@@ -48,6 +48,18 @@ describe('damage and cooldowns', () => {
 
     expect(calculateAttackDamage(infantry, tank)).toBe(12 * DAMAGE_TABLE.infantry.armored);
     expect(calculateAttackDamage(infantry, hq)).toBe(12 * DAMAGE_TABLE.infantry.structure);
+  });
+
+  it('gives the Combat Buggy its own typed damage against light, armored and structure targets', () => {
+    const world = setup();
+    const buggy = unit(world, 'combatBuggy', 'player', 0);
+    const infantry = unit(world, 'infantry', 'ai', TILE);
+    const tank = unit(world, 'tank', 'ai', TILE);
+    const hq = world.createBuilding({ type: 'hq', owner: 'ai', faction: 'ember', topLeft: { tx: 1, ty: 0 } });
+
+    expect(calculateAttackDamage(buggy, infantry)).toBe(14 * DAMAGE_TABLE.combatBuggy.light);
+    expect(calculateAttackDamage(buggy, tank)).toBe(14 * DAMAGE_TABLE.combatBuggy.armored);
+    expect(calculateAttackDamage(buggy, hq)).toBe(14 * DAMAGE_TABLE.combatBuggy.structure);
   });
 
   it('applies a legal hit once, starts its cooldown, and becomes ready precisely at the boundary', () => {

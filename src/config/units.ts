@@ -14,6 +14,7 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     bodySizeTiles: 0.72,
     armor: 'light',
     requires: [],
+    requiresPower: false,
     attack: null,
   },
   infantry: {
@@ -27,6 +28,7 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     bodySizeTiles: 0.8,
     armor: 'light',
     requires: [],
+    requiresPower: false,
     attack: { damage: 12, cooldownSeconds: 0.9, rangeTiles: 3.5, targetCategories: ['unit', 'building'] },
   },
   fpvOperators: {
@@ -40,8 +42,24 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     bodySizeTiles: 0.86,
     armor: 'light',
     requires: ['unmannedSystemsCenter'],
+    requiresPower: false,
     // Damage and cadence match Rocket; the deployed drone team sees and reaches slightly farther.
     attack: { damage: 60, cooldownSeconds: 3, rangeTiles: 7.5, targetCategories: ['unit', 'building'] },
+  },
+  combatBuggy: {
+    id: 'combatBuggy',
+    name: 'Combat Buggy',
+    cost: 150,
+    buildTimeSeconds: 8,
+    maxHealth: 70,
+    speedTilesPerSecond: 3.2,
+    visionRangeTiles: 6,
+    bodySizeTiles: 0.7,
+    armor: 'light',
+    requires: [],
+    requiresPower: false,
+    // Fast skirmisher: hits slightly harder than Infantry but at a slower cadence and a low overall output.
+    attack: { damage: 14, cooldownSeconds: 1, rangeTiles: 3.5, targetCategories: ['unit', 'building'] },
   },
   tank: {
     id: 'tank',
@@ -54,6 +72,7 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     bodySizeTiles: 1,
     armor: 'armored',
     requires: [],
+    requiresPower: true,
     attack: { damage: 45, cooldownSeconds: 2.2, rangeTiles: 4.5, targetCategories: ['unit', 'building'] },
   },
   rocket: {
@@ -67,6 +86,7 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     bodySizeTiles: 0.86,
     armor: 'light',
     requires: [],
+    requiresPower: true,
     attack: { damage: 60, cooldownSeconds: 3, rangeTiles: 7, targetCategories: ['unit', 'building'] },
   },
 };

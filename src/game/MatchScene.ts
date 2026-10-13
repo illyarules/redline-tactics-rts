@@ -218,7 +218,7 @@ export class MatchScene {
     );
 
     this.hud = new BattleHud(overlayContainer, {
-      topActions: [hudAction('pause', 'Pause', 'Save and pause', () => this.setPaused(true), 'pause-match')],
+      topActions: [],
       onMinimapNavigate: ({ x, y }) => this.presentation.cameraController.focus({
         x: x * this.grid.bounds.width,
         y: y * this.grid.bounds.height,
@@ -613,7 +613,10 @@ export class MatchScene {
         },
       };
     });
-    const powerPaused = building.stats.requiresPower && !isPowerAvailable(this.world, PLAYER_ID);
+    const front = building.productionQueue[0];
+    const powerPaused = front !== undefined &&
+      (building.stats.requiresPower || resolveUnitStats(front.unitType, building.faction).requiresPower) &&
+      !isPowerAvailable(this.world, PLAYER_ID);
     return {
       ...base,
       actionTitle: `${building.stats.name} production · ${powerPaused ? 'Paused — no power' : `Queue ${queue.length}/${PRODUCTION_CONFIG.queueCapacity}`}${this.productionMessage === '' ? '' : ` · ${this.productionMessage}`}`,
@@ -841,6 +844,7 @@ function productionReason(
     case null: return undefined;
     case 'queue-full': return 'Queue full';
     case 'insufficient-credits': return `Needs ${cost} Credits`;
+    case 'no-power': return 'Needs Power Plant';
     case 'incomplete-building': return 'Building is not complete';
     case 'unsupported-unit': return 'This building cannot produce that unit';
     case 'missing-prerequisite': return `Requires ${requires.map((type) => BUILDING_CONFIG[type].name).join(', ')}`;

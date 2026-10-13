@@ -16,8 +16,8 @@ export type OwnerId = PlayerId | 'neutral';
 /** The two original factions. */
 export type FactionId = 'meridian' | 'ember';
 
-/** The five mobile unit roles. */
-export type UnitTypeId = 'worker' | 'infantry' | 'fpvOperators' | 'tank' | 'rocket';
+/** The six mobile unit roles. */
+export type UnitTypeId = 'worker' | 'infantry' | 'fpvOperators' | 'combatBuggy' | 'tank' | 'rocket';
 
 /** The six building roles. */
 export type BuildingTypeId = 'hq' | 'barracks' | 'factory' | 'powerPlant' | 'resourceDepot' | 'unmannedSystemsCenter';
@@ -30,7 +30,14 @@ export const PLAYER_IDS: readonly PlayerId[] = ['player', 'ai'];
 export const ALL_PLAYER_IDS: readonly PlayerId[] = ['player', 'ai', 'ai2'];
 export const AI_PLAYER_IDS: readonly AiPlayerId[] = ['ai', 'ai2'];
 export const FACTION_IDS: readonly FactionId[] = ['meridian', 'ember'];
-export const UNIT_TYPE_IDS: readonly UnitTypeId[] = ['worker', 'infantry', 'fpvOperators', 'tank', 'rocket'];
+export const UNIT_TYPE_IDS: readonly UnitTypeId[] = [
+  'worker',
+  'infantry',
+  'fpvOperators',
+  'combatBuggy',
+  'tank',
+  'rocket',
+];
 export const BUILDING_TYPE_IDS: readonly BuildingTypeId[] = [
   'hq',
   'barracks',

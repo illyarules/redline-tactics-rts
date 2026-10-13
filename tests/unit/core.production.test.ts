@@ -42,6 +42,7 @@ describe('production queues', () => {
   it('assigns each configured unit to its intended producer and charges once', () => {
     const { world, economy, hq, barracks } = setup();
     const factory = world.createBuilding({ type: 'factory', owner: 'player', faction: 'meridian', topLeft: { tx: 24, ty: 30 } });
+    world.createBuilding({ type: 'powerPlant', owner: 'player', faction: 'meridian', topLeft: { tx: 32, ty: 30 } });
     economy.earn('player', 500);
     const before = economy.balance('player');
 
@@ -83,16 +84,48 @@ describe('production queues', () => {
     expect(isUnderBuilding(world, tile)).toBe(false);
   });
 
-  it('pauses Factory timing without power and resumes from the same progress once powered', () => {
+  it('rejects Tank and Rocket without a Power Plant and accepts them once one is complete', () => {
+    const { world, economy } = setup();
+    const factory = world.createBuilding({ type: 'factory', owner: 'player', faction: 'meridian', topLeft: { tx: 24, ty: 30 } });
+    const before = economy.balance('player');
+    for (const unitType of ['tank', 'rocket'] as const) {
+      expect(queueProduction(world, economy, 'player', factory.id, unitType)).toEqual({ allowed: false, reason: 'no-power' });
+    }
+    expect(factory.productionQueue).toEqual([]);
+    expect(economy.balance('player')).toBe(before);
+
+    world.createBuilding({ type: 'powerPlant', owner: 'player', faction: 'meridian', topLeft: { tx: 32, ty: 30 } });
+    expect(queueProduction(world, economy, 'player', factory.id, 'tank').allowed).toBe(true);
+  });
+
+  it('lets a Factory build a Combat Buggy without a Power Plant while Tank and Rocket are unavailable', () => {
     const { grid, world, economy } = setup();
     const factory = world.createBuilding({ type: 'factory', owner: 'player', faction: 'meridian', topLeft: { tx: 24, ty: 30 } });
-    queueProduction(world, economy, 'player', factory.id, 'tank');
+    const before = economy.balance('player');
+    expect(queueProduction(world, economy, 'player', factory.id, 'combatBuggy').allowed).toBe(true);
+    const buggy = resolveUnitStats('combatBuggy', 'meridian');
+    stepProduction(world, grid, buggy.buildTimeSeconds);
+    expect(world.units().some((unit) => unit.type === 'combatBuggy')).toBe(true);
+    expect(economy.balance('player')).toBe(before - buggy.cost);
 
-    stepProduction(world, grid, 10);
-    expect(factory.productionQueue[0]?.elapsedSeconds).toBe(0);
+    expect(checkProductionRequest(world, economy, 'player', factory.id, 'rocket')).toEqual({ allowed: false, reason: 'no-power' });
+  });
+
+  it('pauses a queued Tank when power is lost, then resumes it without paying again', () => {
+    const { grid, world, economy } = setup();
+    const factory = world.createBuilding({ type: 'factory', owner: 'player', faction: 'meridian', topLeft: { tx: 24, ty: 30 } });
+    const plant = world.createBuilding({ type: 'powerPlant', owner: 'player', faction: 'meridian', topLeft: { tx: 32, ty: 30 } });
+    queueProduction(world, economy, 'player', factory.id, 'tank');
+    queueProduction(world, economy, 'player', factory.id, 'combatBuggy');
+    const balance = economy.balance('player');
+    stepProduction(world, grid, 3);
+    world.remove(plant.id);
+    stepProduction(world, grid, 50);
+    expect(factory.productionQueue.map((item) => [item.unitType, item.elapsedSeconds])).toEqual([['tank', 3], ['combatBuggy', 0]]);
     world.createBuilding({ type: 'powerPlant', owner: 'player', faction: 'meridian', topLeft: { tx: 32, ty: 30 } });
     stepProduction(world, grid, 2);
-    expect(factory.productionQueue[0]?.elapsedSeconds).toBe(2);
+    expect(factory.productionQueue[0]?.elapsedSeconds).toBe(5);
+    expect(economy.balance('player')).toBe(balance);
   });
 
   it('rejects full queues and insufficient funds without mutating Credits or queue state', () => {
