@@ -135,16 +135,15 @@ export class OnlineMatch {
     this.setBattleInputEnabled(false);
     window.addEventListener('keydown', this.onKeyDown, true);
 
+    this.showEntry();
     const saved = sessionStorage.getItem(STORAGE);
     if (inviteFromUrl) this.open('join', inviteFromUrl);
     else if (saved) {
       try {
         const value = JSON.parse(saved) as { roomId: string; credential: string };
         this.open('resume', value);
-      } catch {
-        this.showEntry();
-      }
-    } else this.showEntry();
+      } catch { sessionStorage.removeItem(STORAGE); }
+    }
   }
 
   public render(deltaSeconds: number): void {
@@ -383,6 +382,7 @@ export class OnlineMatch {
     const explanation: Readonly<Record<string, string>> = {
       capacity: 'The multiplayer service is at capacity. Try again shortly.',
       'room-unavailable': 'That room is unavailable or already has two players.',
+      'room-finished': 'This battle has already ended. Create or join another room.',
       'rate-limited': 'Too many orders were sent. Wait a moment and try again.',
       'sequence-gap': 'Your command stream is out of sync. Reconnecting…',
       draining: 'The multiplayer service is restarting and is not accepting new rooms.',

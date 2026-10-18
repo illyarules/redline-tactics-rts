@@ -4,9 +4,10 @@ import { pollSnapshot, saveAndResume, startMatch } from './helpers/match';
 import { clearSnapshot, readSnapshot, seedSnapshot } from './helpers/storage';
 import type { BuildingSnapshot } from '../../src/core/snapshot';
 
-test('combat applies damage to the targeted enemy', async ({ page }) => {
+for (const type of ['infantry', 'tank'] as const) {
+test(`${type} combat applies damage to the targeted enemy`, async ({ page }) => {
   await clearSnapshot(page);
-  const scenario = combatScenario();
+  const scenario = combatScenario(type);
   await seedSnapshot(page, scenario);
   await startMatch(page);
 
@@ -15,7 +16,7 @@ test('combat applies damage to the targeted enemy', async ({ page }) => {
   const startingHealth = enemy!.health;
 
   // Restored from the snapshot's own `selection` — see `combatScenario` for why.
-  await expect(page.getByTestId('selection-panel')).toContainText('Infantry');
+  await expect(page.getByTestId('selection-panel')).toContainText(type === 'tank' ? 'Tank' : 'Infantry');
 
   await pollSnapshot(page, (snapshot) => {
     const current = snapshot.entities.find((entity) => entity.kind === 'unit' && entity.owner === 'ai');
@@ -23,6 +24,7 @@ test('combat applies damage to the targeted enemy', async ({ page }) => {
     return health < startingHealth ? health : undefined;
   });
 });
+}
 
 test('placing a building starts construction and queuing a unit shows in the queue', async ({ page }) => {
   await clearSnapshot(page);

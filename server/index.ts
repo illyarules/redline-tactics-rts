@@ -147,7 +147,9 @@ sockets.on('connection', (socket) => {
       if (message.type === 'join' && typeof message.roomId === 'string' && typeof message.invite === 'string') {
         if (draining) { reject(socket, 'draining'); return; }
         const room = rooms.get(message.roomId);
-        if (!room || room.invite !== message.invite || room.phase !== 'waiting' || room.seats.ai) { reject(socket, 'room-unavailable'); return; }
+        if (!room || room.invite !== message.invite) { reject(socket, 'room-unavailable'); return; }
+        if (room.phase === 'finished') { reject(socket, 'room-finished'); return; }
+        if (room.phase !== 'waiting' || room.seats.ai) { reject(socket, 'room-unavailable'); return; }
         const now = Date.now(); room.seats.ai = { token: token(), socket: null, epoch: 0, ready: false, loaded: false, lastSeq: 0, disconnectedAt: null, lastMessageAt: now, messages: 0, windowStart: now };
         room.changedAt = now; attach(room, 'ai', socket); return;
       }

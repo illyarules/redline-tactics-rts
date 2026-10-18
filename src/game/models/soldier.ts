@@ -31,8 +31,9 @@ const SHOULDER_OFFSET: Vector3 = new Vector3(0.12, 0.53, 0);
 export interface SoldierPartPrototypes {
   /** Static: helmet, head, collar, both shoulder pads, hips, belt. Owner-coloured. */
   readonly torso: ModelSpec;
-  /** One leg. Cloned twice per soldier — neutral-coloured, shared by both factions. */
-  readonly leg: ModelSpec;
+  /** The leg at the left hip (negative x). The procedural soldier uses one leg mesh for both. */
+  readonly legLeft: ModelSpec;
+  readonly legRight: ModelSpec;
   /** The one visible arm, carrying the rifle. Owner-coloured. */
   readonly rifleArm: ModelSpec;
   readonly standHeightTiles: number;
@@ -44,6 +45,11 @@ export interface SoldierPartPrototypes {
 export interface SoldierKit {
   /** Prototypes for one faction's soldier. Built the first time that faction fields Infantry. */
   partsFor(owner: PlayerId, role?: 'infantry' | 'fpvOperators'): SoldierPartPrototypes;
+  /**
+   * Swaps Infantry (not FPV operators) to prototypes loaded from the Blender model. Until this is
+   * called, and if loading fails, the procedural soldier is used.
+   */
+  useModel(parts: ReadonlyMap<PlayerId, SoldierPartPrototypes>): void;
   dispose(): void;
 }
 
@@ -51,9 +57,16 @@ export function createSoldierKit(scene: Scene, materials: MaterialLibrary): Sold
   const torsos = new Map<string, ModelSpec>();
   const rifleArms = new Map<string, ModelSpec>();
   let leg: ModelSpec | null = null;
+  let modelParts: ReadonlyMap<PlayerId, SoldierPartPrototypes> | null = null;
 
   return {
+    useModel(parts) {
+      modelParts = parts;
+    },
+
     partsFor(owner, role = 'infantry') {
+      const loaded = role === 'infantry' ? modelParts?.get(owner) : undefined;
+      if (loaded !== undefined) return loaded;
       const key = `${owner}:${role}`;
       let torso = torsos.get(key);
       if (torso === undefined) {
@@ -70,7 +83,8 @@ export function createSoldierKit(scene: Scene, materials: MaterialLibrary): Sold
       }
       return {
         torso,
-        leg,
+        legLeft: leg,
+        legRight: leg,
         rifleArm,
         standHeightTiles: STAND_HEIGHT_TILES,
         hipHeightTiles: HIP_HEIGHT_TILES,
@@ -83,6 +97,10 @@ export function createSoldierKit(scene: Scene, materials: MaterialLibrary): Sold
       for (const model of torsos.values()) model.mesh.dispose();
       for (const model of rifleArms.values()) model.mesh.dispose();
       leg?.mesh.dispose();
+      for (const parts of modelParts?.values() ?? []) {
+        for (const part of [parts.torso, parts.rifleArm, parts.legLeft, parts.legRight]) part.mesh.dispose();
+      }
+      modelParts = null;
       torsos.clear();
       rifleArms.clear();
       leg = null;
@@ -168,12 +186,12 @@ export function instantiateSoldier(
   const legLeftPivot = new TransformNode(`${namePrefix}:legLeftPivot`, scene);
   legLeftPivot.parent = root;
   legLeftPivot.position = new Vector3(-parts.hipOffsetTiles, parts.hipHeightTiles, 0);
-  const legLeftMesh = enableClone(parts.leg.mesh.clone(`${namePrefix}:legLeft`, legLeftPivot));
+  const legLeftMesh = enableClone(parts.legLeft.mesh.clone(`${namePrefix}:legLeft`, legLeftPivot));
 
   const legRightPivot = new TransformNode(`${namePrefix}:legRightPivot`, scene);
   legRightPivot.parent = root;
   legRightPivot.position = new Vector3(parts.hipOffsetTiles, parts.hipHeightTiles, 0);
-  const legRightMesh = enableClone(parts.leg.mesh.clone(`${namePrefix}:legRight`, legRightPivot));
+  const legRightMesh = enableClone(parts.legRight.mesh.clone(`${namePrefix}:legRight`, legRightPivot));
 
   return {
     root,

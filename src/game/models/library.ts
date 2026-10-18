@@ -4,6 +4,7 @@ import type { MaterialLibrary } from '../materials';
 import { buildBuildingModel } from './buildings';
 import type { ModelSpec } from './kit';
 import { buildUnitModel } from './units';
+import { loadTankModels } from './tank';
 
 /**
  * The prototype model for every role and faction except Infantry, built once and cloned per entity.
@@ -23,6 +24,21 @@ export interface ModelLibrary {
 
 export function createModelLibrary(scene: Scene, materials: MaterialLibrary): ModelLibrary {
   const models = new Map<string, ModelSpec>();
+  let disposed = false;
+  // Keep the procedural tank as a usable fallback while loading or if the request fails.
+  void loadTankModels(scene).then(tanks => {
+    for (const [owner, model] of tanks) {
+      if (disposed) {
+        model.mesh.dispose(false, true);
+        continue;
+      }
+      const key = `unit:tank:${owner}`;
+      models.get(key)?.mesh.dispose();
+      models.set(key, model);
+    }
+  }).catch(error => {
+    if (!disposed) console.warn('Tank model unavailable; using procedural fallback.', error);
+  });
 
   return {
     modelFor(entity) {
@@ -46,6 +62,7 @@ export function createModelLibrary(scene: Scene, materials: MaterialLibrary): Mo
     },
 
     dispose() {
+      disposed = true;
       for (const model of models.values()) {
         model.mesh.dispose();
       }
