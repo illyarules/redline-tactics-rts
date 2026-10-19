@@ -8,6 +8,8 @@ export interface BattleHudAction {
   readonly disabled?: boolean;
   readonly disabledReason?: string;
   readonly title?: string;
+  /** Optional presentation-only artwork shown beside a contextual action. */
+  readonly thumbnailUrl?: string;
   readonly testId?: string;
   readonly onTrigger: () => void;
 }
@@ -271,8 +273,7 @@ function actionButton(action: BattleHudAction, compact = false): HTMLButtonEleme
   button.disabled = action.disabled === true;
   button.title = action.disabledReason ?? action.title ?? action.detail;
   if (action.testId !== undefined) button.dataset.testid = action.testId;
-  button.append(document.createTextNode(action.label));
-  if (action.detail !== '') button.append(textElement('small', action.disabledReason ?? action.detail));
+  updateActionButton(button, action);
   button.addEventListener('click', action.onTrigger);
   return button;
 }
@@ -282,13 +283,33 @@ function updateActionButton(button: HTMLButtonElement, action: BattleHudAction):
   button.title = action.disabledReason ?? action.title ?? action.detail;
   if (action.testId === undefined) delete button.dataset.testid;
   else button.dataset.testid = action.testId;
-  const label = button.firstChild;
-  if (label?.nodeType === Node.TEXT_NODE) label.textContent = action.label;
-  else button.prepend(document.createTextNode(action.label));
-  let detail = button.querySelector('small');
+  let thumbnail = button.querySelector<HTMLImageElement>('.battle-hud__button-thumbnail');
+  if (action.thumbnailUrl === undefined) thumbnail?.remove();
+  else {
+    if (thumbnail === null) {
+      thumbnail = document.createElement('img');
+      thumbnail.className = 'battle-hud__button-thumbnail';
+      thumbnail.alt = '';
+      thumbnail.draggable = false;
+      button.prepend(thumbnail);
+    }
+    thumbnail.src = action.thumbnailUrl;
+  }
+  let copy = button.querySelector<HTMLElement>('.battle-hud__button-copy');
+  if (copy === null) {
+    copy = element('span', 'battle-hud__button-copy');
+    button.append(copy);
+  }
+  let label = copy.querySelector<HTMLElement>('.battle-hud__button-label');
+  if (label === null) {
+    label = element('span', 'battle-hud__button-label');
+    copy.prepend(label);
+  }
+  label.textContent = action.label;
+  let detail = copy.querySelector('small');
   if (action.detail === '') detail?.remove();
   else {
-    if (detail === null) { detail = document.createElement('small'); button.append(detail); }
+    if (detail === null) { detail = document.createElement('small'); copy.append(detail); }
     detail.textContent = action.disabledReason ?? action.detail;
   }
 }

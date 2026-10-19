@@ -16,6 +16,7 @@ import { PlacementController } from '../game/PlacementController';
 import { SelectionController } from '../game/SelectionController';
 import type { BattleViewState } from '../game/battleViewState';
 import { BattleHud, type BattleHudAction, type BattleHudViewModel } from '../ui/BattleHud';
+import { BUILDING_THUMBNAILS } from '../ui/buildingThumbnails';
 import {
   OnlineBattleViewAdapter,
   type OnlineBattleSnapshot,
@@ -577,7 +578,11 @@ export class OnlineMatch {
         const disabledReason = missing.length > 0
           ? `Requires ${missing.map((required) => BUILDING_CONFIG[required].name).join(', ')}`
           : this.snapshot!.credits < config.cost ? `Needs ${config.cost} Credits` : undefined;
-        return hudAction(type, config.name, `${config.cost} Credits · ${config.buildTimeSeconds}s`, () => this.armBuild(single.id, type), `build-${type}`, disabledReason !== undefined, disabledReason);
+        const thumbnailUrl = BUILDING_THUMBNAILS[type];
+        return {
+          ...hudAction(type, config.name, `${config.cost} Credits · ${config.buildTimeSeconds}s`, () => this.armBuild(single.id, type), `build-${type}`, disabledReason !== undefined, disabledReason),
+          ...(thumbnailUrl === undefined ? {} : { thumbnailUrl }),
+        };
       });
       return { ...base, actionTitle: 'Construction', actionTestId: 'build-menu', actions };
     }

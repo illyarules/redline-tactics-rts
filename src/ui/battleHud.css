@@ -46,10 +46,14 @@
 .battle-hud__command-feedback[data-state="rejected"] { color: #f39472; }
 .battle-hud__command-feedback[data-state="rejected"]::before { content: '!'; margin-right: 6px; font-weight: 900; }
 .battle-hud__action-grid { display: grid; grid-template-columns: repeat(auto-fill,180px); justify-content: start; gap: 7px; }
-.battle-hud__button { min-height: 48px; padding: 8px 10px; border: 1px solid #486c7e; border-radius: 4px; background: rgba(20,48,61,.72); color: #d8edf7; cursor: pointer; font-size: 10px; font-weight: 700; letter-spacing: .055em; text-align: left; text-transform: uppercase; }
+.battle-hud__button { display: flex; align-items: center; gap: 9px; min-height: 48px; padding: 8px 10px; border: 1px solid #486c7e; border-radius: 4px; background: rgba(20,48,61,.72); color: #d8edf7; cursor: pointer; font-size: 10px; font-weight: 700; letter-spacing: .055em; text-align: left; text-transform: uppercase; }
 .battle-hud__button:hover:not(:disabled) { filter: brightness(1.14); border-color: #b9efff; }
 .battle-hud__button:disabled { cursor: not-allowed; opacity: .46; filter: saturate(.45); }
 .battle-hud__button small { display: block; margin-top: 5px; color: #a7c0cc; font-size: 9px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.battle-hud__button-thumbnail { flex: 0 0 58px; width: 58px; height: 58px; object-fit: contain; filter: drop-shadow(0 4px 5px rgba(0,0,0,.45)); }
+.battle-hud__button-copy { display: block; min-width: 0; }
+.battle-hud__button-label { display: block; }
+.battle-hud__button:has(.battle-hud__button-thumbnail) { min-height: 76px; padding: 7px 9px; }
 .battle-hud__button--compact { min-height: 34px; padding: 7px 11px; }
 .battle-hud__action-empty { color: #91a7b2; font-size: 12px; }
 .battle-hud__queue { display: flex; gap: 5px; margin-top: 9px; }

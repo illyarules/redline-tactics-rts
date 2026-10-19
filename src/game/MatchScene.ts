@@ -39,8 +39,9 @@ import { PauseMenu } from '../ui/pauseMenu';
 import { MatchResultOverlay } from '../ui/matchResultOverlay';
 import type { AudioManager } from '../audio/AudioManager';
 import { BattleHud, type BattleHudAction, type BattleHudViewModel } from '../ui/BattleHud';
+import { BUILDING_THUMBNAILS } from '../ui/buildingThumbnails';
 import { AiDebugReadout } from './AiDebugReadout';
-import { deathEffectAt, mapAttackHitToCombatEffect } from './combatEffectEvents';
+import { deathEffectAt, mapAttackHitToCombatEffect, vehicleDeathDescriptor } from './combatEffectEvents';
 import { DebugLabelsView } from './DebugLabelsView';
 import { clearSnapshot, saveSnapshot } from './matchPersistence';
 import { PlacementController } from './PlacementController';
@@ -582,7 +583,11 @@ export class MatchScene {
     const disabledReason = !prerequisite.allowed
       ? `Requires ${prerequisite.missing.map((missing) => BUILDING_CONFIG[missing].name).join(', ')}`
       : !affordable ? `Needs ${config.cost} Credits` : undefined;
-    return hudAction(type, config.name, `${config.cost} Credits · ${config.buildTimeSeconds}s`, () => this.placement.start(type, workerId), `build-${type}`, disabledReason !== undefined, disabledReason);
+    const thumbnailUrl = BUILDING_THUMBNAILS[type];
+    return {
+      ...hudAction(type, config.name, `${config.cost} Credits · ${config.buildTimeSeconds}s`, () => this.placement.start(type, workerId), `build-${type}`, disabledReason !== undefined, disabledReason),
+      ...(thumbnailUrl === undefined ? {} : { thumbnailUrl }),
+    };
   }
 
   private productionHudModel(base: Omit<BattleHudViewModel, 'actionTitle' | 'actions'>, building: ReadonlyBuilding): BattleHudViewModel {
