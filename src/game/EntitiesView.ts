@@ -14,8 +14,8 @@ import { shouldShowHealthBar } from './healthBar';
 import type { MaterialLibrary } from './materials';
 import type { ModelLibrary } from './models/library';
 import type { ModelSpec } from './models/kit';
-import { loadInfantryParts } from './models/infantry';
-import { createSoldierKit, instantiateSoldier, type SoldierInstance, type SoldierKit } from './models/soldier';
+import { loadFpvOperatorParts, loadInfantryParts } from './models/infantry';
+import { DRONE_SLOT, createSoldierKit, disposeFpvSquadParts, disposeSoldierParts, instantiateSoldier, type SoldierInstance, type SoldierKit } from './models/soldier';
 import { squadFormationSlots } from './models/squadFormation';
 import { idlePose, walkPose } from './models/walkCycle';
 import { healthTone } from './palette';
@@ -101,6 +101,7 @@ export class EntitiesView {
   private readonly meshOwners = new Map<number, EntityId>();
   private readonly soldierKit: SoldierKit;
   private disposed = false;
+  private fpvModelRequested = false;
 
   public constructor(
     private readonly scene: Scene,
@@ -113,15 +114,28 @@ export class EntitiesView {
     this.soldierKit = createSoldierKit(scene, materials);
     void loadInfantryParts(scene).then(parts => {
       if (this.disposed) {
-        for (const set of parts.values()) {
-          for (const part of [set.torso, set.rifleArm, set.legLeft, set.legRight]) part.mesh.dispose();
-        }
+        for (const set of parts.values()) disposeSoldierParts(set);
         return;
       }
       this.soldierKit.useModel(parts);
       this.resetInfantryDisplays();
     }).catch(error => {
       console.warn('Infantry model unavailable; using procedural fallback.', error);
+    });
+  }
+
+  /** Loads the Blender FPV squad the first time one is fielded, then rebuilds the squads that used the fallback. */
+  private loadFpvModel(): void {
+    this.fpvModelRequested = true;
+    void loadFpvOperatorParts(this.scene).then(parts => {
+      if (this.disposed) {
+        for (const set of parts.values()) disposeFpvSquadParts(set);
+        return;
+      }
+      this.soldierKit.useFpvModel(parts);
+      this.resetInfantryDisplays();
+    }).catch(error => {
+      console.warn('FPV operator model unavailable; using procedural fallback.', error);
     });
   }
 
@@ -192,12 +206,15 @@ export class EntitiesView {
     const root = new TransformNode(`entity:${entity.id}`, this.scene);
 
     if (isInfantryRole(entity)) {
-      const parts = this.soldierKit.partsFor(entity.owner, entity.type);
+      if (entity.type === 'fpvOperators' && !this.fpvModelRequested) this.loadFpvModel();
+      const squadParts = this.soldierKit.squadPartsFor(entity.owner, entity.type);
+      const parts = squadParts[0] ?? this.soldierKit.partsFor(entity.owner, entity.type);
       const soldiers = squadFormationSlots(SQUAD_CONFIG.formation).map((slot, index) =>
-        instantiateSoldier(this.scene, parts, root, slot, `entity:${entity.id}:soldier${index}`),
+        instantiateSoldier(this.scene, squadParts[index] ?? parts, root, slot, `entity:${entity.id}:soldier${index}`),
       );
       const entrenchmentCover = entity.type === 'fpvOperators' ? this.createEntrenchmentCover(root, entity.id) : [];
-      const pickableMeshes = [...soldiers.flatMap((soldier) => soldier.meshes), ...entrenchmentCover];
+      const drone = entity.type === 'fpvOperators' ? this.createDrone(root, entity) : [];
+      const pickableMeshes = [...soldiers.flatMap((soldier) => soldier.meshes), ...entrenchmentCover, ...drone];
       const barWidth = clamp(this.displayWidth(entity) * 0.9, BAR_MIN_WIDTH, BAR_MAX_WIDTH);
       const bar = this.createBar(entity.id, root, parts.standHeightTiles);
       this.registerPickable(pickableMeshes, entity.id);
@@ -262,6 +279,17 @@ export class EntitiesView {
       this.meshOwners.set(mesh.uniqueId, id);
       this.onMeshCreated(mesh);
     }
+  }
+
+  /** The squad's drone resting on the ground, when the Blender model is loaded. */
+  private createDrone(root: TransformNode, entity: ReadonlyUnit): readonly Mesh[] {
+    const prototype = this.soldierKit.droneFor(entity.owner);
+    if (prototype === null) return [];
+    const drone = prototype.mesh.clone(`entity:${entity.id}:drone`, root);
+    drone.setEnabled(true);
+    drone.isPickable = true;
+    drone.position.set(DRONE_SLOT.rightTiles, 0, DRONE_SLOT.forwardTiles);
+    return [drone];
   }
 
   private createEntrenchmentCover(root: TransformNode, id: EntityId): readonly Mesh[] {

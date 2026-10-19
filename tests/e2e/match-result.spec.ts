@@ -11,7 +11,8 @@ test('wins through real attack controls, restores terminal, and plays again clea
   await seedSnapshot(page, victoryScenario());
   await startMatch(page);
 
-  await expect(page.getByTestId('match-timer')).toHaveText('15:00');
+  // The match clock is already running; first-use model loading can delay this check by a few seconds.
+  await expect(page.getByTestId('match-timer')).toHaveText(/^(15:00|14:5\d)$/);
   await expect(page.getByTestId('selection-panel')).toContainText('Rocket');
   await expect.poll(async () => {
     await page.mouse.click(SCREEN.victoryEnemyHq.x, SCREEN.victoryEnemyHq.y, { button: 'right' });

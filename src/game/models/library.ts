@@ -1,10 +1,15 @@
 import type { Scene } from '@babylonjs/core/scene';
 import type { ReadonlyEntity } from '../../core/entities';
+import type { PlayerId, UnitTypeId } from '../../core/ids';
 import type { MaterialLibrary } from '../materials';
 import { buildBuildingModel } from './buildings';
 import type { ModelSpec } from './kit';
 import { buildUnitModel } from './units';
+import buggyUrl from '../../assets/models/meridian-combat-buggy.glb?url';
+import rocketUrl from '../../assets/models/meridian-rocket.glb?url';
+import workerUrl from '../../assets/models/meridian-worker.glb?url';
 import { loadTankModels } from './tank';
+import { openVehicleSource, type VehicleSource } from './vehicle';
 
 /**
  * The prototype model for every role and faction except Infantry, built once and cloned per entity.
@@ -25,20 +30,51 @@ export interface ModelLibrary {
 export function createModelLibrary(scene: Scene, materials: MaterialLibrary): ModelLibrary {
   const models = new Map<string, ModelSpec>();
   let disposed = false;
-  // Keep the procedural tank as a usable fallback while loading or if the request fails.
-  void loadTankModels(scene).then(tanks => {
-    for (const [owner, model] of tanks) {
+  // Keep the procedural models as usable fallbacks while loading or if a request fails.
+  const loadVehicle = (type: UnitTypeId, load: () => Promise<Map<PlayerId, ModelSpec>>): void => {
+    void load().then(loaded => {
+      for (const [owner, model] of loaded) {
+        if (disposed) {
+          model.mesh.dispose(false, true);
+          continue;
+        }
+        const key = `unit:${type}:${owner}`;
+        models.get(key)?.mesh.dispose();
+        models.set(key, model);
+      }
+    }).catch(error => {
+      if (!disposed) console.warn(`${type} model unavailable; using procedural fallback.`, error);
+    });
+  };
+  loadVehicle('tank', () => loadTankModels(scene));
+  // The other Blender vehicles load the first time a unit of that role appears on the field, and
+  // build only the owners that field it, so a match never pays for a model it does not show.
+  const vehicleUrls: Partial<Record<UnitTypeId, string>> = {
+    worker: workerUrl,
+    rocket: rocketUrl,
+    combatBuggy: buggyUrl,
+  };
+  const sources = new Map<UnitTypeId, Promise<VehicleSource | null>>();
+  const requested = new Set<string>();
+  const requestVehicle = (type: UnitTypeId, owner: PlayerId, key: string): void => {
+    const url = vehicleUrls[type];
+    if (url === undefined || requested.has(key)) return;
+    requested.add(key);
+    const source = sources.get(type) ?? openVehicleSource(scene, url, type);
+    sources.set(type, source);
+    void source.then(loaded => {
+      if (loaded === null) return;
+      const model = loaded.build(owner);
       if (disposed) {
         model.mesh.dispose(false, true);
-        continue;
+        return;
       }
-      const key = `unit:tank:${owner}`;
       models.get(key)?.mesh.dispose();
       models.set(key, model);
-    }
-  }).catch(error => {
-    if (!disposed) console.warn('Tank model unavailable; using procedural fallback.', error);
-  });
+    }).catch(error => {
+      if (!disposed) console.warn(`${type} model unavailable; using procedural fallback.`, error);
+    });
+  };
 
   return {
     modelFor(entity) {
@@ -56,6 +92,7 @@ export function createModelLibrary(scene: Scene, materials: MaterialLibrary): Mo
       if (entity.type === 'infantry' || entity.type === 'fpvOperators') {
         throw new Error('Infantry roles render as squads; ModelLibrary does not build them.');
       }
+      requestVehicle(entity.type, entity.owner, key);
       const model = buildUnitModel(scene, materials, entity.type, entity.owner);
       models.set(key, model);
       return model;

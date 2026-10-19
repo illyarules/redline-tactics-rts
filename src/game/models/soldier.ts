@@ -6,7 +6,7 @@ import type { PlayerId } from '../../core/ids';
 import type { MaterialLibrary } from '../materials';
 import { NEUTRAL_TONES, OWNER_PALETTES } from '../palette';
 import { buildModel, type ModelSpec } from './kit';
-import type { SquadSlot } from './squadFormation';
+import { SQUAD_SIZE, type SquadSlot } from './squadFormation';
 
 /**
  * One original low-poly soldier, built from the same box-and-cylinder kit every other model uses,
@@ -42,6 +42,17 @@ export interface SoldierPartPrototypes {
   readonly shoulderOffset: Vector3;
 }
 
+/** The Blender FPV squad: one prototype set per formation slot, plus the drone resting beside it. */
+export interface FpvSquadParts {
+  /** In formation-slot order: lead, rear left, rear right. */
+  readonly soldiers: readonly SoldierPartPrototypes[];
+  /** Origin at the drone's centre on the ground. */
+  readonly drone: ModelSpec;
+}
+
+/** Where the squad's drone rests, in the entity root's space (tiles): just ahead of the lead operator. */
+export const DRONE_SLOT: SquadSlot = { rightTiles: 0.24, forwardTiles: 0.55 };
+
 export interface SoldierKit {
   /** Prototypes for one faction's soldier. Built the first time that faction fields Infantry. */
   partsFor(owner: PlayerId, role?: 'infantry' | 'fpvOperators'): SoldierPartPrototypes;
@@ -50,7 +61,22 @@ export interface SoldierKit {
    * called, and if loading fails, the procedural soldier is used.
    */
   useModel(parts: ReadonlyMap<PlayerId, SoldierPartPrototypes>): void;
+  /** Swaps FPV operators to the three Blender specialists and their drone. Same fallback rules. */
+  useFpvModel(parts: ReadonlyMap<PlayerId, FpvSquadParts>): void;
+  /** One prototype set per formation slot: the same set three times unless a model supplies three. */
+  squadPartsFor(owner: PlayerId, role: 'infantry' | 'fpvOperators'): readonly SoldierPartPrototypes[];
+  /** The drone prop for FPV operators, or `null` while the procedural fallback is in use. */
+  droneFor(owner: PlayerId): ModelSpec | null;
   dispose(): void;
+}
+
+export function disposeSoldierParts(parts: SoldierPartPrototypes): void {
+  for (const part of [parts.torso, parts.rifleArm, parts.legLeft, parts.legRight]) part.mesh.dispose();
+}
+
+export function disposeFpvSquadParts(squad: FpvSquadParts): void {
+  for (const parts of squad.soldiers) disposeSoldierParts(parts);
+  squad.drone.mesh.dispose();
 }
 
 export function createSoldierKit(scene: Scene, materials: MaterialLibrary): SoldierKit {
@@ -58,14 +84,28 @@ export function createSoldierKit(scene: Scene, materials: MaterialLibrary): Sold
   const rifleArms = new Map<string, ModelSpec>();
   let leg: ModelSpec | null = null;
   let modelParts: ReadonlyMap<PlayerId, SoldierPartPrototypes> | null = null;
+  let fpvParts: ReadonlyMap<PlayerId, FpvSquadParts> | null = null;
 
   return {
     useModel(parts) {
       modelParts = parts;
     },
 
+    useFpvModel(parts) {
+      fpvParts = parts;
+    },
+
+    squadPartsFor(owner, role) {
+      const loaded = role === 'fpvOperators' ? fpvParts?.get(owner)?.soldiers : undefined;
+      return loaded ?? Array.from({ length: SQUAD_SIZE }, () => this.partsFor(owner, role));
+    },
+
+    droneFor(owner) {
+      return fpvParts?.get(owner)?.drone ?? null;
+    },
+
     partsFor(owner, role = 'infantry') {
-      const loaded = role === 'infantry' ? modelParts?.get(owner) : undefined;
+      const loaded = role === 'infantry' ? modelParts?.get(owner) : fpvParts?.get(owner)?.soldiers[0];
       if (loaded !== undefined) return loaded;
       const key = `${owner}:${role}`;
       let torso = torsos.get(key);
@@ -97,10 +137,10 @@ export function createSoldierKit(scene: Scene, materials: MaterialLibrary): Sold
       for (const model of torsos.values()) model.mesh.dispose();
       for (const model of rifleArms.values()) model.mesh.dispose();
       leg?.mesh.dispose();
-      for (const parts of modelParts?.values() ?? []) {
-        for (const part of [parts.torso, parts.rifleArm, parts.legLeft, parts.legRight]) part.mesh.dispose();
-      }
+      for (const parts of modelParts?.values() ?? []) disposeSoldierParts(parts);
+      for (const squad of fpvParts?.values() ?? []) disposeFpvSquadParts(squad);
       modelParts = null;
+      fpvParts = null;
       torsos.clear();
       rifleArms.clear();
       leg = null;
