@@ -428,3 +428,132 @@ export interface GatherConfig {
   /** Seconds spent standing at a field per gather cycle, regardless of the amount carried away. */
   readonly gatherSeconds: number;
 }
+
+/** The four vehicle roles that leave dust trails and, when destroyed, a wreck. */
+export type VehicleEffectTypeId = 'worker' | 'combatBuggy' | 'tank' | 'rocket';
+/** The two vehicles whose turret swivels independently of the hull. */
+export type TurretVehicleTypeId = 'combatBuggy' | 'tank';
+
+/** One vehicle's dust trail. Lengths are tiles, durations seconds; purely cosmetic. */
+export interface VehicleDustProfile {
+  /** Seconds between puffs from each rear contact point while moving. */
+  readonly intervalSeconds: number;
+  /** Below this displacement speed the vehicle counts as standing still and emits nothing. */
+  readonly minSpeedTilesPerSecond: number;
+  readonly lifetimeSeconds: number;
+  readonly startDiameterTiles: number;
+  readonly endDiameterTiles: number;
+  readonly riseTiles: number;
+  /** How far a puff drifts backwards, relative to the travel direction, over its lifetime. */
+  readonly driftBackTiles: number;
+  /** Sideways scatter of the drift, as a share of `driftBackTiles`. */
+  readonly scatterShare: number;
+  /** Mesh visibility a puff starts with; it fades linearly to zero. */
+  readonly peakVisibility: number;
+  /** How far behind the vehicle's centre the contact points sit. */
+  readonly rearOffsetTiles: number;
+  /** Distance of each contact point from the centre line. */
+  readonly halfTrackTiles: number;
+  readonly color: number;
+}
+
+export interface TurretProfile {
+  readonly maxTurnRadiansPerSecond: number;
+  readonly recoilDistanceTiles: number;
+  /** Time for the barrel to slide back, then to ease home again. */
+  readonly recoilKickSeconds: number;
+  readonly recoilRecoverSeconds: number;
+  /** Used only when the barrel mesh bounds cannot be measured. */
+  readonly fallbackMuzzleLengthTiles: number;
+}
+
+export interface VehicleDestructionConfig {
+  readonly poolCapacity: number;
+  /** A vehicle this wide gets the unscaled effect; the scale is clamped to the range below. */
+  readonly referenceSizeTiles: number;
+  readonly minScale: number;
+  readonly maxScale: number;
+  readonly sparkCount: number;
+  readonly fragmentCount: number;
+  readonly fireCount: number;
+  readonly smokeCount: number;
+  readonly flash: {
+    readonly durationSeconds: number;
+    readonly diameterTiles: number;
+    readonly growth: number;
+    readonly color: number;
+  };
+  readonly shockwave: {
+    readonly durationSeconds: number;
+    readonly diameterTiles: number;
+    readonly endDiameterTiles: number;
+    readonly thicknessTiles: number;
+    readonly visibility: number;
+    readonly color: number;
+  };
+  readonly sparks: {
+    readonly durationSeconds: number;
+    readonly speedTilesPerSecond: number;
+    readonly gravityTilesPerSecondSquared: number;
+    readonly diameterTiles: number;
+    readonly color: number;
+  };
+  readonly fragments: {
+    readonly durationSeconds: number;
+    readonly speedTilesPerSecond: number;
+    readonly gravityTilesPerSecondSquared: number;
+    readonly sizeTiles: number;
+    readonly spinRadiansPerSecond: number;
+    /** Share of the lifetime, at the end, over which a landed fragment fades out. */
+    readonly fadeShare: number;
+    readonly color: number;
+  };
+  readonly fire: {
+    readonly durationSeconds: number;
+    readonly riseTiles: number;
+    readonly diameterTiles: number;
+    readonly spreadTiles: number;
+    readonly peakVisibility: number;
+    readonly colors: readonly [number, number];
+  };
+  readonly smoke: {
+    readonly startDelaySeconds: number;
+    readonly durationSeconds: number;
+    readonly riseTiles: number;
+    readonly driftTiles: number;
+    readonly startDiameterTiles: number;
+    readonly endDiameterTiles: number;
+    readonly peakVisibility: number;
+    readonly color: number;
+  };
+}
+
+/** The scorched, non-interactive hulk left behind by a destroyed vehicle. */
+export interface VehicleWreckConfig {
+  readonly capacity: number;
+  readonly holdSeconds: number;
+  readonly fadeSeconds: number;
+  /** Multiplier applied to every original material colour. */
+  readonly scorchFactor: number;
+  readonly tiltRadians: number;
+  readonly turretTwistRadians: number;
+}
+
+export interface VehicleEffectsConfig {
+  readonly dust: {
+    readonly poolCapacity: number;
+    readonly lowPolySides: number;
+    /** A per-frame move longer than this is a teleport or snapshot reset, not driving. */
+    readonly maxFrameDisplacementTiles: number;
+    /** Averaging window for a vehicle's speed, so uneven online snapshot steps do not read as stops. */
+    readonly speedWindowSeconds: number;
+    /** Emissions allowed per contact point per frame, so a long frame cannot spawn a burst. */
+    readonly maxEmitsPerFrame: number;
+    readonly profiles: Readonly<Record<VehicleEffectTypeId, VehicleDustProfile>>;
+  };
+  readonly turrets: Readonly<Record<TurretVehicleTypeId, TurretProfile>>;
+  /** How long a shot keeps the turret pointed at its target when no order names one. */
+  readonly shotAimHoldSeconds: number;
+  readonly destruction: VehicleDestructionConfig;
+  readonly wreck: VehicleWreckConfig;
+}

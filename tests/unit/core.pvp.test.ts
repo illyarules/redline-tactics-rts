@@ -151,7 +151,12 @@ describe('authoritative PvP match', () => {
     expect(effects.ai[0]).toMatchObject({
       kind: 'combat-hit', weapon: 'infantry', targetToken: target.id,
     });
-    expect(effects.ai[1]).toMatchObject({ kind: 'combat-death', targetToken: target.id });
+    expect(effects.ai[0]).toMatchObject({ attackerToken: attacker.id });
+    expect(effects.ai[1]).toMatchObject({
+      kind: 'combat-death',
+      targetToken: target.id,
+      vehicle: { unitType: 'tank', owner: 'ai' },
+    });
     expect(effects.player).toHaveLength(2);
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { COMBAT_EFFECTS_CONFIG, isValidCombatEffectsConfig } from '../../src/config/combatEffects';
 import type { AttackHitEvent } from '../../src/core/attack';
 import { createWorld } from '../../src/core/world';
-import { mapAttackHitToCombatEffect } from '../../src/game/combatEffectEvents';
+import { deathEffectAt, mapAttackHitToCombatEffect, vehicleDeathDescriptor } from '../../src/game/combatEffectEvents';
 
 function hit(attackerId: AttackHitEvent['attackerId'], targetId: AttackHitEvent['targetId'], destroyed = false): AttackHitEvent {
   return { kind: 'hit', attackerId, targetId, damage: 12, destroyed };
@@ -27,6 +27,7 @@ describe('combat effect event mapping', () => {
       targetToken: target.id,
       targetSizeTiles: Math.max(target.footprint.width, target.footprint.height),
       targetDestroyed: false,
+      attackerToken: attacker.id,
     });
   });
 
@@ -61,6 +62,37 @@ describe('combat effect event mapping', () => {
 
     expect(mapAttackHitToCombatEffect(hit(attacker.id, target.id, true), attacker, target))
       .toMatchObject({ weapon: 'tank', targetDestroyed: true, targetKind: 'unit' });
+  });
+});
+
+describe('vehicle death descriptors', () => {
+  it('captures a destroyed vehicle\'s look before the entity is removed', () => {
+    const world = createWorld({ tileSizePixels: 30 });
+    const tank = world.createUnit({
+      type: 'tank', owner: 'ai', faction: 'ember', position: { x: 60, y: 30 },
+    });
+    world.setFacingRadians(tank.id, 1.25);
+
+    const descriptor = vehicleDeathDescriptor(tank);
+    expect(descriptor).toEqual({ unitType: 'tank', owner: 'ai', facingRadians: 1.25, sizeTiles: tank.stats.bodySizeTiles });
+    world.remove(tank.id);
+    expect(descriptor?.facingRadians).toBe(1.25);
+
+    const death = deathEffectAt({ x: 60, y: 30 }, tank.id, descriptor);
+    expect(death).toEqual({ kind: 'combat-death', at: { x: 60, y: 30 }, targetToken: tank.id, vehicle: descriptor });
+    expect(death?.vehicle).not.toBe(descriptor);
+  });
+
+  it('leaves infantry, buildings and missing targets with the plain death ring', () => {
+    const world = createWorld({ tileSizePixels: 30 });
+    const infantry = world.createUnit({ type: 'infantry', owner: 'ai', faction: 'ember', position: { x: 60, y: 30 } });
+    const factory = world.createBuilding({ type: 'factory', owner: 'ai', faction: 'ember', topLeft: { tx: 10, ty: 12 } });
+
+    expect(vehicleDeathDescriptor(infantry)).toBeNull();
+    expect(vehicleDeathDescriptor(factory)).toBeNull();
+    expect(vehicleDeathDescriptor(undefined)).toBeNull();
+    expect(deathEffectAt({ x: 1, y: 2 }, 'id')).toEqual({ kind: 'combat-death', at: { x: 1, y: 2 }, targetToken: 'id' });
+    expect(deathEffectAt({ x: Number.NaN, y: 2 }, 'id')).toBeNull();
   });
 });
 

@@ -183,7 +183,7 @@ export function isValidCombatEffectsConfig(config: CombatEffectsConfig): boolean
   ) return false;
 
   // eslint-disable-next-line complexity -- Each weapon field is independently required by the render effect.
-  return (['infantry', 'combatBuggy', 'tank', 'rocket'] as const).every((id) => {
+  return (['infantry', 'fpvOperators', 'combatBuggy', 'tank', 'rocket'] as const).every((id) => {
     const weapon = config.weapons[id];
     return weapon !== undefined &&
       positive(weapon.projectileDurationSeconds) &&

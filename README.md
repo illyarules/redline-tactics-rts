@@ -66,7 +66,8 @@ Multiplayer, create a room, share the invite link, and have both players select 
 server starts a Meridian mirror match after both clients load. Online and single-player use the same
 tactical HUD structure: match status and clock at the top, selection and Credits at bottom left,
 contextual construction, production, queue and unit actions in the center, and the minimap at bottom
-right. Online adds connection and surrender controls; single-player keeps its pause/save lifecycle.
+right. Construction cards include a visual preview of the finished building beside its cost and
+build time. Online adds connection and surrender controls; single-player keeps its pause/save lifecycle.
 Online matches use the same Open Field terrain, unit and building models, camera,
 and fog-of-war presentation as single-player matches. Click, Shift-click, or drag to select units;
 right-click ground to move, press Q then
@@ -82,6 +83,22 @@ shows pending, confirmed, and rejected order states; movement and attack markers
 feedback until the server applies or rejects the command.
 Confirmed PvP attacks keep a marker on the visible target and use the shared muzzle, projectile,
 impact, target-flash, and destruction effects from the single-player battlefield.
+
+### Vehicle effects
+
+Purely cosmetic, identical in single-player and private online matches, and tuned in
+`src/config/vehicleEffects.ts`:
+
+- Moving Workers, Combat Buggies, Tanks and Rockets kick up dust from both rear contact points: heavy
+  and slow for the Tank, light and quick for the Buggy, restrained for Worker and Rocket. Dust stops
+  when a vehicle stops, never comes from vehicles hidden in fog, and freezes while paused.
+- Tank and Combat Buggy turrets swivel independently of the hull toward the visible target of an
+  attack or engaged attack-move order (or the last shot fired), at a capped turn speed, and ease back
+  to hull-forward when there is none. The hull's heading is unaffected.
+- Each shot recoils the barrel and eases it home; the muzzle flash and projectile now leave the barrel.
+- A destroyed vehicle produces a flash, ground shockwave, sparks, fragments, a fire burst and rising
+  smoke, and leaves a scorched, non-interactive wreck that fades out after a few seconds. Destruction
+  in fog is not shown. Infantry and buildings keep the simple death ring.
 
 The browser uses `ws://localhost:8787/ws` in development. Production keeps the static Vite client
 on Vercel and runs the authoritative process as a separate single-instance Render Web Service; set

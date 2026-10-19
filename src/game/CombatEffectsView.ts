@@ -11,6 +11,7 @@ import type { Scene } from '@babylonjs/core/scene';
 import { COMBAT_EFFECTS_CONFIG, isValidCombatEffectsConfig } from '../config/combatEffects';
 import type { AttackerTypeId, CombatEffectWeaponConfig } from '../config/types';
 import { BoundedEffectPool, advanceEffectLifetime } from './combatEffectsState';
+import { VehicleDestructionView } from './VehicleDestructionView';
 import type { CombatDeathEffectEvent, CombatEffectEvent, CombatHitEffectEvent } from './combatEffectEvents';
 import type { MaterialLibrary } from './materials';
 import type { SceneSpace } from './sceneSpace';
@@ -71,6 +72,7 @@ export class CombatEffectsView {
   private readonly impactPool = new BoundedEffectPool(CONFIG.impactPoolCapacity);
   private readonly targetFlashPool = new BoundedEffectPool(CONFIG.targetFlashPoolCapacity);
   private readonly deathPool = new BoundedEffectPool(CONFIG.deathPoolCapacity);
+  private readonly vehicleDestruction: VehicleDestructionView;
 
   public constructor(
     private readonly scene: Scene,
@@ -85,15 +87,19 @@ export class CombatEffectsView {
     this.impacts = this.createImpacts();
     this.targetFlashes = this.createTargetFlashes();
     this.deaths = this.createDeaths();
+    this.vehicleDestruction = new VehicleDestructionView(scene, space, materials);
   }
 
-  /** Starts only render-safe events created from a successful core hit. */
-  public play(event: CombatEffectEvent): void {
+  /**
+   * Starts only render-safe events created from a successful core hit. `muzzle` is where the
+   * shooter's barrel actually ends, when its model has one; otherwise shots start at the unit.
+   */
+  public play(event: CombatEffectEvent, muzzle: Vector3 | null = null): void {
     if (event.kind === 'combat-death') {
       this.startDeath(event);
       return;
     }
-    this.startShot(event);
+    this.startShot(event, muzzle);
   }
 
   /** Called only from active match frames: paused matches deliberately do not advance effects. */
@@ -104,6 +110,7 @@ export class CombatEffectsView {
     this.updateImpacts(deltaSeconds);
     this.updateTargetFlashes(deltaSeconds);
     this.updateDeaths(deltaSeconds);
+    this.vehicleDestruction.update(deltaSeconds);
   }
 
   /** Disposes every preallocated mesh, including inactive ones, before the scene is discarded. */
@@ -113,6 +120,7 @@ export class CombatEffectsView {
     this.disposeSlots(this.impacts, (slot) => [slot.flash, slot.ring, ...slot.debris]);
     this.disposeSlots(this.targetFlashes, (slot) => [slot.mesh]);
     this.disposeSlots(this.deaths, (slot) => [slot.mesh]);
+    this.vehicleDestruction.dispose();
     this.projectilePool.clear();
     this.muzzlePool.clear();
     this.impactPool.clear();
@@ -120,9 +128,9 @@ export class CombatEffectsView {
     this.deathPool.clear();
   }
 
-  private startShot(event: CombatHitEffectEvent): void {
+  private startShot(event: CombatHitEffectEvent, muzzle: Vector3 | null): void {
     const weapon = CONFIG.weapons[event.weapon];
-    this.startMuzzle(event, weapon);
+    this.startMuzzle(event, weapon, muzzle);
     const index = this.projectilePool.acquire();
     if (index === null) return;
 
@@ -130,7 +138,7 @@ export class CombatEffectsView {
     slot.elapsedSeconds = 0;
     slot.durationSeconds = weapon.projectileDurationSeconds;
     slot.event = event;
-    slot.from.copyFrom(this.point(event.from, weapon.projectileHeightTiles));
+    slot.from.copyFrom(muzzle ?? this.point(event.from, weapon.projectileHeightTiles));
     slot.to.copyFrom(this.point(event.to, weapon.projectileHeightTiles));
     slot.to.subtractToRef(slot.from, slot.direction);
     if (slot.direction.lengthSquared() < 1e-6) {
@@ -154,11 +162,11 @@ export class CombatEffectsView {
     slot.trail.setEnabled(event.weapon === 'rocket');
   }
 
-  private startMuzzle(event: CombatHitEffectEvent, weapon: CombatEffectWeaponConfig): void {
+  private startMuzzle(event: CombatHitEffectEvent, weapon: CombatEffectWeaponConfig, muzzle: Vector3 | null): void {
     const index = this.muzzlePool.acquire();
     if (index === null) return;
     const mesh = this.muzzles[index]!.mesh;
-    const from = this.point(event.from, weapon.projectileHeightTiles);
+    const from = muzzle?.clone() ?? this.point(event.from, weapon.projectileHeightTiles);
     const to = this.point(event.to, weapon.projectileHeightTiles);
     to.subtractToRef(from, to);
     if (to.lengthSquared() > 1e-6) to.normalize();
@@ -292,6 +300,10 @@ export class CombatEffectsView {
 
   private startDeath(event: CombatDeathEffectEvent): void {
     this.clearTargetFlashes(event.targetToken);
+    if (event.vehicle !== undefined) {
+      this.vehicleDestruction.start(event);
+      return;
+    }
     const index = this.deathPool.acquire();
     if (index === null) return;
     const slot = this.deaths[index]!;

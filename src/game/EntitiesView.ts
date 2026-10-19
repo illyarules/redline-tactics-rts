@@ -1,3 +1,4 @@
+import type { Vec2 } from '../core/geometry';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
@@ -7,6 +8,8 @@ import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder'
 import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder';
 import type { Scene } from '@babylonjs/core/scene';
 import { SQUAD_CONFIG } from '../config/squad';
+import type { VehicleDustProfile } from '../config/types';
+import { VEHICLE_EFFECTS_CONFIG } from '../config/vehicleEffects';
 import { healthFraction, isAlive, type ReadonlyEntity, type ReadonlyUnit } from '../core/entities';
 import { clamp } from '../core/geometry';
 import type { EntityId } from '../core/ids';
@@ -17,9 +20,13 @@ import type { ModelSpec } from './models/kit';
 import { loadFpvOperatorParts, loadInfantryParts } from './models/infantry';
 import { DRONE_SLOT, createSoldierKit, disposeFpvSquadParts, disposeSoldierParts, instantiateSoldier, type SoldierInstance, type SoldierKit } from './models/soldier';
 import { squadFormationSlots } from './models/squadFormation';
+import { TurretRig } from './models/turretRig';
 import { idlePose, walkPose } from './models/walkCycle';
 import { healthTone } from './palette';
 import type { SceneSpace } from './sceneSpace';
+import { VehicleDustView } from './VehicleDustView';
+import { DustClock, SpeedSmoother, attackTargetIdOf, displacementSpeed, headingToPoint } from './vehicleEffectsState';
+import { isVehicleEffectType } from './combatEffectEvents';
 
 /**
  * Draws every entity the world holds, and nothing else.
@@ -68,9 +75,21 @@ interface DisplayBase {
   readonly pickableMeshes: readonly Mesh[];
 }
 
+/** Cosmetic state of one vehicle: dust cadence, motion tracking and, if its model has one, a turret. */
+interface VehicleFx {
+  readonly dust: VehicleDustProfile;
+  readonly dustClock: DustClock;
+  readonly speed: SpeedSmoother;
+  readonly turret: TurretRig | null;
+  lastX: number;
+  lastZ: number;
+  tracked: boolean;
+}
+
 interface ModelDisplay extends DisplayBase {
   readonly kind: 'model';
   readonly model: ModelSpec;
+  readonly vehicle: VehicleFx | null;
 }
 
 interface SquadAnimationState {
@@ -91,6 +110,8 @@ type EntityDisplay = ModelDisplay | SquadDisplay;
 type EntityVisibility = (entity: ReadonlyEntity) => boolean;
 
 const ALWAYS_VISIBLE: EntityVisibility = () => true;
+const NO_TARGET_POSITION = (): Vec2 | null => null;
+const VEHICLE_FX = VEHICLE_EFFECTS_CONFIG;
 
 function isInfantryRole(entity: ReadonlyEntity): entity is ReadonlyUnit & { type: 'infantry' | 'fpvOperators' } {
   return entity.kind === 'unit' && (entity.type === 'infantry' || entity.type === 'fpvOperators');
@@ -100,6 +121,8 @@ export class EntitiesView {
   private readonly displays = new Map<EntityId, EntityDisplay>();
   private readonly meshOwners = new Map<number, EntityId>();
   private readonly soldierKit: SoldierKit;
+  private readonly dust: VehicleDustView;
+  private readonly muzzleScratch = new Vector3();
   private disposed = false;
   private fpvModelRequested = false;
 
@@ -112,6 +135,7 @@ export class EntitiesView {
     private readonly onMeshCreated: (mesh: Mesh) => void,
   ) {
     this.soldierKit = createSoldierKit(scene, materials);
+    this.dust = new VehicleDustView(scene, materials);
     void loadInfantryParts(scene).then(parts => {
       if (this.disposed) {
         for (const set of parts.values()) disposeSoldierParts(set);
@@ -151,6 +175,7 @@ export class EntitiesView {
     selectedIds: readonly EntityId[] = [],
     deltaSeconds = 0,
     isVisible: EntityVisibility = ALWAYS_VISIBLE,
+    targetPosition: (id: EntityId) => Vec2 | null = NO_TARGET_POSITION,
   ): void {
     const selected = new Set(selectedIds);
     const present = new Set<EntityId>();
@@ -158,7 +183,7 @@ export class EntitiesView {
     for (const entity of entities) {
       present.add(entity.id);
       const display = this.displayFor(entity);
-      this.update(display, entity, selected.has(entity.id), deltaSeconds, isVisible(entity));
+      this.update(display, entity, selected.has(entity.id), deltaSeconds, isVisible(entity), targetPosition);
     }
 
     for (const [id, display] of this.displays) {
@@ -182,8 +207,28 @@ export class EntitiesView {
     return this.displays.get(id)?.modelHeight ?? 0;
   }
 
+  /**
+   * A shooter's barrel fires: kicks its recoil, holds its turret on `target` for a moment, and
+   * returns where the shell leaves the barrel (reused scratch vector, copy before keeping). `null`
+   * when the shooter has no articulated turret on screen, so callers fall back to its position.
+   */
+  public fireWeapon(attackerId: string, target: Vec2): Vector3 | null {
+    const display = this.displays.get(attackerId as EntityId);
+    const turret = display?.kind === 'model' ? display.vehicle?.turret : null;
+    if (display === undefined || !turret || !display.root.isEnabled()) return null;
+    const muzzle = turret.muzzlePointToRef(display.root.rotation.y, this.muzzleScratch);
+    turret.noteShot(target, VEHICLE_FX.shotAimHoldSeconds);
+    return muzzle;
+  }
+
+  /** Advances the dust puffs. Called with the effect clock, which a paused match never ticks. */
+  public updateDust(deltaSeconds: number): void {
+    this.dust.update(deltaSeconds);
+  }
+
   public dispose(): void {
     this.disposed = true;
+    this.dust.dispose();
     for (const display of this.displays.values()) {
       display.root.dispose(false, false);
     }
@@ -242,6 +287,7 @@ export class EntitiesView {
     );
     for (const part of pickableMeshes) part.isPickable = true;
     this.registerPickable(pickableMeshes, entity.id);
+    const vehicle = this.createVehicleFx(entity, mesh);
 
     const barWidth = clamp(this.displayWidth(entity) * 0.9, BAR_MIN_WIDTH, BAR_MAX_WIDTH);
     const bar = this.createBar(entity.id, root, model.height);
@@ -256,6 +302,23 @@ export class EntitiesView {
       barWidth,
       modelHeight: model.height,
       pickableMeshes,
+      vehicle,
+    };
+  }
+
+  private createVehicleFx(entity: ReadonlyEntity, model: Mesh): VehicleFx | null {
+    if (entity.kind !== 'unit' || !isVehicleEffectType(entity.type)) return null;
+    const turretProfile = entity.type === 'tank' || entity.type === 'combatBuggy'
+      ? VEHICLE_FX.turrets[entity.type]
+      : null;
+    return {
+      dust: VEHICLE_FX.dust.profiles[entity.type],
+      dustClock: new DustClock(),
+      speed: new SpeedSmoother(),
+      turret: turretProfile === null ? null : TurretRig.find(model, turretProfile),
+      lastX: 0,
+      lastZ: 0,
+      tracked: false,
     };
   }
 
@@ -348,6 +411,7 @@ export class EntitiesView {
     selected: boolean,
     deltaSeconds: number,
     visible: boolean,
+    targetPosition: (id: EntityId) => Vec2 | null,
   ): void {
     // Written in place rather than reassigned: this runs for every entity, every frame.
     display.root.position.set(
@@ -358,6 +422,10 @@ export class EntitiesView {
     if (entity.kind === 'unit') {
       // Unit model local +Z is core north, so this yaw directly maps the core heading to Babylon.
       display.root.rotation.y = entity.facingRadians;
+    }
+
+    if (display.kind === 'model' && display.vehicle !== null && entity.kind === 'unit') {
+      this.updateVehicleFx(display.vehicle, display.root, entity, deltaSeconds, visible, targetPosition);
     }
 
     // Disabled roots are neither drawn nor picked, but stay allocated so an enemy can reappear
@@ -402,6 +470,69 @@ export class EntitiesView {
     display.barRest.setEnabled(rest > 1e-3);
     display.barRest.scaling.x = Math.max(rest, 1e-4);
     display.barRest.position.x = display.barWidth / 2 - rest / 2;
+  }
+
+  /**
+   * Dust, turret aim and recoil for one vehicle. Motion is judged from how far the model actually
+   * moved, so it works the same for local state and interpolated online snapshots. A vehicle in
+   * fog still tracks its position (so reappearing is not read as a jump) but emits and aims nothing.
+   */
+  private updateVehicleFx(
+    fx: VehicleFx,
+    root: TransformNode,
+    entity: ReadonlyUnit,
+    deltaSeconds: number,
+    visible: boolean,
+    targetPosition: (id: EntityId) => Vec2 | null,
+  ): void {
+    const x = root.position.x;
+    const z = root.position.z;
+    const speed = fx.tracked
+      ? fx.speed.update(
+        displacementSpeed(x - fx.lastX, z - fx.lastZ, deltaSeconds, VEHICLE_FX.dust.maxFrameDisplacementTiles),
+        deltaSeconds,
+        VEHICLE_FX.dust.speedWindowSeconds,
+      )
+      : 0;
+    // A zero-length frame carries no motion information, so the last real position is kept.
+    if (deltaSeconds > 0 || !fx.tracked) {
+      fx.lastX = x;
+      fx.lastZ = z;
+      fx.tracked = true;
+    }
+    if (!visible || !isAlive(entity)) return;
+
+    fx.turret?.update(entity.facingRadians, this.aimHeading(fx.turret, entity, targetPosition), deltaSeconds);
+
+    const emits = fx.dustClock.advance(
+      deltaSeconds,
+      speed >= fx.dust.minSpeedTilesPerSecond,
+      fx.dust.intervalSeconds,
+      VEHICLE_FX.dust.maxEmitsPerFrame,
+    );
+    if (emits > 0) this.emitDust(fx.dust, x, z, entity.facingRadians, emits);
+  }
+
+  /** Where the turret should point: the order's visible target, else the last shot's, else nowhere. */
+  private aimHeading(
+    turret: TurretRig,
+    entity: ReadonlyUnit,
+    targetPosition: (id: EntityId) => Vec2 | null,
+  ): number | null {
+    const targetId = attackTargetIdOf(entity.order);
+    const aim = (targetId === null ? null : targetPosition(targetId)) ?? turret.heldShotAim;
+    return aim === null ? null : headingToPoint(entity.position, aim);
+  }
+
+  /** Puffs from both rear contact points, drifting back along the line the vehicle just drove. */
+  private emitDust(profile: VehicleDustProfile, x: number, z: number, facing: number, count: number): void {
+    const forwardX = Math.sin(facing);
+    const forwardZ = Math.cos(facing);
+    for (const side of [-1, 1]) {
+      const px = x - forwardX * profile.rearOffsetTiles + forwardZ * profile.halfTrackTiles * side;
+      const pz = z - forwardZ * profile.rearOffsetTiles - forwardX * profile.halfTrackTiles * side;
+      for (let emit = 0; emit < count; emit++) this.dust.emit(profile, px, pz, -forwardX, -forwardZ);
+    }
   }
 
   /**

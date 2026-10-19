@@ -658,11 +658,22 @@ export class MatchScene {
       if (target === undefined) continue;
       if (effect !== null) this.presentation.playEffect(effect);
       if (event.destroyed) {
-        const death = effect === null ? null : deathEffectAt(effect.to, effect.targetToken);
+        // Destruction cues follow fog like everything else: an unseen enemy's death shows nothing.
+        const death = effect === null || !this.isDeathVisible(target)
+          ? null
+          : deathEffectAt(effect.to, effect.targetToken, vehicleDeathDescriptor(target));
         if (death !== null) this.presentation.playEffect(death);
         this.world.remove(target.id);
       }
     }
+  }
+
+  /** Dead entities fail `isVisibleToObserver`, so a death is judged by where it happened. */
+  private isDeathVisible(target: ReadonlyEntity): boolean {
+    if (this.debugNoFog || target.owner === PLAYER_ID) return true;
+    const tx = Math.floor(target.position.x / this.fog.tileSizePixels);
+    const ty = Math.floor(target.position.y / this.fog.tileSizePixels);
+    return cellVisibility(this.fog, PLAYER_ID, tx, ty) === 'visible';
   }
 
   /** Captures lifecycle facts before `showAttackFeedback` removes destroyed targets. */

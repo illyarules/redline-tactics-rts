@@ -24,6 +24,8 @@ import { openVehicleSource, type VehicleSource } from './vehicle';
 export interface ModelLibrary {
   /** The prototype for what `entity` is. Built on first use. Never called for an Infantry unit. */
   modelFor(entity: ReadonlyEntity): ModelSpec;
+  /** The prototype for a vehicle role and owner, for cosmetics (wrecks) that outlive the entity. */
+  vehicleModel(type: Exclude<UnitTypeId, 'infantry' | 'fpvOperators'>, owner: PlayerId): ModelSpec;
   dispose(): void;
 }
 
@@ -76,6 +78,16 @@ export function createModelLibrary(scene: Scene, materials: MaterialLibrary): Mo
     });
   };
 
+  const vehicleModel = (type: Exclude<UnitTypeId, 'infantry' | 'fpvOperators'>, owner: PlayerId): ModelSpec => {
+    const key = `unit:${type}:${owner}`;
+    const existing = models.get(key);
+    if (existing !== undefined) return existing;
+    requestVehicle(type, owner, key);
+    const model = buildUnitModel(scene, materials, type, owner);
+    models.set(key, model);
+    return model;
+  };
+
   return {
     modelFor(entity) {
       const key = `${entity.kind}:${entity.type}:${entity.owner}`;
@@ -92,11 +104,10 @@ export function createModelLibrary(scene: Scene, materials: MaterialLibrary): Mo
       if (entity.type === 'infantry' || entity.type === 'fpvOperators') {
         throw new Error('Infantry roles render as squads; ModelLibrary does not build them.');
       }
-      requestVehicle(entity.type, entity.owner, key);
-      const model = buildUnitModel(scene, materials, entity.type, entity.owner);
-      models.set(key, model);
-      return model;
+      return vehicleModel(entity.type, entity.owner);
     },
+
+    vehicleModel,
 
     dispose() {
       disposed = true;

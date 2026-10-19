@@ -22,6 +22,7 @@ import { MapView } from './MapView';
 import { OrderMarkerView } from './OrderMarkerView';
 import { SelectionMarker } from './SelectionMarker';
 import { SlotMarkerView } from './SlotMarkerView';
+import { VehicleWreckView } from './VehicleWreckView';
 import type { BattleViewState } from './battleViewState';
 import { createMaterialLibrary, type MaterialLibrary } from './materials';
 import { createModelLibrary } from './models/library';
@@ -50,6 +51,7 @@ export class BattlePresentation {
   private readonly selectionMarker: SelectionMarker;
   private readonly orderMarker: OrderMarkerView;
   private readonly slotMarker: SlotMarkerView;
+  private readonly wrecks: VehicleWreckView;
   private readonly models;
 
   public constructor(
@@ -82,6 +84,11 @@ export class BattlePresentation {
       (mesh: Mesh) => shadows.addShadowCaster(mesh),
     );
     this.combatEffects = new CombatEffectsView(this.scene, this.space, this.materials);
+    this.wrecks = new VehicleWreckView(
+      this.scene,
+      this.space,
+      (type, owner) => this.models.vehicleModel(type, owner),
+    );
     this.selectionMarker = new SelectionMarker(this.scene, this.materials, this.space);
     this.orderMarker = new OrderMarkerView(this.scene, this.materials, this.space);
     this.slotMarker = new SlotMarkerView(this.scene, this.materials, this.space);
@@ -96,7 +103,13 @@ export class BattlePresentation {
 
   /** Synchronizes persistent battlefield objects with one immutable gameplay projection. */
   public sync(state: BattleViewState, deltaSeconds = 0): void {
-    this.entitiesView.sync(state.entities, state.selectedIds, deltaSeconds, state.isVisible);
+    this.entitiesView.sync(
+      state.entities,
+      state.selectedIds,
+      deltaSeconds,
+      state.isVisible,
+      state.positionOfVisibleTarget,
+    );
     const selected = selectedEntities(state.entities, state.selectedIds);
     this.selectionMarker.update(selected);
     this.orderMarker.update(selected, state.entities, state.positionOfVisibleTarget);
@@ -118,8 +131,26 @@ export class BattlePresentation {
   }
 
   public modelHeightOf(id: EntityId): number { return this.entitiesView.modelHeightOf(id); }
-  public playEffect(event: CombatEffectEvent): void { this.combatEffects.play(event); }
-  public updateEffects(deltaSeconds: number): void { this.combatEffects.update(deltaSeconds); }
+
+  /** Plays one confirmed combat cue. Shots also drive the shooter's barrel; deaths of vehicles leave a wreck. */
+  public playEffect(event: CombatEffectEvent): void {
+    if (event.kind === 'combat-hit') {
+      const muzzle = event.attackerToken === undefined
+        ? null
+        : this.entitiesView.fireWeapon(event.attackerToken, event.to);
+      this.combatEffects.play(event, muzzle);
+      return;
+    }
+    this.combatEffects.play(event);
+    if (event.vehicle !== undefined) this.wrecks.spawn(event.at, event.vehicle);
+  }
+
+  /** Advances every timed cosmetic. A paused match does not call this, which freezes them all. */
+  public updateEffects(deltaSeconds: number): void {
+    this.combatEffects.update(deltaSeconds);
+    this.entitiesView.updateDust(deltaSeconds);
+    this.wrecks.update(deltaSeconds);
+  }
   public render(): void { this.scene.render(); }
 
   public dispose(): void {
@@ -128,6 +159,7 @@ export class BattlePresentation {
     this.orderMarker.dispose();
     this.slotMarker.dispose();
     this.combatEffects.dispose();
+    this.wrecks.dispose();
     this.entitiesView.dispose();
     this.fogView.dispose();
     this.mapView.dispose();

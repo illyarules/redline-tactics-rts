@@ -1,7 +1,8 @@
 /** Converts confirmed core hits into the deliberately small, renderer-safe payload the VFX owns. */
 import type { AttackHitEvent } from '../core/attack';
 import { isAlive, type ReadonlyEntity } from '../core/entities';
-import type { AttackerTypeId } from '../config/types';
+import type { AttackerTypeId, VehicleEffectTypeId } from '../config/types';
+import type { PlayerId } from '../core/ids';
 
 export interface CombatEffectPoint {
   readonly x: number;
@@ -20,12 +21,27 @@ export interface CombatHitEffectEvent {
   readonly targetSizeTiles: number;
   /** A killing hit may still show an impact, but never asks a removed target to keep flashing. */
   readonly targetDestroyed: boolean;
+  /**
+   * Public id of the shooter, so its barrel can recoil and the flash can leave the muzzle. Absent
+   * from older payloads, in which case the flash simply starts at `from`.
+   */
+  readonly attackerToken?: string;
+}
+
+/** Everything the wreck and layered explosion need, captured before the entity leaves the world. */
+export interface VehicleDeathDescriptor {
+  readonly unitType: VehicleEffectTypeId;
+  readonly owner: PlayerId;
+  readonly facingRadians: number;
+  readonly sizeTiles: number;
 }
 
 export interface CombatDeathEffectEvent {
   readonly kind: 'combat-death';
   readonly at: CombatEffectPoint;
   readonly targetToken: string;
+  /** Present only when a vehicle died; other targets keep the simple ring. */
+  readonly vehicle?: VehicleDeathDescriptor;
 }
 
 export type CombatEffectEvent = CombatHitEffectEvent | CombatDeathEffectEvent;
@@ -65,13 +81,32 @@ export function mapAttackHitToCombatEffect(
     targetToken: target.id,
     targetSizeTiles,
     targetDestroyed: hit.destroyed,
+    attackerToken: attacker.id,
   };
 }
 
-export function deathEffectAt(at: CombatEffectPoint, targetToken: string): CombatDeathEffectEvent | null {
-  return isFinitePoint(at) && targetToken.length > 0
-    ? { kind: 'combat-death', at: { x: at.x, y: at.y }, targetToken }
-    : null;
+export function deathEffectAt(
+  at: CombatEffectPoint,
+  targetToken: string,
+  vehicle: VehicleDeathDescriptor | null = null,
+): CombatDeathEffectEvent | null {
+  if (!isFinitePoint(at) || targetToken.length === 0) return null;
+  const base = { kind: 'combat-death' as const, at: { x: at.x, y: at.y }, targetToken };
+  return vehicle === null ? base : { ...base, vehicle: { ...vehicle } };
+}
+
+const VEHICLE_TYPES: ReadonlySet<string> = new Set(['worker', 'combatBuggy', 'tank', 'rocket']);
+
+export function isVehicleEffectType(type: string): type is VehicleEffectTypeId {
+  return VEHICLE_TYPES.has(type);
+}
+
+/** Snapshot of a destroyed vehicle's look; `null` for infantry and buildings. Call before removal. */
+export function vehicleDeathDescriptor(target: ReadonlyEntity | undefined): VehicleDeathDescriptor | null {
+  if (target === undefined || target.kind !== 'unit' || !isVehicleEffectType(target.type)) return null;
+  const sizeTiles = target.stats.bodySizeTiles;
+  if (!Number.isFinite(target.facingRadians) || !Number.isFinite(sizeTiles) || sizeTiles <= 0) return null;
+  return { unitType: target.type, owner: target.owner, facingRadians: target.facingRadians, sizeTiles };
 }
 
 function isFinitePoint(point: CombatEffectPoint): boolean {

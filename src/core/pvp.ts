@@ -22,7 +22,7 @@ import { createAutoTargetingState, issueRetaliationOrders, stepAutomaticTargetin
 import { stepSeparation } from './separation';
 import { isAlive } from './entities';
 import type { ReadonlyEntity } from './entities';
-import type { AttackerTypeId } from '../config/types';
+import type { AttackerTypeId, VehicleEffectTypeId } from '../config/types';
 import type { Order } from './orders';
 
 export const PVP_TICK_SECONDS = 0.05;
@@ -32,6 +32,12 @@ export type PvpResult = { winner: Seat | null; reason: 'elimination' | 'surrende
 export type PvpOrderView =
   | { readonly kind: 'Move' | 'AttackMove'; readonly target: { readonly x: number; readonly y: number } }
   | { readonly kind: 'Attack'; readonly targetId: string };
+export interface PvpVehicleDeath {
+  readonly unitType: VehicleEffectTypeId;
+  readonly owner: Seat;
+  readonly facingRadians: number;
+  readonly sizeTiles: number;
+}
 export type PvpCombatEffect =
   | {
       readonly eventId: string;
@@ -43,12 +49,16 @@ export type PvpCombatEffect =
       readonly targetToken: string;
       readonly targetSizeTiles: number;
       readonly targetDestroyed: boolean;
+      /** Public id of the shooter; it is visible to this seat or the event is not sent at all. */
+      readonly attackerToken?: string;
     }
   | {
       readonly eventId: string;
       readonly kind: 'combat-death';
       readonly at: { readonly x: number; readonly y: number };
       readonly targetToken: string;
+      /** Present when the destroyed target was a vehicle: what its wreck should look like. */
+      readonly vehicle?: PvpVehicleDeath;
     };
 export type PvpCombatEffectsBySeat = Readonly<Record<Seat, readonly PvpCombatEffect[]>>;
 export type PvpCommand =
@@ -264,13 +274,16 @@ export class PvpMatch {
           targetToken,
           targetSizeTiles: targetSizeTiles(target),
           targetDestroyed: hit.destroyed,
+          attackerToken: this.toPublicId(attacker.id),
         });
         if (hit.destroyed) {
+          const vehicle = vehicleDeath(target);
           result[seat].push({
             eventId: `${effectId}:death`,
             kind: 'combat-death',
             at: { x: target.position.x, y: target.position.y },
             targetToken,
+            ...(vehicle === null ? {} : { vehicle }),
           });
         }
       }
@@ -297,6 +310,19 @@ export class PvpMatch {
       case 'Surrender': return command;
     }
   }
+}
+
+const VEHICLE_EFFECT_TYPES: ReadonlySet<string> = new Set(['worker', 'combatBuggy', 'tank', 'rocket']);
+
+/** What a viewer needs to draw a destroyed vehicle's wreck; `null` for infantry and buildings. */
+function vehicleDeath(target: ReadonlyEntity): PvpVehicleDeath | null {
+  if (target.kind !== 'unit' || !VEHICLE_EFFECT_TYPES.has(target.type) || (target.owner !== 'player' && target.owner !== 'ai')) return null;
+  return {
+    unitType: target.type as VehicleEffectTypeId,
+    owner: target.owner,
+    facingRadians: target.facingRadians,
+    sizeTiles: target.stats.bodySizeTiles,
+  };
 }
 
 function other(seat: Seat): Seat { return seat === 'player' ? 'ai' : 'player'; }
