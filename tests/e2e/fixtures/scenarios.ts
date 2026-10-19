@@ -104,20 +104,20 @@ export function fpvEntrenchmentScenario(): WorldSnapshot {
  * within sight of the enemy. Pre-selecting the friendly avoids needing a pixel-precise click on a
  * unit only ~20 screen pixels across at this zoom.
  */
-export function combatScenario(): WorldSnapshot {
+export function combatScenario(type: 'infantry' | 'tank' = 'infantry'): WorldSnapshot {
   return buildSnapshot((world, _economy, grid) => {
     placeHomeHq(world);
     placeOpponentHq(world);
     const friendlyTile = rallyTile(0, 0);
     const enemyTile = rallyTile(3, 0);
     const friendly = world.createUnit({
-      type: 'infantry',
+      type,
       owner: 'player',
       faction: FACTION_OF.player,
       position: grid.tileCenter(friendlyTile.tx, friendlyTile.ty),
     });
     world.createUnit({
-      type: 'infantry',
+      type,
       owner: 'ai',
       faction: FACTION_OF.ai,
       position: grid.tileCenter(enemyTile.tx, enemyTile.ty),

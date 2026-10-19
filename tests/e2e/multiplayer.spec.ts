@@ -127,6 +127,13 @@ test('two private seats can refresh, finish, rematch and leave without stale sta
     await expect(east.getByText(/Victory/)).toBeVisible();
     await expect(west.getByText(/Defeat/)).toBeVisible();
 
+    const lateContext = await browser.newContext();
+    try {
+      const late = await lateContext.newPage();
+      await late.goto(invite);
+      await expect(late.locator('.online-status')).toHaveText('This battle has already ended. Create or join another room.');
+    } finally { await lateContext.close(); }
+
     await west.getByRole('button', { name: 'Rematch lobby' }).click();
     await expect(west.getByText(/Prepare for battle/)).toBeVisible();
     await expect(east.getByText(/Prepare for battle/)).toBeVisible();

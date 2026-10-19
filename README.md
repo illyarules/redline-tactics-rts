@@ -76,6 +76,7 @@ to queue it. A Factory builds the fast Combat Buggy with no Power Plant; Tanks a
 unavailable ("Needs Power Plant") until one is complete; a Tank or Rocket already queued pauses if power is lost. Right-click a visible resource field with a Worker to gather. WASD or arrow keys move the
 camera; the minimap recenters it. Escape clears an active order or selection. Surrender requires
 confirmation and ends the match. Refreshing the same tab resumes its seat while the server is running.
+Opening an invite to a finished match shows a clear message and offers a new room instead.
 Visible online movement is smoothed between the server's authoritative snapshots. The command panel
 shows pending, confirmed, and rejected order states; movement and attack markers remain local visual
 feedback until the server applies or rejects the command.
@@ -89,3 +90,43 @@ has no accounts or persistent match history. Environment variables, health check
 capacity testing and rollback are documented in
 [`docs/multiplayer-deployment.md`](./docs/multiplayer-deployment.md). The deployed client also
 initializes Vercel Web Analytics.
+
+## Blender model study
+
+`scripts/blender/create_meridian_tank.py` generates an original articulated tank study,
+separate from the live game's procedural models. Open the saved script in Blender's
+Scripting workspace and choose Run Script, or run on macOS from the repository root:
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender --background --python-exit-code 1 --python scripts/blender/create_meridian_tank.py
+```
+
+Outputs are `assets/models/meridian-tank/meridian-tank.blend`, `meridian-tank.glb`,
+and `preview.png`. Rerunning replaces these generated files; save manual edits under
+another name. The script creates a separate scene and does not delete existing scenes.
+It uses plain PBR materials without external textures. `TurretPivot` and `BarrelPivot`
+remain separate for later animation. Blender axes are Z-up / -Y-forward; exported
+glTF axes are Y-up / +Z-forward.
+
+The game loads `src/assets/models/meridian-tank.glb` once per match for all Tank units,
+including resumed and online matches. Blue/orange armor identifies the owner. Selection,
+movement, shadows, fog and combat use the existing entity rules; the turret follows the
+hull's existing heading. The procedural tank remains visible during loading and
+is retained if loading fails. After regenerating the model, copy the exported `.glb` into
+`src/assets/models/` to update the game asset. The studio preview lighting differs from
+the battlefield, and large-army performance still needs profiling.
+
+### Infantry squad study
+
+`scripts/blender/create_meridian_infantry.py` builds a detailed three-soldier Meridian squad in the
+same way (same command, with the script path swapped). Outputs go to
+`assets/models/meridian-infantry-squad/` as `.blend`, `.glb` and `preview.png`. Each soldier
+has `BodyPivot`, `ArmsPivot` (both arms and rifle) and `LegLeftPivot`/`LegRightPivot`
+for a later walk cycle; the squad leader carries a radio mast. Materials follow the tank's naming
+(`Uniform · deep teal`, `Armor · light panels`, `TeamColor`).
+
+The game loads `src/assets/models/meridian-infantry-squad.glb` once per match and builds one
+soldier template from `Soldier2` (body, arms with rifle, two legs, baked relative to their pivots),
+recoloured per owner. Every soldier of an Infantry squad uses it, with the existing formation and
+walk cycle. FPV operators keep the procedural soldier, which is also the fallback while the model
+loads or if loading fails. After regenerating, copy the `.glb` into `src/assets/models/`.

@@ -13,6 +13,8 @@ import type { EntityId } from '../core/ids';
 import { shouldShowHealthBar } from './healthBar';
 import type { MaterialLibrary } from './materials';
 import type { ModelLibrary } from './models/library';
+import type { ModelSpec } from './models/kit';
+import { loadInfantryParts } from './models/infantry';
 import { createSoldierKit, instantiateSoldier, type SoldierInstance, type SoldierKit } from './models/soldier';
 import { squadFormationSlots } from './models/squadFormation';
 import { idlePose, walkPose } from './models/walkCycle';
@@ -68,6 +70,7 @@ interface DisplayBase {
 
 interface ModelDisplay extends DisplayBase {
   readonly kind: 'model';
+  readonly model: ModelSpec;
 }
 
 interface SquadAnimationState {
@@ -97,6 +100,7 @@ export class EntitiesView {
   private readonly displays = new Map<EntityId, EntityDisplay>();
   private readonly meshOwners = new Map<number, EntityId>();
   private readonly soldierKit: SoldierKit;
+  private disposed = false;
 
   public constructor(
     private readonly scene: Scene,
@@ -107,6 +111,18 @@ export class EntitiesView {
     private readonly onMeshCreated: (mesh: Mesh) => void,
   ) {
     this.soldierKit = createSoldierKit(scene, materials);
+    void loadInfantryParts(scene).then(parts => {
+      if (this.disposed) {
+        for (const set of parts.values()) {
+          for (const part of [set.torso, set.rifleArm, set.legLeft, set.legRight]) part.mesh.dispose();
+        }
+        return;
+      }
+      this.soldierKit.useModel(parts);
+      this.resetInfantryDisplays();
+    }).catch(error => {
+      console.warn('Infantry model unavailable; using procedural fallback.', error);
+    });
   }
 
   /**
@@ -127,11 +143,7 @@ export class EntitiesView {
 
     for (const entity of entities) {
       present.add(entity.id);
-      let display = this.displays.get(entity.id);
-      if (display === undefined) {
-        display = this.create(entity);
-        this.displays.set(entity.id, display);
-      }
+      const display = this.displayFor(entity);
       this.update(display, entity, selected.has(entity.id), deltaSeconds, isVisible(entity));
     }
 
@@ -157,12 +169,23 @@ export class EntitiesView {
   }
 
   public dispose(): void {
+    this.disposed = true;
     for (const display of this.displays.values()) {
       display.root.dispose(false, false);
     }
     this.displays.clear();
     this.meshOwners.clear();
     this.soldierKit.dispose();
+  }
+
+  /** Drops every Infantry squad display so the next `sync` rebuilds it from the loaded model. */
+  private resetInfantryDisplays(): void {
+    for (const [id, display] of this.displays) {
+      if (display.kind !== 'squad' || display.soldiers.length === 0) continue;
+      for (const mesh of display.pickableMeshes) this.meshOwners.delete(mesh.uniqueId);
+      display.root.dispose(false, false);
+      this.displays.delete(id);
+    }
   }
 
   private create(entity: ReadonlyEntity): EntityDisplay {
@@ -197,22 +220,41 @@ export class EntitiesView {
     const model = this.models.modelFor(entity);
     const mesh = model.mesh.clone(`entity:${entity.id}:model`, root);
     mesh.setEnabled(true);
-    mesh.isPickable = true;
-    this.registerPickable([mesh], entity.id);
+    const pickableMeshes = [mesh, ...mesh.getChildMeshes()].filter(
+      (part): part is Mesh => part instanceof Mesh && part.getTotalVertices() > 0,
+    );
+    for (const part of pickableMeshes) part.isPickable = true;
+    this.registerPickable(pickableMeshes, entity.id);
 
     const barWidth = clamp(this.displayWidth(entity) * 0.9, BAR_MIN_WIDTH, BAR_MAX_WIDTH);
     const bar = this.createBar(entity.id, root, model.height);
 
     return {
       kind: 'model',
+      model,
       root,
       bar: bar.node,
       barFill: bar.fill,
       barRest: bar.rest,
       barWidth,
       modelHeight: model.height,
-      pickableMeshes: [mesh],
+      pickableMeshes,
     };
+  }
+
+  /** Replace a loading fallback once its imported prototype is ready. */
+  private displayFor(entity: ReadonlyEntity): EntityDisplay {
+    let display = this.displays.get(entity.id);
+    if (display?.kind === 'model' && display.model !== this.models.modelFor(entity)) {
+      for (const mesh of display.pickableMeshes) this.meshOwners.delete(mesh.uniqueId);
+      display.root.dispose(false, false);
+      display = undefined;
+    }
+    if (display === undefined) {
+      display = this.create(entity);
+      this.displays.set(entity.id, display);
+    }
+    return display;
   }
 
   private registerPickable(meshes: readonly Mesh[], id: EntityId): void {

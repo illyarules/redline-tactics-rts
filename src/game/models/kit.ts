@@ -21,7 +21,7 @@ import type { MaterialLibrary } from '../materials';
  * about 1 wide, and `y` is height above the ground.
  */
 export interface ModelSpec {
-  /** The prototype mesh, already merged. Not placed in the scene: clone it. */
+  /** Disabled prototype, either a merged mesh or a root with imported descendants. Clone it. */
   readonly mesh: Mesh;
   /** How tall the model stands, in tiles. Health bars and labels sit above it. */
   readonly height: number;
