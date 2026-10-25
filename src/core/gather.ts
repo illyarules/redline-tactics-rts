@@ -14,7 +14,7 @@ import { distanceSquared, type TileCoord, type Vec2 } from './geometry';
 import type { EntityId, PlayerId } from './ids';
 import type { MapGrid, ResourceField } from './map';
 import { isUnderBuilding, nearbyFreeTiles } from './matchSetup';
-import { advanceAlongRoute } from './movement';
+import { driveAlongRoute } from './movement';
 import { gatherOrder, type GatherOrder, type MoveRoute } from './orders';
 import { planRoute } from './pathfinding';
 import type { ResourceFieldState } from './resourceFieldState';
@@ -109,15 +109,7 @@ function stepTravel(world: World, unitId: EntityId, order: GatherOrder, deltaSec
     return;
   }
   const tolerance = ARRIVAL_TOLERANCE_TILES * world.tileSizePixels;
-  const budget = unit.stats.speedTilesPerSecond * world.tileSizePixels * deltaSeconds;
-  const step = advanceAlongRoute(order.route.waypoints, order.route.waypointIndex, unit.position, budget, tolerance);
-
-  if (step.position.x !== unit.position.x || step.position.y !== unit.position.y) {
-    world.setPosition(unitId, step.position);
-  }
-  if (step.heading !== null) {
-    world.setFacingRadians(unitId, step.heading);
-  }
+  const step = driveAlongRoute(world, unit, order.route, deltaSeconds, tolerance);
 
   if (step.arrived) {
     world.setOrder(unitId, gatherOrder(order.fieldId, order.phase, null, order.gatherElapsedSeconds, order.dropoffId));

@@ -7,6 +7,7 @@ import {
   displacementSpeed, headingToPoint, normalizeAngle, shortestAngleDelta, stageProgress, stepAngleToward,
   stepTurretYaw, unitHash, wreckExpired, wreckVisibility,
 } from '../../src/game/vehicleEffectsState';
+import { VehicleMotionState } from '../../src/game/vehicleMotionState';
 
 const CONFIG = VEHICLE_EFFECTS_CONFIG;
 const TANK = CONFIG.turrets.tank;
@@ -253,5 +254,62 @@ describe('vehicle effects configuration', () => {
     expect(isValidVehicleEffectsConfig({
       ...CONFIG, destruction: { ...CONFIG.destruction, minScale: 3 },
     })).toBe(false);
+  });
+});
+
+describe('vehicle motion', () => {
+  const wheels = { radius: 0.2, halfTrack: 0.3 };
+  const step = (state: VehicleMotionState, speed: number, facing: number, seconds: number) => {
+    let pose = state.pose();
+    for (let t = 0; t < seconds; t += 1 / 60) pose = state.update(speed, facing, 1 / 60, CONFIG.motion, wheels);
+    return pose;
+  };
+
+  it('rolls both wheels forward at speed / radius when driving straight', () => {
+    const state = new VehicleMotionState();
+    const pose = state.update(2, 0, 0.05, CONFIG.motion, wheels);
+    expect(pose.spinLeft).toBeCloseTo(2 / 0.2 * 0.05);
+    expect(pose.spinRight).toBeCloseTo(pose.spinLeft);
+    expect(pose.steer).toBeCloseTo(0);
+  });
+
+  it('counter-rotates the sides and steers when pivoting in place', () => {
+    const state = new VehicleMotionState();
+    const pose = step(state, 0, 0, 0.1);
+    const turned = step(state, 0, 1, 1 / 60);
+    expect(turned.spinLeft).toBeGreaterThan(pose.spinLeft);
+    expect(turned.spinRight).toBeLessThan(pose.spinRight);
+    expect(turned.steer).toBeGreaterThan(0);
+  });
+
+  it('nods forward when braking and settles level once still', () => {
+    const state = new VehicleMotionState();
+    const cruising = step(state, 2.5, 0, 1);
+    expect(Math.abs(cruising.pitch)).toBeLessThan(0.01);
+    let peak = 0;
+    for (let i = 0; i < 30; i++) peak = Math.max(peak, state.update(0, 0, 1 / 60, CONFIG.motion, wheels).pitch);
+    expect(peak).toBeGreaterThan(0.01);
+    expect(peak).toBeLessThanOrEqual(CONFIG.motion.maxPitchRadians);
+    expect(Math.abs(step(state, 0, 0, 2).pitch)).toBeLessThan(0.001);
+  });
+
+  it('lifts the nose when launching and leans outward in a right-hand turn', () => {
+    const state = new VehicleMotionState();
+    const launch = state.update(2.5, 0, 1 / 60, CONFIG.motion, wheels);
+    expect(launch.pitch).toBeLessThan(0);
+    const turning = step(state, 2.5, 0, 1);
+    expect(turning.roll).toBeCloseTo(0);
+    let facing = 0;
+    let roll = 0;
+    for (let i = 0; i < 30; i++) {
+      facing += 0.03;
+      roll = state.update(2.5, facing, 1 / 60, CONFIG.motion, wheels).roll;
+    }
+    expect(roll).toBeLessThan(0);
+  });
+
+  it('ignores a zero-length frame', () => {
+    const state = new VehicleMotionState();
+    expect(state.update(2, 0, 0, CONFIG.motion, wheels)).toEqual(state.pose());
   });
 });

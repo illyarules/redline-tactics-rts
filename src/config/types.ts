@@ -233,6 +233,10 @@ export interface MovementConfig {
   readonly arrivalToleranceTiles: number;
   /** Largest change in a mobile unit's heading per second, in radians. */
   readonly maxTurnRadiansPerSecond: number;
+  /** Heading error up to which a unit drives at full speed. */
+  readonly fullSpeedAlignmentRadians: number;
+  /** Heading error from which a unit stops and turns in place; speed ramps down in between. */
+  readonly turnInPlaceAlignmentRadians: number;
 }
 
 /** How far a blocked destination may be nudged to find a nearby reachable tile instead. */
@@ -328,6 +332,15 @@ export interface CombatEffectWeaponConfig {
    * multiple of its diameter. Absent (or 1) keeps the round puff.
    */
   readonly muzzleLengthMultiplier?: number;
+  /**
+   * Draws each confirmed hit as a short burst of this many tracers, `intervalSeconds` apart and
+   * fanned `spreadTiles` around the aim point. Purely visual: damage is still one hit.
+   */
+  readonly burst?: {
+    readonly count: number;
+    readonly intervalSeconds: number;
+    readonly spreadTiles: number;
+  };
   readonly impactDurationSeconds: number;
   readonly impactDiameterTiles: number;
   readonly debrisDiameterTiles: number;
@@ -339,7 +352,38 @@ export interface CombatEffectWeaponConfig {
   readonly impactColor: number;
 }
 
+/** How a rocket reads in flight: a lofted missile with an exhaust flame and a smoke trail. */
+export interface RocketEffectConfig {
+  /** Peak height of the flight arc as a share of the distance flown, capped by `maxArcHeightTiles`. */
+  readonly arcHeightShare: number;
+  readonly maxArcHeightTiles: number;
+  /** How far ahead of the unit's centre the missile leaves, along the line of fire. */
+  readonly launchOffsetTiles: number;
+  readonly flameLengthTiles: number;
+  readonly glowColor: number;
+  readonly smokeIntervalSeconds: number;
+  readonly smokeLifetimeSeconds: number;
+  readonly smokeStartDiameterTiles: number;
+  readonly smokeEndDiameterTiles: number;
+  readonly smokeRiseTiles: number;
+  readonly smokePeakVisibility: number;
+  readonly smokeColor: number;
+  readonly smokeDarkColor: number;
+  /** Puffs thrown out behind the tubes at launch. */
+  readonly launchSmokeCount: number;
+  readonly launchSmokeDiameterTiles: number;
+  readonly launchSmokeEndDiameterTiles: number;
+  /** Dark puffs rising from the point of impact. */
+  readonly impactSmokeCount: number;
+  readonly impactSmokeDiameterTiles: number;
+  readonly impactSmokeEndDiameterTiles: number;
+  readonly impactSmokeRiseTiles: number;
+  readonly impactSmokeLifetimeSeconds: number;
+}
+
 export interface CombatEffectsConfig {
+  readonly smokePoolCapacity: number;
+  readonly rocket: RocketEffectConfig;
   /** Bounded pools prevent a crowded battle from creating an unbounded number of scene objects. */
   readonly projectilePoolCapacity: number;
   readonly muzzlePoolCapacity: number;
@@ -366,11 +410,6 @@ export interface CombatEffectsConfig {
     readonly targetFlashAlpha: number;
     readonly muzzleOffsetDiameterFraction: number;
     readonly projectileArrivalFade: number;
-    readonly rocketHeadDiameterMultiplier: number;
-    readonly rocketTrailOffsetLengthMultiplier: number;
-    readonly rocketTrailLengthMultiplier: number;
-    readonly rocketTrailWidthMultiplier: number;
-    readonly rocketTrailArrivalFade: number;
     readonly impactGroundHeightTiles: number;
     readonly impactGrowthAtEnd: number;
     readonly ringGrowthAtEnd: number;
@@ -601,7 +640,25 @@ export interface VehicleWreckConfig {
   readonly turretTwistRadians: number;
 }
 
+/** Body language and wheel animation of a driving vehicle; purely cosmetic. */
+export interface VehicleMotionConfig {
+  /** How quickly the smoothed speed used for pitch follows the real one, per second. */
+  readonly accelerationResponsePerSecond: number;
+  /** Body tilt (radians) per tile/s² of acceleration; braking tips the nose down, launching lifts it. */
+  readonly pitchPerAcceleration: number;
+  readonly maxPitchRadians: number;
+  /** Body lean (radians) per tile/s × radian/s of cornering; the body leans outward. */
+  readonly rollPerCornering: number;
+  readonly maxRollRadians: number;
+  /** Front wheel steering (radians) per radian/s of yaw, and its limit. */
+  readonly steerPerYawRate: number;
+  readonly maxSteerRadians: number;
+  /** How quickly yaw rate, steering, pitch and roll settle, per second. */
+  readonly settleRatePerSecond: number;
+}
+
 export interface VehicleEffectsConfig {
+  readonly motion: VehicleMotionConfig;
   readonly dust: {
     readonly poolCapacity: number;
     readonly lowPolySides: number;

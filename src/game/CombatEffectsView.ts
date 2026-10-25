@@ -18,8 +18,8 @@ import type { SceneSpace } from './sceneSpace';
 
 interface ProjectileSlot {
   readonly body: Mesh;
-  readonly rocketHead: Mesh;
-  readonly trail: Mesh;
+  readonly glow: Mesh;
+  readonly flame: Mesh;
   readonly from: Vector3;
   readonly to: Vector3;
   readonly direction: Vector3;
@@ -27,7 +27,25 @@ interface ProjectileSlot {
   readonly rotation: Quaternion;
   elapsedSeconds: number;
   durationSeconds: number;
+  /** Peak of a rocket's lofted flight, in scene units; zero for straight shots. */
+  arcHeight: number;
+  smokeElapsedSeconds: number;
+  /** Time still to wait before this tracer leaves the barrel, for bursts. */
+  delaySeconds: number;
+  /** Extra tracers of a burst: drawn, but they do not carry the hit's target flash. */
+  cosmetic: boolean;
   event: CombatHitEffectEvent | null;
+}
+
+/** One puff of rocket smoke: it swells, rises and fades. */
+interface SmokeSlot {
+  readonly mesh: Mesh;
+  elapsedSeconds: number;
+  durationSeconds: number;
+  startDiameter: number;
+  endDiameter: number;
+  riseTiles: number;
+  peakVisibility: number;
 }
 
 interface MuzzleSlot {
@@ -68,11 +86,14 @@ export class CombatEffectsView {
   private readonly impacts: ImpactSlot[];
   private readonly targetFlashes: TargetFlashSlot[];
   private readonly deaths: DeathSlot[];
+  private readonly smoke: SmokeSlot[];
   private readonly projectilePool = new BoundedEffectPool(CONFIG.projectilePoolCapacity);
   private readonly muzzlePool = new BoundedEffectPool(CONFIG.muzzlePoolCapacity);
   private readonly impactPool = new BoundedEffectPool(CONFIG.impactPoolCapacity);
   private readonly targetFlashPool = new BoundedEffectPool(CONFIG.targetFlashPoolCapacity);
   private readonly deathPool = new BoundedEffectPool(CONFIG.deathPoolCapacity);
+  private readonly smokePool = new BoundedEffectPool(CONFIG.smokePoolCapacity);
+  private readonly scratchTangent = Vector3.Zero();
   private readonly vehicleDestruction: VehicleDestructionView;
 
   public constructor(
@@ -88,6 +109,7 @@ export class CombatEffectsView {
     this.impacts = this.createImpacts();
     this.targetFlashes = this.createTargetFlashes();
     this.deaths = this.createDeaths();
+    this.smoke = this.createSmoke();
     this.vehicleDestruction = new VehicleDestructionView(scene, space, materials);
   }
 
@@ -111,35 +133,50 @@ export class CombatEffectsView {
     this.updateImpacts(deltaSeconds);
     this.updateTargetFlashes(deltaSeconds);
     this.updateDeaths(deltaSeconds);
+    this.updateSmoke(deltaSeconds);
     this.vehicleDestruction.update(deltaSeconds);
   }
 
   /** Disposes every preallocated mesh, including inactive ones, before the scene is discarded. */
   public dispose(): void {
-    this.disposeSlots(this.projectiles, (slot) => [slot.body, slot.rocketHead, slot.trail]);
+    this.disposeSlots(this.projectiles, (slot) => [slot.body, slot.glow, slot.flame]);
     this.disposeSlots(this.muzzles, (slot) => [slot.mesh]);
     this.disposeSlots(this.impacts, (slot) => [slot.flash, slot.ring, ...slot.debris]);
     this.disposeSlots(this.targetFlashes, (slot) => [slot.mesh]);
     this.disposeSlots(this.deaths, (slot) => [slot.mesh]);
+    this.disposeSlots(this.smoke, (slot) => [slot.mesh]);
     this.vehicleDestruction.dispose();
     this.projectilePool.clear();
     this.muzzlePool.clear();
     this.impactPool.clear();
     this.targetFlashPool.clear();
     this.deathPool.clear();
+    this.smokePool.clear();
   }
 
   private startShot(event: CombatHitEffectEvent, muzzle: Vector3 | null): void {
     const weapon = CONFIG.weapons[event.weapon];
-    this.startMuzzle(event, weapon, muzzle);
+    const origin = this.shotOrigin(event, weapon, muzzle);
+    this.startMuzzle(event, weapon, origin);
+    // One confirmed hit may be drawn as a short burst: the first tracer carries the hit, the rest
+    // are staggered, slightly scattered tracers that only add to how heavy the fire looks.
+    const count = weapon.burst?.count ?? 1;
+    for (let shot = 0; shot < count; shot++) this.launchProjectile(event, weapon, origin, shot);
+  }
+
+  private launchProjectile(
+    event: CombatHitEffectEvent, weapon: CombatEffectWeaponConfig, origin: Vector3, shot: number,
+  ): void {
     const index = this.projectilePool.acquire();
     if (index === null) return;
 
     const slot = this.projectiles[index]!;
     slot.elapsedSeconds = 0;
     slot.durationSeconds = weapon.projectileDurationSeconds;
+    slot.delaySeconds = shot * (weapon.burst?.intervalSeconds ?? 0);
+    slot.cosmetic = shot > 0;
     slot.event = event;
-    slot.from.copyFrom(muzzle ?? this.point(event.from, weapon.projectileHeightTiles));
+    slot.from.copyFrom(origin);
     slot.to.copyFrom(this.point(event.to, weapon.projectileHeightTiles));
     slot.to.subtractToRef(slot.from, slot.direction);
     if (slot.direction.lengthSquared() < 1e-6) {
@@ -156,18 +193,41 @@ export class CombatEffectsView {
     if ((event.from.x * 17 + event.from.y * 31 + event.to.x * 13 + event.to.y * 7) % 2 < 1) {
       slot.curveSide.scaleInPlace(-1);
     }
+    if (shot > 0 && weapon.burst !== undefined) {
+      // Alternate sides, widening with each tracer, so the burst fans out around the aim point.
+      const side = shot % 2 === 1 ? 1 : -1;
+      slot.to.addInPlace(slot.curveSide.scale(side * Math.ceil(shot / 2) * weapon.burst.spreadTiles));
+      slot.to.subtractToRef(slot.from, slot.direction).normalize();
+    }
     Quaternion.FromUnitVectorsToRef(UP, slot.direction, slot.rotation);
+    const rocket = event.weapon === 'rocket';
+    slot.arcHeight = rocket
+      ? Math.min(CONFIG.rocket.maxArcHeightTiles, Vector3.Distance(slot.from, slot.to) * CONFIG.rocket.arcHeightShare)
+      : 0;
+    slot.smokeElapsedSeconds = 0;
     this.placeProjectile(slot, weapon, 0);
-    slot.body.setEnabled(event.weapon !== 'rocket');
-    slot.rocketHead.setEnabled(event.weapon === 'rocket');
-    slot.trail.setEnabled(event.weapon === 'rocket');
+    if (rocket) this.startLaunchSmoke(slot);
+    // A delayed tracer stays hidden until its turn comes.
+    slot.body.setEnabled(slot.delaySeconds <= 0);
+    slot.glow.setEnabled(rocket);
+    slot.flame.setEnabled(rocket);
   }
 
-  private startMuzzle(event: CombatHitEffectEvent, weapon: CombatEffectWeaponConfig, muzzle: Vector3 | null): void {
+  /** Where a shot leaves: the barrel when the model has one, else the unit, nudged out to the tubes for rockets. */
+  private shotOrigin(event: CombatHitEffectEvent, weapon: CombatEffectWeaponConfig, muzzle: Vector3 | null): Vector3 {
+    const origin = muzzle?.clone() ?? this.point(event.from, weapon.projectileHeightTiles);
+    if (event.weapon !== 'rocket' || muzzle !== null) return origin;
+    const toward = this.point(event.to, weapon.projectileHeightTiles).subtractInPlace(origin);
+    toward.y = 0;
+    if (toward.lengthSquared() > 1e-6) origin.addInPlace(toward.normalize().scaleInPlace(CONFIG.rocket.launchOffsetTiles));
+    return origin;
+  }
+
+  private startMuzzle(event: CombatHitEffectEvent, weapon: CombatEffectWeaponConfig, muzzle: Vector3): void {
     const index = this.muzzlePool.acquire();
     if (index === null) return;
     const mesh = this.muzzles[index]!.mesh;
-    const from = muzzle?.clone() ?? this.point(event.from, weapon.projectileHeightTiles);
+    const from = muzzle.clone();
     const to = this.point(event.to, weapon.projectileHeightTiles);
     to.subtractToRef(from, to);
     if (to.lengthSquared() > 1e-6) to.normalize();
@@ -191,6 +251,10 @@ export class CombatEffectsView {
   }
 
   private placeProjectile(slot: ProjectileSlot, weapon: CombatEffectWeaponConfig, progress: number): void {
+    if (slot.event?.weapon === 'rocket') {
+      this.placeRocket(slot, weapon, progress);
+      return;
+    }
     Vector3.LerpToRef(slot.from, slot.to, progress, slot.body.position);
     if (slot.event?.weapon === 'fpvOperators') {
       const arc = Math.sin(Math.PI * progress);
@@ -210,44 +274,67 @@ export class CombatEffectsView {
     slot.body.scaling.set(weapon.projectileWidthTiles, weapon.projectileLengthTiles, weapon.projectileWidthTiles);
     slot.body.material = this.materials.unlit(weapon.projectileColor, CONFIG.visual.projectileAlpha);
     slot.body.visibility = 1 - progress * CONFIG.visual.projectileArrivalFade;
+  }
 
-    slot.rocketHead.position.copyFrom(slot.body.position);
-    slot.rocketHead.scaling.setAll(weapon.projectileWidthTiles * CONFIG.visual.rocketHeadDiameterMultiplier);
-    slot.rocketHead.material = this.materials.unlit(weapon.projectileColor, 1);
-    slot.rocketHead.visibility = 1;
+  /** A lofted missile: a pale body along its flight path, a flickering flame cone and a hot glow at the tail. */
+  private placeRocket(slot: ProjectileSlot, weapon: CombatEffectWeaponConfig, progress: number): void {
+    const tangent = this.scratchTangent;
+    Vector3.LerpToRef(slot.from, slot.to, progress, slot.body.position);
+    slot.body.position.y += Math.sin(Math.PI * progress) * slot.arcHeight;
+    slot.to.subtractToRef(slot.from, tangent);
+    tangent.y += Math.PI * slot.arcHeight * Math.cos(Math.PI * progress);
+    tangent.normalize();
+    Quaternion.FromUnitVectorsToRef(UP, tangent, slot.rotation);
 
-    slot.trail.position.copyFrom(slot.body.position).addInPlaceFromFloats(
-      -slot.direction.x * weapon.projectileLengthTiles * CONFIG.visual.rocketTrailOffsetLengthMultiplier,
-      -slot.direction.y * weapon.projectileLengthTiles * CONFIG.visual.rocketTrailOffsetLengthMultiplier,
-      -slot.direction.z * weapon.projectileLengthTiles * CONFIG.visual.rocketTrailOffsetLengthMultiplier,
-    );
-    slot.trail.rotationQuaternion = slot.rotation;
-    slot.trail.scaling.set(
-      weapon.projectileWidthTiles * CONFIG.visual.rocketTrailWidthMultiplier,
-      weapon.projectileLengthTiles * CONFIG.visual.rocketTrailLengthMultiplier,
-      weapon.projectileWidthTiles * CONFIG.visual.rocketTrailWidthMultiplier,
-    );
-    slot.trail.material = this.materials.unlit(weapon.trailColor, CONFIG.visual.trailAlpha);
-    slot.trail.visibility = 1 - progress * CONFIG.visual.rocketTrailArrivalFade;
+    const width = weapon.projectileWidthTiles;
+    const length = weapon.projectileLengthTiles;
+    slot.body.rotationQuaternion = slot.rotation;
+    slot.body.scaling.set(width, length, width);
+    slot.body.material = this.materials.unlit(weapon.projectileColor, 1);
+    slot.body.visibility = 1;
+
+    // The exhaust shimmers with flight time rather than randomness, so replays look the same.
+    const flicker = 0.85 + 0.3 * Math.abs(Math.sin(progress * 90));
+    const flameLength = CONFIG.rocket.flameLengthTiles * flicker;
+    slot.glow.position.copyFrom(slot.body.position).subtractInPlace(tangent.scale(length * 0.5));
+    slot.glow.scaling.setAll(width * 1.6);
+    slot.glow.material = this.materials.unlit(CONFIG.rocket.glowColor, 1);
+    slot.glow.visibility = 1;
+
+    slot.flame.position.copyFrom(slot.body.position).subtractInPlace(tangent.scale(length * 0.5 + flameLength * 0.5));
+    slot.flame.rotationQuaternion = slot.rotation;
+    slot.flame.scaling.set(width * 1.1, flameLength, width * 1.1);
+    slot.flame.material = this.materials.unlit(weapon.trailColor, CONFIG.visual.trailAlpha);
+    slot.flame.visibility = 1;
   }
 
   private updateProjectiles(deltaSeconds: number): void {
     for (let index = 0; index < this.projectiles.length; index++) {
       const slot = this.projectiles[index]!;
       if (slot.event === null) continue;
+      if (slot.delaySeconds > 0) {
+        slot.delaySeconds -= deltaSeconds;
+        if (slot.delaySeconds > 0) continue;
+        slot.delaySeconds = 0;
+        slot.body.setEnabled(true);
+        this.startMuzzle(slot.event, CONFIG.weapons[slot.event.weapon], slot.from);
+      }
       const lifetime = advanceEffectLifetime(slot.elapsedSeconds, slot.durationSeconds, deltaSeconds);
       slot.elapsedSeconds = lifetime.elapsedSeconds;
       this.placeProjectile(slot, CONFIG.weapons[slot.event.weapon], slot.elapsedSeconds / slot.durationSeconds);
+      if (slot.event.weapon === 'rocket') this.emitRocketTrail(slot, deltaSeconds);
       if (!lifetime.expired) continue;
       const event = slot.event;
-      this.disable(slot.body, slot.rocketHead, slot.trail);
+      const cosmetic = slot.cosmetic;
+      this.disable(slot.body, slot.glow, slot.flame);
       slot.event = null;
       this.projectilePool.release(index);
-      this.startImpact(event);
+      this.startImpact(event, cosmetic);
+      if (event.weapon === 'rocket') this.startImpactSmoke(event);
     }
   }
 
-  private startImpact(event: CombatHitEffectEvent): void {
+  private startImpact(event: CombatHitEffectEvent, cosmetic = false): void {
     const index = this.impactPool.acquire();
     if (index === null) return;
     const weapon = CONFIG.weapons[event.weapon];
@@ -283,7 +370,7 @@ export class CombatEffectsView {
       debris.setEnabled(true);
     }
 
-    if (!event.targetDestroyed) this.startTargetFlash(event);
+    if (!event.targetDestroyed && !cosmetic) this.startTargetFlash(event);
   }
 
   private startTargetFlash(event: CombatHitEffectEvent): void {
@@ -333,6 +420,88 @@ export class CombatEffectsView {
       if (!lifetime.expired) continue;
       slot.mesh.setEnabled(false);
       this.muzzlePool.release(index);
+    }
+  }
+
+  /** A thin plume left along the flight path, from the missile's tail. */
+  private emitRocketTrail(slot: ProjectileSlot, deltaSeconds: number): void {
+    const rocket = CONFIG.rocket;
+    slot.smokeElapsedSeconds += deltaSeconds;
+    // At most three puffs a frame, so a long frame cannot spend the whole pool at once.
+    for (let emitted = 0; slot.smokeElapsedSeconds >= rocket.smokeIntervalSeconds && emitted < 3; emitted++) {
+      slot.smokeElapsedSeconds -= rocket.smokeIntervalSeconds;
+      this.spawnSmoke(
+        slot.glow.position, rocket.smokeStartDiameterTiles, rocket.smokeEndDiameterTiles,
+        rocket.smokeLifetimeSeconds, rocket.smokeRiseTiles, rocket.smokeColor,
+      );
+    }
+    if (slot.smokeElapsedSeconds > rocket.smokeIntervalSeconds) slot.smokeElapsedSeconds = 0;
+  }
+
+  /** Back-blast: a cluster of puffs billowing behind the tubes. */
+  private startLaunchSmoke(slot: ProjectileSlot): void {
+    const rocket = CONFIG.rocket;
+    for (let puff = 0; puff < rocket.launchSmokeCount; puff++) {
+      const back = (puff + 1) * 0.1;
+      const side = (puff % 2 === 0 ? 1 : -1) * 0.05 * puff;
+      this.scratchTangent.copyFromFloats(
+        slot.from.x - slot.direction.x * back - slot.direction.z * side,
+        slot.from.y - 0.05 * puff,
+        slot.from.z - slot.direction.z * back + slot.direction.x * side,
+      );
+      this.spawnSmoke(
+        this.scratchTangent, rocket.launchSmokeDiameterTiles, rocket.launchSmokeEndDiameterTiles,
+        rocket.smokeLifetimeSeconds + puff * 0.1, rocket.smokeRiseTiles, rocket.smokeColor,
+      );
+    }
+  }
+
+  /** Dark smoke climbing from the point of impact. */
+  private startImpactSmoke(event: CombatHitEffectEvent): void {
+    const rocket = CONFIG.rocket;
+    const at = this.point(event.to, CONFIG.visual.impactGroundHeightTiles);
+    for (let puff = 0; puff < rocket.impactSmokeCount; puff++) {
+      const angle = puff * (Math.PI * 2 / rocket.impactSmokeCount) + 0.6;
+      this.scratchTangent.copyFromFloats(at.x + Math.cos(angle) * 0.18, at.y, at.z + Math.sin(angle) * 0.18);
+      this.spawnSmoke(
+        this.scratchTangent, rocket.impactSmokeDiameterTiles, rocket.impactSmokeEndDiameterTiles,
+        rocket.impactSmokeLifetimeSeconds + puff * 0.12, rocket.impactSmokeRiseTiles, rocket.smokeDarkColor,
+      );
+    }
+  }
+
+  private spawnSmoke(
+    at: Vector3, startDiameter: number, endDiameter: number, lifetime: number, riseTiles: number, color: number,
+  ): void {
+    const index = this.smokePool.acquire();
+    if (index === null) return;
+    const slot = this.smoke[index]!;
+    slot.elapsedSeconds = 0;
+    slot.durationSeconds = lifetime;
+    slot.startDiameter = startDiameter;
+    slot.endDiameter = endDiameter;
+    slot.riseTiles = riseTiles;
+    slot.peakVisibility = CONFIG.rocket.smokePeakVisibility;
+    slot.mesh.position.copyFrom(at);
+    slot.mesh.scaling.setAll(startDiameter);
+    slot.mesh.material = this.materials.unlit(color, 1);
+    slot.mesh.visibility = slot.peakVisibility;
+    slot.mesh.setEnabled(true);
+  }
+
+  private updateSmoke(deltaSeconds: number): void {
+    for (let index = 0; index < this.smoke.length; index++) {
+      const slot = this.smoke[index]!;
+      if (!slot.mesh.isEnabled()) continue;
+      const lifetime = advanceEffectLifetime(slot.elapsedSeconds, slot.durationSeconds, deltaSeconds);
+      slot.elapsedSeconds = lifetime.elapsedSeconds;
+      const progress = slot.elapsedSeconds / slot.durationSeconds;
+      slot.mesh.scaling.setAll(slot.startDiameter + (slot.endDiameter - slot.startDiameter) * progress);
+      slot.mesh.position.y += slot.riseTiles * deltaSeconds / slot.durationSeconds;
+      slot.mesh.visibility = slot.peakVisibility * (1 - progress) * (1 - progress);
+      if (!lifetime.expired) continue;
+      slot.mesh.setEnabled(false);
+      this.smokePool.release(index);
     }
   }
 
@@ -399,17 +568,18 @@ export class CombatEffectsView {
       const body = this.effectMesh(CreateCylinder(`combat:projectile:${index}`, {
         height: 1, diameter: 1, tessellation: CONFIG.lowPolySides,
       }, this.scene));
-      const head = this.effectMesh(CreateSphere(`combat:rocketHead:${index}`, {
+      const head = this.effectMesh(CreateSphere(`combat:rocketGlow:${index}`, {
         diameter: 1, segments: CONFIG.lowPolySides,
       }, this.scene));
-      const trail = this.effectMesh(CreateCylinder(`combat:rocketTrail:${index}`, {
-        height: 1, diameter: 1, tessellation: CONFIG.lowPolySides,
+      const flame = this.effectMesh(CreateCylinder(`combat:rocketFlame:${index}`, {
+        // A cone whose wide end sits at the missile's tail and whose point trails behind.
+        height: 1, diameterTop: 1, diameterBottom: 0, tessellation: CONFIG.lowPolySides,
       }, this.scene));
       return {
-        body, rocketHead: head, trail,
+        body, glow: head, flame,
         from: Vector3.Zero(), to: Vector3.Zero(), direction: Vector3.Forward(), curveSide: Vector3.Right(),
         rotation: Quaternion.Identity(),
-        elapsedSeconds: 0, durationSeconds: 1, event: null,
+        elapsedSeconds: 0, durationSeconds: 1, arcHeight: 0, smokeElapsedSeconds: 0, delaySeconds: 0, cosmetic: false, event: null,
       };
     });
   }
@@ -450,6 +620,15 @@ export class CombatEffectsView {
       });
       return { flash, ring, debris, elapsedSeconds: 0, durationSeconds: 1, weapon: null, debrisDirections };
     });
+  }
+
+  private createSmoke(): SmokeSlot[] {
+    return Array.from({ length: CONFIG.smokePoolCapacity }, (_, index) => ({
+      mesh: this.effectMesh(CreateSphere(`combat:smoke:${index}`, {
+        diameter: 1, segments: CONFIG.lowPolySides,
+      }, this.scene)),
+      elapsedSeconds: 0, durationSeconds: 1, startDiameter: 1, endDiameter: 1, riseTiles: 0, peakVisibility: 1,
+    }));
   }
 
   private createTargetFlashes(): TargetFlashSlot[] {

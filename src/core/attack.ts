@@ -7,7 +7,7 @@ import { isAlive } from './entities';
 import type { EntityId, PlayerId } from './ids';
 import type { MapGrid } from './map';
 import { isUnderBuilding } from './matchSetup';
-import { advanceAlongRoute, turnTowards } from './movement';
+import { driveAlongRoute } from './movement';
 import { attackOrder, type MoveRoute } from './orders';
 import { planRoute } from './pathfinding';
 import { MOVEMENT_CONFIG } from '../config/movement';
@@ -101,18 +101,8 @@ export function stepAttackOrders(world: World, grid: MapGrid, deltaSeconds: numb
       continue;
     }
 
-    const budget = attacker.stats.speedTilesPerSecond * world.tileSizePixels * deltaSeconds;
     const tolerance = MOVEMENT_CONFIG.arrivalToleranceTiles * world.tileSizePixels;
-    const step = advanceAlongRoute(route.waypoints, route.waypointIndex, attacker.position, budget, tolerance);
-    if (step.position.x !== attacker.position.x || step.position.y !== attacker.position.y) {
-      world.setPosition(attacker.id, step.position);
-    }
-    if (step.heading !== null) {
-      world.setFacingRadians(
-        attacker.id,
-        turnTowards(attacker.facingRadians, step.heading, MOVEMENT_CONFIG.maxTurnRadiansPerSecond * deltaSeconds),
-      );
-    }
+    const step = driveAlongRoute(world, attacker, route, deltaSeconds, tolerance);
     world.setOrder(
       attacker.id,
       attackOrder(order.targetId, step.arrived ? null : { ...route, waypointIndex: step.waypointIndex }, order.source),

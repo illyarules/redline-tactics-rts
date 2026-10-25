@@ -5,7 +5,7 @@ import type { Vec2 } from './geometry';
 import type { EntityId, PlayerId } from './ids';
 import type { MapGrid } from './map';
 import { isUnderBuilding } from './matchSetup';
-import { advanceAlongRoute, turnTowards } from './movement';
+import { driveAlongRoute } from './movement';
 import { attackMoveOrder, attackOrder, type AttackMoveOrder, type MoveRoute } from './orders';
 import { planRoute } from './pathfinding';
 import { MOVEMENT_CONFIG } from '../config/movement';
@@ -117,13 +117,8 @@ function stepEngagement(
     return;
   }
 
-  const budget = unit.stats.speedTilesPerSecond * world.tileSizePixels * deltaSeconds;
   const tolerance = MOVEMENT_CONFIG.arrivalToleranceTiles * world.tileSizePixels;
-  const step = advanceAlongRoute(route.waypoints, route.waypointIndex, unit.position, budget, tolerance);
-  if (step.position.x !== unit.position.x || step.position.y !== unit.position.y) world.setPosition(unit.id, step.position);
-  if (step.heading !== null) {
-    world.setFacingRadians(unit.id, turnTowards(unit.facingRadians, step.heading, MOVEMENT_CONFIG.maxTurnRadiansPerSecond * deltaSeconds));
-  }
+  const step = driveAlongRoute(world, unit, route, deltaSeconds, tolerance);
   world.setOrder(
     unit.id,
     attackMoveOrder(
@@ -138,13 +133,8 @@ function stepEngagement(
 function advanceDestination(world: World, unitId: EntityId, order: AttackMoveOrder, deltaSeconds: number): void {
   const unit = world.unit(unitId);
   if (unit === undefined) return;
-  const budget = unit.stats.speedTilesPerSecond * world.tileSizePixels * deltaSeconds;
   const tolerance = MOVEMENT_CONFIG.arrivalToleranceTiles * world.tileSizePixels;
-  const step = advanceAlongRoute(order.route.waypoints, order.route.waypointIndex, unit.position, budget, tolerance);
-  if (step.position.x !== unit.position.x || step.position.y !== unit.position.y) world.setPosition(unit.id, step.position);
-  if (step.heading !== null) {
-    world.setFacingRadians(unit.id, turnTowards(unit.facingRadians, step.heading, MOVEMENT_CONFIG.maxTurnRadiansPerSecond * deltaSeconds));
-  }
+  const step = driveAlongRoute(world, unit, order.route, deltaSeconds, tolerance);
   if (step.arrived) {
     world.setOrder(unit.id, null);
     world.setStatus(unit.id, 'idle');

@@ -11,7 +11,7 @@ import { tileRectContains, type TileCoord, type TileRect } from './geometry';
 import type { BuildingTypeId, EntityId, FactionId, PlayerId } from './ids';
 import type { MapGrid } from './map';
 import { isUnderBuilding } from './matchSetup';
-import { advanceAlongRoute } from './movement';
+import { driveAlongRoute } from './movement';
 import { buildOrder, type MoveRoute } from './orders';
 import { planRoute } from './pathfinding';
 import { checkBuildingPlacement, type PlacementInvalidReason } from './placement';
@@ -177,15 +177,7 @@ export function stepConstruction(world: World, deltaSeconds: number): void {
 
     if (order.route !== null) {
       const tolerance = ARRIVAL_TOLERANCE_TILES * world.tileSizePixels;
-      const budget = worker.stats.speedTilesPerSecond * world.tileSizePixels * deltaSeconds;
-      const step = advanceAlongRoute(order.route.waypoints, order.route.waypointIndex, worker.position, budget, tolerance);
-
-      if (step.position.x !== worker.position.x || step.position.y !== worker.position.y) {
-        world.setPosition(worker.id, step.position);
-      }
-      if (step.heading !== null) {
-        world.setFacingRadians(worker.id, step.heading);
-      }
+      const step = driveAlongRoute(world, worker, order.route, deltaSeconds, tolerance);
 
       if (step.arrived) {
         world.setOrder(worker.id, buildOrder(order.buildingType, order.topLeft, order.buildingId, null));

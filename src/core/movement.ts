@@ -1,6 +1,6 @@
 import { MOVEMENT_CONFIG } from '../config/movement';
 import type { MovementConfig } from '../config/types';
-import { isAlive } from './entities';
+import { isAlive, type ReadonlyUnit } from './entities';
 import type { TileCoord, Vec2 } from './geometry';
 import type { EntityId, PlayerId } from './ids';
 import type { MapGrid } from './map';
@@ -126,6 +126,44 @@ export function advanceAlongRoute(
   return { position: current, waypointIndex: index, heading, arrived: index >= waypoints.length };
 }
 
+/** Share of full speed a unit may drive at while `headingError` radians off its direction of travel. */
+export function alignmentSpeedFactor(headingError: number, rules: MovementConfig = MOVEMENT_CONFIG): number {
+  const error = Math.abs(normalizeRadians(headingError));
+  const { fullSpeedAlignmentRadians: full, turnInPlaceAlignmentRadians: stop } = rules;
+  if (error <= full) return 1;
+  if (error >= stop) return 0;
+  return 1 - (error - full) / (stop - full);
+}
+
+/**
+ * One frame of driving along a route: the unit first turns toward the waypoint ahead at the
+ * configured rate, and only drives as fast as its heading lines up with it, so it pivots in place
+ * for a sharp turn instead of sliding sideways. Applies the new position and facing to `world`.
+ */
+export function driveAlongRoute(
+  world: World,
+  unit: ReadonlyUnit,
+  route: { readonly waypoints: readonly Vec2[]; readonly waypointIndex: number },
+  deltaSeconds: number,
+  tolerance: number,
+  rules: MovementConfig = MOVEMENT_CONFIG,
+): RouteAdvance {
+  const ahead = advanceAlongRoute(route.waypoints, route.waypointIndex, unit.position, 0, tolerance);
+  let facing = unit.facingRadians;
+  let factor = 1;
+  if (ahead.heading !== null) {
+    facing = turnTowards(facing, ahead.heading, rules.maxTurnRadiansPerSecond * deltaSeconds);
+    factor = alignmentSpeedFactor(ahead.heading - facing, rules);
+    if (facing !== unit.facingRadians) world.setFacingRadians(unit.id, facing);
+  }
+  const budget = unit.stats.speedTilesPerSecond * world.tileSizePixels * deltaSeconds * factor;
+  const step = advanceAlongRoute(route.waypoints, route.waypointIndex, unit.position, budget, tolerance);
+  if (step.position.x !== unit.position.x || step.position.y !== unit.position.y) {
+    world.setPosition(unit.id, step.position);
+  }
+  return step;
+}
+
 /**
  * Follows each unit's resolved route waypoint by waypoint at configured speed. Facing turns toward
  * whichever waypoint is current when the step begins. Arrival tolerance applies only to the final
@@ -144,18 +182,7 @@ export function stepMovement(
   for (const unit of world.units()) {
     if (!isAlive(unit) || unit.order?.kind !== 'Move') continue;
     const order = unit.order;
-    const budget = unit.stats.speedTilesPerSecond * world.tileSizePixels * deltaSeconds;
-    const step = advanceAlongRoute(order.route.waypoints, order.route.waypointIndex, unit.position, budget, tolerance);
-
-    if (step.position.x !== unit.position.x || step.position.y !== unit.position.y) {
-      world.setPosition(unit.id, step.position);
-    }
-    if (step.heading !== null) {
-      world.setFacingRadians(
-        unit.id,
-        turnTowards(unit.facingRadians, step.heading, rules.maxTurnRadiansPerSecond * deltaSeconds),
-      );
-    }
+    const step = driveAlongRoute(world, unit, order.route, deltaSeconds, tolerance, rules);
 
     if (step.arrived) {
       world.setOrder(unit.id, null);

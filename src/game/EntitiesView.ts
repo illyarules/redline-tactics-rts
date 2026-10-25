@@ -23,6 +23,8 @@ import { SquadRoster, visibleMemberCount } from './models/squadCasualties';
 import { nextShooterIndex, recoilDurationSeconds, recoilKick } from './models/squadFire';
 import { variedSquadFormationSlots } from './models/squadFormation';
 import { TurretRig } from './models/turretRig';
+import { WheelRig } from './models/wheelRig';
+import { VehicleMotionState } from './vehicleMotionState';
 import { idlePose, walkPose } from './models/walkCycle';
 import { healthTone } from './palette';
 import type { SceneSpace } from './sceneSpace';
@@ -48,6 +50,7 @@ import { isVehicleEffectType } from './combatEffectEvents';
  */
 
 /** Health bar size in tiles, and how far above the model it floats. */
+const NO_WHEELS = { radius: 0.3, halfTrack: 0.3 };
 const BAR_HEIGHT = 0.1;
 const BAR_MIN_WIDTH = 0.7;
 const BAR_MAX_WIDTH = 2;
@@ -86,6 +89,8 @@ interface VehicleFx {
   readonly dustClock: DustClock;
   readonly speed: SpeedSmoother;
   readonly turret: TurretRig | null;
+  readonly wheels: WheelRig | null;
+  readonly motion: VehicleMotionState;
   lastX: number;
   lastZ: number;
   tracked: boolean;
@@ -369,6 +374,8 @@ export class EntitiesView {
       dustClock: new DustClock(),
       speed: new SpeedSmoother(),
       turret: turretProfile === null ? null : TurretRig.find(model, turretProfile),
+      wheels: WheelRig.find(model),
+      motion: new VehicleMotionState(),
       lastX: 0,
       lastZ: 0,
       tracked: false,
@@ -558,6 +565,13 @@ export class EntitiesView {
       fx.tracked = true;
     }
     if (!visible || !isAlive(entity)) return;
+
+    const pose = fx.motion.update(
+      speed, entity.facingRadians, deltaSeconds, VEHICLE_FX.motion, fx.wheels?.geometry ?? NO_WHEELS,
+    );
+    fx.wheels?.apply(pose);
+    root.rotation.x = pose.pitch;
+    root.rotation.z = pose.roll;
 
     fx.turret?.update(entity.facingRadians, this.aimHeading(fx.turret, entity, targetPosition), deltaSeconds);
 

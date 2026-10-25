@@ -7,11 +7,35 @@ import type { CombatEffectsConfig } from './types';
 export const COMBAT_EFFECTS_CONFIG: CombatEffectsConfig = {
   // Enough for a 20-unit volley, with small headroom for staggered rocket travel, while remaining
   // a firm upper bound in a long battle.
-  projectilePoolCapacity: 36,
-  muzzlePoolCapacity: 32,
-  impactPoolCapacity: 32,
+  projectilePoolCapacity: 96,
+  muzzlePoolCapacity: 64,
+  impactPoolCapacity: 64,
   targetFlashPoolCapacity: 24,
   deathPoolCapacity: 16,
+  smokePoolCapacity: 160,
+  rocket: {
+    arcHeightShare: 0.2,
+    maxArcHeightTiles: 1.1,
+    launchOffsetTiles: 0.22,
+    flameLengthTiles: 0.34,
+    glowColor: 0xffe28a,
+    smokeIntervalSeconds: 0.025,
+    smokeLifetimeSeconds: 0.6,
+    smokeStartDiameterTiles: 0.1,
+    smokeEndDiameterTiles: 0.34,
+    smokeRiseTiles: 0.12,
+    smokePeakVisibility: 0.6,
+    smokeColor: 0xd5d0c6,
+    smokeDarkColor: 0x69655e,
+    launchSmokeCount: 4,
+    launchSmokeDiameterTiles: 0.26,
+    launchSmokeEndDiameterTiles: 0.75,
+    impactSmokeCount: 3,
+    impactSmokeDiameterTiles: 0.45,
+    impactSmokeEndDiameterTiles: 1.2,
+    impactSmokeRiseTiles: 0.7,
+    impactSmokeLifetimeSeconds: 1.1,
+  },
   targetFlashDurationSeconds: 0.14,
   unitFlashDiameterTiles: 0.82,
   buildingFlashDiameterTiles: 1.65,
@@ -31,11 +55,6 @@ export const COMBAT_EFFECTS_CONFIG: CombatEffectsConfig = {
     targetFlashAlpha: 0.25,
     muzzleOffsetDiameterFraction: 0.55,
     projectileArrivalFade: 0.2,
-    rocketHeadDiameterMultiplier: 1.45,
-    rocketTrailOffsetLengthMultiplier: 0.7,
-    rocketTrailLengthMultiplier: 1.8,
-    rocketTrailWidthMultiplier: 0.9,
-    rocketTrailArrivalFade: 0.55,
     impactGroundHeightTiles: 0.1,
     impactGrowthAtEnd: 0.8,
     ringGrowthAtEnd: 1,
@@ -66,6 +85,7 @@ export const COMBAT_EFFECTS_CONFIG: CombatEffectsConfig = {
       muzzleDurationSeconds: 0.05,
       muzzleDiameterTiles: 0.085,
       muzzleLengthMultiplier: 2.6,
+      burst: { count: 3, intervalSeconds: 0.04, spreadTiles: 0.07 },
       impactDurationSeconds: 0.13,
       impactDiameterTiles: 0.17,
       debrisDiameterTiles: 0.034,
@@ -98,6 +118,7 @@ export const COMBAT_EFFECTS_CONFIG: CombatEffectsConfig = {
       projectileWidthTiles: 0.05,
       muzzleDurationSeconds: 0.06,
       muzzleDiameterTiles: 0.2,
+      burst: { count: 5, intervalSeconds: 0.035, spreadTiles: 0.08 },
       impactDurationSeconds: 0.18,
       impactDiameterTiles: 0.26,
       debrisDiameterTiles: 0.05,
@@ -124,20 +145,22 @@ export const COMBAT_EFFECTS_CONFIG: CombatEffectsConfig = {
       impactColor: 0xffbd75,
     },
     rocket: {
-      projectileDurationSeconds: 0.48,
-      projectileHeightTiles: 0.74,
-      projectileLengthTiles: 0.44,
-      projectileWidthTiles: 0.12,
-      muzzleDurationSeconds: 0.09,
-      muzzleDiameterTiles: 0.28,
-      impactDurationSeconds: 0.46,
-      impactDiameterTiles: 0.72,
-      debrisDiameterTiles: 0.11,
-      debrisTravelTiles: 0.58,
-      ringDiameterTiles: 1.15,
-      projectileColor: 0xfff1c4,
-      trailColor: 0xff704e,
-      impactColor: 0xff8e6b,
+      // projectileColor is the missile body; trailColor the exhaust flame, ring and sparks.
+      projectileDurationSeconds: 0.75,
+      projectileHeightTiles: 0.5,
+      projectileLengthTiles: 0.32,
+      projectileWidthTiles: 0.07,
+      muzzleDurationSeconds: 0.16,
+      muzzleDiameterTiles: 0.36,
+      muzzleLengthMultiplier: 1.8,
+      impactDurationSeconds: 0.6,
+      impactDiameterTiles: 1,
+      debrisDiameterTiles: 0.12,
+      debrisTravelTiles: 0.75,
+      ringDiameterTiles: 1.5,
+      projectileColor: 0xe9e6dc,
+      trailColor: 0xff8a3c,
+      impactColor: 0xffa24a,
     },
   },
 };
@@ -154,6 +177,8 @@ export function isValidCombatEffectsConfig(config: CombatEffectsConfig): boolean
     !positiveInteger(config.impactPoolCapacity) ||
     !positiveInteger(config.targetFlashPoolCapacity) ||
     !positiveInteger(config.deathPoolCapacity) ||
+    !positiveInteger(config.smokePoolCapacity) ||
+    !isValidRocketEffect(config.rocket) ||
     !positive(config.targetFlashDurationSeconds) ||
     !positive(config.unitFlashDiameterTiles) ||
     !positive(config.buildingFlashDiameterTiles) ||
@@ -168,13 +193,11 @@ export function isValidCombatEffectsConfig(config: CombatEffectsConfig): boolean
     ![
       visual.muzzleAlpha, visual.impactFlashAlpha, visual.projectileAlpha, visual.trailAlpha, visual.debrisAlpha,
       visual.debrisVisibility,
-      visual.targetFlashAlpha, visual.projectileArrivalFade, visual.rocketTrailArrivalFade,
+      visual.targetFlashAlpha, visual.projectileArrivalFade,
       visual.ringVisibility, visual.ringAlpha, visual.targetFlashVisibility, visual.deathVisibility,
     ].every((value) => Number.isFinite(value) && value > 0 && value <= 1) ||
     ![
-      visual.muzzleOffsetDiameterFraction, visual.rocketHeadDiameterMultiplier,
-      visual.rocketTrailOffsetLengthMultiplier, visual.rocketTrailLengthMultiplier,
-      visual.rocketTrailWidthMultiplier, visual.impactGrowthAtEnd, visual.ringGrowthAtEnd,
+      visual.muzzleOffsetDiameterFraction, visual.impactGrowthAtEnd, visual.ringGrowthAtEnd,
       visual.targetFlashDiameterMultiplier, visual.deathGrowthAtEnd, visual.debrisAngleSeedPerSlot,
       visual.debrisVerticalBase, visual.debrisVerticalStep,
     ].every(positive) ||
@@ -196,6 +219,9 @@ export function isValidCombatEffectsConfig(config: CombatEffectsConfig): boolean
       positive(weapon.muzzleDurationSeconds) &&
       positive(weapon.muzzleDiameterTiles) &&
       (weapon.muzzleLengthMultiplier === undefined || (Number.isFinite(weapon.muzzleLengthMultiplier) && weapon.muzzleLengthMultiplier >= 1)) &&
+      (weapon.burst === undefined || (
+        Number.isInteger(weapon.burst.count) && weapon.burst.count >= 1 &&
+        positive(weapon.burst.intervalSeconds) && positive(weapon.burst.spreadTiles))) &&
       positive(weapon.impactDurationSeconds) &&
       positive(weapon.impactDiameterTiles) &&
       positive(weapon.debrisDiameterTiles) &&
@@ -203,4 +229,20 @@ export function isValidCombatEffectsConfig(config: CombatEffectsConfig): boolean
       Number.isFinite(weapon.ringDiameterTiles) && weapon.ringDiameterTiles >= 0 &&
       color(weapon.projectileColor) && color(weapon.trailColor) && color(weapon.impactColor);
   });
+}
+
+function isValidRocketEffect(rocket: CombatEffectsConfig['rocket']): boolean {
+  const positive = (value: number) => Number.isFinite(value) && value > 0;
+  const count = (value: number) => Number.isInteger(value) && value >= 0;
+  const color = (value: number) => Number.isInteger(value) && value >= 0 && value <= 0xffffff;
+  return [
+    rocket.arcHeightShare, rocket.maxArcHeightTiles, rocket.launchOffsetTiles, rocket.flameLengthTiles,
+    rocket.smokeIntervalSeconds, rocket.smokeLifetimeSeconds, rocket.smokeStartDiameterTiles,
+    rocket.smokeEndDiameterTiles, rocket.smokeRiseTiles, rocket.launchSmokeDiameterTiles,
+    rocket.launchSmokeEndDiameterTiles, rocket.impactSmokeDiameterTiles, rocket.impactSmokeEndDiameterTiles,
+    rocket.impactSmokeRiseTiles, rocket.impactSmokeLifetimeSeconds,
+  ].every(positive) &&
+    positive(rocket.smokePeakVisibility) && rocket.smokePeakVisibility <= 1 &&
+    count(rocket.launchSmokeCount) && count(rocket.impactSmokeCount) &&
+    color(rocket.glowColor) && color(rocket.smokeColor) && color(rocket.smokeDarkColor);
 }

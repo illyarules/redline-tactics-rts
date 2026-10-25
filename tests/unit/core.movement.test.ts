@@ -7,7 +7,7 @@ import { tileDistance } from '../../src/core/geometry';
 import { createMapGrid } from '../../src/core/map';
 import { isUnderBuilding } from '../../src/core/matchSetup';
 import { createWorld } from '../../src/core/world';
-import { headingForMovement, issueMoveOrders, stepMovement, turnTowards } from '../../src/core/movement';
+import { alignmentSpeedFactor, headingForMovement, issueMoveOrders, stepMovement, turnTowards } from '../../src/core/movement';
 import { attackMoveOrder, type MoveRoute } from '../../src/core/orders';
 
 /** The unit's current route, or a test-failing error if it isn't following a Move order. */
@@ -48,14 +48,30 @@ describe('direct movement', () => {
     expect(turnTowards(0, 1, -1)).toBe(0);
   });
 
-  it('updates unit heading at the configured turn rate while moving', () => {
+  it('updates unit heading at the configured turn rate', () => {
     const { grid, world, unit } = setup();
     issueMoveOrders(world, grid, 'player', [unit.id], grid.tileCenter(14, 10));
     stepMovement(world, 0.25, { maxTurnRadiansPerSecond: 1 });
     expect(unit.facingRadians).toBeCloseTo(0.25);
-    expect(unit.position.x).toBeGreaterThan(grid.tileCenter(10, 10).x);
     stepMovement(world, 10, { maxTurnRadiansPerSecond: 1 });
     expect(unit.facingRadians).toBeCloseTo(Math.PI / 2);
+  });
+
+  it('turns in place while the heading is far off, then drives', () => {
+    const { grid, world, unit } = setup();
+    const start = grid.tileCenter(10, 10);
+    issueMoveOrders(world, grid, 'player', [unit.id], grid.tileCenter(14, 10));
+    stepMovement(world, 0.25, { maxTurnRadiansPerSecond: 1 });
+    expect(unit.position).toEqual(start);
+    stepMovement(world, 0.6, { maxTurnRadiansPerSecond: 1 });
+    expect(unit.position.x).toBeGreaterThan(start.x);
+  });
+
+  it('scales speed by how well the heading lines up', () => {
+    expect(alignmentSpeedFactor(0)).toBe(1);
+    expect(alignmentSpeedFactor(MOVEMENT_CONFIG.turnInPlaceAlignmentRadians + 0.01)).toBe(0);
+    const mid = (MOVEMENT_CONFIG.fullSpeedAlignmentRadians + MOVEMENT_CONFIG.turnInPlaceAlignmentRadians) / 2;
+    expect(alignmentSpeedFactor(-mid)).toBeCloseTo(0.5);
   });
 });
 
@@ -78,6 +94,7 @@ describe('routed movement orders', () => {
   it('moves at configured speed along a straight diagonal route', () => {
     const { grid, world, unit } = setup();
     issueMoveOrders(world, grid, 'player', [unit.id], grid.tileCenter(14, 14));
+    world.setFacingRadians(unit.id, Math.PI * 0.75);
 
     const speed = unit.stats.speedTilesPerSecond;
     const seconds = (0.5 * Math.SQRT2) / speed; // half of one diagonal leg, so no waypoint is reached yet
@@ -152,6 +169,7 @@ describe('routed movement orders', () => {
     const a = setup(), b = setup();
     for (const { grid, world, unit } of [a, b]) {
       issueMoveOrders(world, grid, 'player', [unit.id], grid.tileCenter(30, 10));
+      world.setFacingRadians(unit.id, Math.PI / 2);
     }
     stepMovement(a.world, 1);
     for (let i = 0; i < 10; i++) stepMovement(b.world, 0.1);

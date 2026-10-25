@@ -5,6 +5,16 @@ import type { VehicleDustProfile, VehicleEffectsConfig } from './types';
  * reaches `core/`: it cannot change a legal target, a movement rule, damage, or a save.
  */
 export const VEHICLE_EFFECTS_CONFIG: VehicleEffectsConfig = {
+  motion: {
+    accelerationResponsePerSecond: 7,
+    pitchPerAcceleration: 0.012,
+    maxPitchRadians: 0.07,
+    rollPerCornering: 0.012,
+    maxRollRadians: 0.06,
+    steerPerYawRate: 0.35,
+    maxSteerRadians: 0.5,
+    settleRatePerSecond: 10,
+  },
   dust: {
     poolCapacity: 96,
     lowPolySides: 6,

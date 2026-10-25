@@ -89,6 +89,10 @@ impact, target-flash, and destruction effects from the single-player battlefield
 Purely cosmetic, identical in single-player and private online matches, and tuned in
 `src/config/vehicleEffects.ts`:
 
+- Movement rule (not cosmetic, tuned in `src/config/movement.ts`): units turn before they drive. A sharp turn pivots in place and speed ramps up as the heading lines up
+  with the route. Cosmetic: wheeled vehicles spin each wheel with their speed (the sides counter-rotate when
+  pivoting), steer the front wheels into turns, nod forward when stopping, lift the nose when starting
+  and lean outward in corners.
 - Moving Workers, Combat Buggies, Tanks and Rockets kick up dust from both rear contact points: heavy
   and slow for the Tank, light and quick for the Buggy, restrained for Worker and Rocket. Dust stops
   when a vehicle stops, never comes from vehicles hidden in fog, and freezes while paused.
@@ -96,6 +100,8 @@ Purely cosmetic, identical in single-player and private online matches, and tune
   attack or engaged attack-move order (or the last shot fired), at a capped turn speed, and ease back
   to hull-forward when there is none. The hull's heading is unaffected.
 - Each shot recoils the barrel and eases it home; the muzzle flash and projectile now leave the barrel.
+- Combat Buggy and infantry hits are drawn as short bursts of tracers (3-5, slightly scattered; `burst` in `config/combatEffects.ts`). It is only visual: each hit still deals its normal single-hit damage.
+- A Rocket launch throws back-blast smoke behind the tubes. The missile flies a lofted arc with an exhaust flame, a hot glow and a smoke trail, and lands in a fireball with a shockwave ring, sparks and dark rising smoke. Tuned in `config/combatEffects.ts` (`rocket`).
 - A destroyed vehicle produces a flash, ground shockwave, sparks, fragments, a fire burst and rising
   smoke, and leaves a scorched, non-interactive wreck that fades out after a few seconds. Destruction
   in fog is not shown. Infantry and buildings keep the simple death ring.
