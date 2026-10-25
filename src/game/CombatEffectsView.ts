@@ -32,6 +32,7 @@ interface ProjectileSlot {
 
 interface MuzzleSlot {
   readonly mesh: Mesh;
+  readonly rotation: Quaternion;
   elapsedSeconds: number;
   durationSeconds: number;
 }
@@ -170,9 +171,17 @@ export class CombatEffectsView {
     const to = this.point(event.to, weapon.projectileHeightTiles);
     to.subtractToRef(from, to);
     if (to.lengthSquared() > 1e-6) to.normalize();
-    from.addInPlace(to.scale(weapon.muzzleDiameterTiles * CONFIG.visual.muzzleOffsetDiameterFraction));
+    const lengthMultiplier = weapon.muzzleLengthMultiplier ?? 1;
+    from.addInPlace(to.scale(weapon.muzzleDiameterTiles * lengthMultiplier * CONFIG.visual.muzzleOffsetDiameterFraction));
     mesh.position.copyFrom(from);
-    mesh.scaling.setAll(weapon.muzzleDiameterTiles);
+    if (lengthMultiplier === 1) {
+      mesh.scaling.setAll(weapon.muzzleDiameterTiles);
+    } else {
+      // A directional burst: the sphere is stretched along its local Y, which is turned to the line of fire.
+      mesh.scaling.set(weapon.muzzleDiameterTiles, weapon.muzzleDiameterTiles * lengthMultiplier, weapon.muzzleDiameterTiles);
+      Quaternion.FromUnitVectorsToRef(UP, to.lengthSquared() > 1e-6 ? to : Vector3.Forward(), this.muzzles[index]!.rotation);
+      mesh.rotationQuaternion = this.muzzles[index]!.rotation;
+    }
     mesh.material = this.materials.unlit(weapon.projectileColor, CONFIG.visual.muzzleAlpha);
     mesh.visibility = 1;
     mesh.setEnabled(true);
@@ -410,6 +419,7 @@ export class CombatEffectsView {
       mesh: this.effectMesh(CreateSphere(`combat:muzzle:${index}`, {
         diameter: 1, segments: CONFIG.lowPolySides,
       }, this.scene)),
+      rotation: Quaternion.Identity(),
       elapsedSeconds: 0,
       durationSeconds: 1,
     }));

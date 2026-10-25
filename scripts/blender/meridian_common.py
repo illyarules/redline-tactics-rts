@@ -256,3 +256,81 @@ class Model:
         bpy.data.libraries.write(str(out / f'{slug}.blend'), {scene}, fake_user=True)
         bpy.ops.render.render(write_still=True)
         print(f'Created model, Blender scene and preview in {out}')
+
+
+# -- compact toy soldier ---------------------------------------------------------------------
+# Shared by the Infantry and FPV Operator generators so both squads keep one set of proportions:
+# about 1.06 tall (helmet top), short legs, a sturdy torso, no neck, an oversized helmet over a small
+# face, and substantial boots. A shared non-uniform silhouette scale keeps both roles toy-like without
+# making them look squashed. The game scales this height to SOLDIER_TILES_PER_UNIT tiles
+# (`standHeightTiles` in src/config/squad.ts). Forward is -Y; every soldier is
+# a pivot at ground level holding a body (waist), an arms (shoulder line) and two leg (hip) pivots.
+SOLDIER_TILES_PER_UNIT = 0.53
+SOLDIER_MODEL_HEIGHT_UNITS = 1.06
+SOLDIER_SILHOUETTE_SCALE = (0.88, 0.94, SOLDIER_MODEL_HEIGHT_UNITS)
+SOLDIER_HIP_Z = 0.24
+SOLDIER_WAIST_Z = SOLDIER_HIP_Z + 0.02
+SOLDIER_SHOULDER_Z = 0.59
+FABRIC, PLATE, GEAR, STEEL = 'UniformFabric', 'BaseArmorLight', 'Equipment', 'ExposedSteel'
+
+
+def refine_soldier_silhouette(soldier):
+    """Make the shared toy-soldier silhouette leaner and a little taller without changing its rig."""
+    soldier.scale = SOLDIER_SILHOUETTE_SCALE
+
+
+def squad_location(right_tiles, forward_tiles):
+    """A formation slot from src/config/squad.ts as a study location. Forward is -Y."""
+    return (round(right_tiles / SOLDIER_TILES_PER_UNIT, 3), round(-forward_tiles / SOLDIER_TILES_PER_UNIT, 3), 0)
+
+
+def soldier_leg(m, side, soldier, name):
+    """One short leg with a big boot, pivoting at the hip. Local space: hip at the origin."""
+    p = m.pivot(f'{name}_Leg{"Right" if side > 0 else "Left"}', (side * 0.12, 0, SOLDIER_HIP_Z),
+                soldier)
+    m.limb('Thigh', (0, 0, 0.0), (0, -0.01, -0.14), 0.105, 0.095, FABRIC, p)
+    m.box('KneePad', (0, -0.085, -0.08), (0.15, 0.05, 0.09), PLATE, p, 0.02)
+    m.box('Boot', (0, -0.05, -0.145), (0.21, 0.34, 0.13), GEAR, p, 0.04)
+    m.box('BootToeCap', (0, -0.2, -0.15), (0.19, 0.09, 0.1), STEEL, p, 0.03)
+    m.box('BootSole', (0, -0.05, -0.2225), (0.225, 0.37, 0.035), STEEL, p, 0.01)
+    m.join_children(p, f'{p.name}Mesh')
+    return p
+
+
+def soldier_torso(m, body, pack, visor=False):
+    """Pelvis, chest, helmet and face in waist space; `pack(body)` adds the role's backpack."""
+    m.box('Pelvis', (0, 0, 0.0), (0.46, 0.3, 0.14), FABRIC, body, 0.05)
+    m.box('Belt', (0, 0, 0.07), (0.48, 0.32, 0.05), GEAR, body, 0.015)
+    m.box('BeltBuckle', (0, -0.165, 0.07), (0.08, 0.015, 0.045), STEEL, body, 0.005)
+    for x in (-0.17, 0.17):
+        m.box('UtilityPouch', (x, -0.17, 0.05), (0.1, 0.06, 0.09), GEAR, body, 0.015)
+    m.box('Chest', (0, 0, 0.22), (0.56, 0.38, 0.3), FABRIC, body, 0.08)
+    m.box('Plastron', (0, -0.215, 0.24), (0.44, 0.06, 0.23), PLATE, body, 0.03)
+    m.box('ChestMarking', (0, -0.248, 0.3), (0.26, 0.012, 0.045), 'TeamColor', body, 0.004)
+    for x in (-0.12, 0.0, 0.12):
+        m.box('ChestPouch', (x, -0.25, 0.14), (0.09, 0.05, 0.07), GEAR, body, 0.012)
+    for x in (-0.13, 0.13):
+        m.box('Strap', (x, 0.0, 0.375), (0.07, 0.3, 0.03), GEAR, body, 0.008)
+    for side in (-1, 1):
+        m.ellipsoid('ShoulderPad', (side * 0.33, 0.0, 0.33), (0.13, 0.13, 0.1), PLATE, body)
+        m.box('ShoulderBadge', (side * 0.37, -0.03, 0.41), (0.04, 0.08, 0.012), 'TeamColor',
+              body, 0.004)
+    pack(body)
+    m.ellipsoid('Head', (0, -0.01, 0.42), (0.16, 0.17, 0.14), 'Skin', body)
+    m.box('Goggles', (0, -0.165, 0.44), (0.24, 0.05, 0.065), 'Optics', body, 0.015)
+    if visor:
+        m.box('Visor', (0, -0.2, 0.445), (0.3, 0.035, 0.085), 'Optics', body, 0.012)
+    m.box('ChinStrap', (0, -0.1, 0.33), (0.2, 0.04, 0.025), GEAR, body, 0.006)
+    m.ellipsoid('Helmet', (0, 0.01, 0.57), (0.25, 0.27, 0.15), PLATE, body)
+    m.box('HelmetBrim', (0, -0.19, 0.485), (0.34, 0.1, 0.03), PLATE, body, 0.012)
+    for side in (-1, 1):
+        m.box('EarGuard', (side * 0.24, 0.0, 0.47), (0.04, 0.16, 0.13), PLATE, body, 0.012)
+    m.box('HelmetMarking', (0, 0.0, 0.725), (0.07, 0.34, 0.02), 'TeamColor', body, 0.004)
+
+
+def soldier_arm(m, arms, shoulder, elbow, hand):
+    """A short, bulky arm as two tapered tubes from `shoulder` to a glove at `hand`."""
+    m.limb('UpperArm', shoulder, elbow, 0.078, 0.068, FABRIC, arms)
+    m.limb('Forearm', elbow, hand, 0.068, 0.06, FABRIC, arms)
+    m.box('ElbowPad', elbow, (0.1, 0.1, 0.1), PLATE, arms, 0.025)
+    m.box('Glove', hand, (0.1, 0.11, 0.1), GEAR, arms, 0.03)

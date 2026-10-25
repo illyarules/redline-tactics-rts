@@ -57,16 +57,19 @@ export const COMBAT_EFFECTS_CONFIG: CombatEffectsConfig = {
   },
   weapons: {
     infantry: {
-      projectileDurationSeconds: 0.12,
-      projectileHeightTiles: 0.52,
-      projectileLengthTiles: 0.58,
-      projectileWidthTiles: 0.035,
-      muzzleDurationSeconds: 0.055,
-      muzzleDiameterTiles: 0.16,
-      impactDurationSeconds: 0.16,
-      impactDiameterTiles: 0.22,
-      debrisDiameterTiles: 0.045,
-      debrisTravelTiles: 0.18,
+      // A thin, quick tracer from a compact directional flash at the rifle, aimed at chest height
+      // on the squads' short, toy-scale soldiers.
+      projectileDurationSeconds: 0.07,
+      projectileHeightTiles: 0.32,
+      projectileLengthTiles: 0.3,
+      projectileWidthTiles: 0.016,
+      muzzleDurationSeconds: 0.05,
+      muzzleDiameterTiles: 0.085,
+      muzzleLengthMultiplier: 2.6,
+      impactDurationSeconds: 0.13,
+      impactDiameterTiles: 0.17,
+      debrisDiameterTiles: 0.034,
+      debrisTravelTiles: 0.12,
       ringDiameterTiles: 0,
       projectileColor: 0xffc46c,
       trailColor: 0xff8658,
@@ -192,6 +195,7 @@ export function isValidCombatEffectsConfig(config: CombatEffectsConfig): boolean
       positive(weapon.projectileWidthTiles) &&
       positive(weapon.muzzleDurationSeconds) &&
       positive(weapon.muzzleDiameterTiles) &&
+      (weapon.muzzleLengthMultiplier === undefined || (Number.isFinite(weapon.muzzleLengthMultiplier) && weapon.muzzleLengthMultiplier >= 1)) &&
       positive(weapon.impactDurationSeconds) &&
       positive(weapon.impactDiameterTiles) &&
       positive(weapon.debrisDiameterTiles) &&

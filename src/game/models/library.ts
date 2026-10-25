@@ -1,13 +1,21 @@
 import type { Scene } from '@babylonjs/core/scene';
 import type { ReadonlyEntity } from '../../core/entities';
-import type { PlayerId, UnitTypeId } from '../../core/ids';
+import type { BuildingTypeId, PlayerId, UnitTypeId } from '../../core/ids';
 import type { MaterialLibrary } from '../materials';
+import { BUILDING_CONFIG } from '../../config/buildings';
+import { UNIT_CONFIG } from '../../config/units';
 import { buildBuildingModel } from './buildings';
 import type { ModelSpec } from './kit';
 import { buildUnitModel } from './units';
 import buggyUrl from '../../assets/models/meridian-combat-buggy.glb?url';
 import rocketUrl from '../../assets/models/meridian-rocket.glb?url';
 import workerUrl from '../../assets/models/meridian-worker.glb?url';
+import barracksUrl from '../../assets/models/meridian-barracks.glb?url';
+import factoryUrl from '../../assets/models/meridian-factory.glb?url';
+import hqUrl from '../../assets/models/meridian-hq.glb?url';
+import powerPlantUrl from '../../assets/models/meridian-power-plant.glb?url';
+import resourceDepotUrl from '../../assets/models/meridian-resource-depot.glb?url';
+import unmannedSystemsCenterUrl from '../../assets/models/meridian-unmanned-systems-center.glb?url';
 import { loadTankModels } from './tank';
 import { openVehicleSource, type VehicleSource } from './vehicle';
 
@@ -28,6 +36,9 @@ export interface ModelLibrary {
   vehicleModel(type: Exclude<UnitTypeId, 'infantry' | 'fpvOperators'>, owner: PlayerId): ModelSpec;
   dispose(): void;
 }
+
+/** Kept inside the footprint by this much per side, so adjacent buildings never merge visually. */
+const BUILDING_MARGIN_TILES = 0.1;
 
 export function createModelLibrary(scene: Scene, materials: MaterialLibrary): ModelLibrary {
   const models = new Map<string, ModelSpec>();
@@ -62,8 +73,44 @@ export function createModelLibrary(scene: Scene, materials: MaterialLibrary): Mo
     const url = vehicleUrls[type];
     if (url === undefined || requested.has(key)) return;
     requested.add(key);
-    const source = sources.get(type) ?? openVehicleSource(scene, url, type);
+    const source = sources.get(type) ?? openVehicleSource(scene, url, type, UNIT_CONFIG[type].bodySizeTiles);
     sources.set(type, source);
+    void source.then(loaded => {
+      if (loaded === null) return;
+      const model = loaded.build(owner);
+      if (disposed) {
+        model.mesh.dispose(false, true);
+        return;
+      }
+      models.get(key)?.mesh.dispose();
+      models.set(key, model);
+    }).catch(error => {
+      if (!disposed) console.warn(`${type} model unavailable; using procedural fallback.`, error);
+    });
+  };
+
+  // Blender buildings load the first time a building of that role appears, drawn with the entrance
+  // towards the camera (-z); the procedural model stands in until the asset arrives.
+  const buildingUrls: Readonly<Record<BuildingTypeId, string>> = {
+    hq: hqUrl,
+    barracks: barracksUrl,
+    factory: factoryUrl,
+    powerPlant: powerPlantUrl,
+    resourceDepot: resourceDepotUrl,
+    unmannedSystemsCenter: unmannedSystemsCenterUrl,
+  };
+  const buildingSources = new Map<BuildingTypeId, Promise<VehicleSource | null>>();
+  const requestBuilding = (type: BuildingTypeId, owner: PlayerId, key: string): void => {
+    if (requested.has(key)) return;
+    requested.add(key);
+    const source = buildingSources.get(type) ?? openVehicleSource(
+      scene,
+      buildingUrls[type],
+      `building:${type}`,
+      BUILDING_CONFIG[type].footprint.width - BUILDING_MARGIN_TILES * 2,
+      Math.PI,
+    );
+    buildingSources.set(type, source);
     void source.then(loaded => {
       if (loaded === null) return;
       const model = loaded.build(owner);
@@ -97,6 +144,7 @@ export function createModelLibrary(scene: Scene, materials: MaterialLibrary): Mo
       }
 
       if (entity.kind === 'building') {
+        requestBuilding(entity.type, entity.owner, key);
         const model = buildBuildingModel(scene, materials, entity.type, entity.owner);
         models.set(key, model);
         return model;

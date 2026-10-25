@@ -7,8 +7,8 @@ import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
 import { CreateCylinder } from '@babylonjs/core/Meshes/Builders/cylinderBuilder';
 import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder';
 import type { Scene } from '@babylonjs/core/scene';
-import { SQUAD_CONFIG } from '../config/squad';
-import type { VehicleDustProfile } from '../config/types';
+import { SQUAD_CASUALTY_CONFIG, SQUAD_CONFIG, SQUAD_DRONE_CONFIG, SQUAD_RECOIL_CONFIG, SQUAD_ROLES } from '../config/squad';
+import type { SquadRoleId, VehicleDustProfile } from '../config/types';
 import { VEHICLE_EFFECTS_CONFIG } from '../config/vehicleEffects';
 import { healthFraction, isAlive, type ReadonlyEntity, type ReadonlyUnit } from '../core/entities';
 import { clamp } from '../core/geometry';
@@ -18,8 +18,10 @@ import type { MaterialLibrary } from './materials';
 import type { ModelLibrary } from './models/library';
 import type { ModelSpec } from './models/kit';
 import { loadFpvOperatorParts, loadInfantryParts } from './models/infantry';
-import { DRONE_SLOT, createSoldierKit, disposeFpvSquadParts, disposeSoldierParts, instantiateSoldier, type SoldierInstance, type SoldierKit } from './models/soldier';
-import { squadFormationSlots } from './models/squadFormation';
+import { createSoldierKit, disposeFpvSquadParts, disposeInfantrySquad, instantiateSoldier, type SoldierInstance, type SoldierKit } from './models/soldier';
+import { SquadRoster, visibleMemberCount } from './models/squadCasualties';
+import { nextShooterIndex, recoilDurationSeconds, recoilKick } from './models/squadFire';
+import { variedSquadFormationSlots } from './models/squadFormation';
 import { TurretRig } from './models/turretRig';
 import { idlePose, walkPose } from './models/walkCycle';
 import { healthTone } from './palette';
@@ -35,11 +37,14 @@ import { isVehicleEffectType } from './combatEffectEvents';
  * ones it already has, and disposes the ones the world no longer holds. It reads core state and
  * decides nothing — no damage, no costs, no prerequisites.
  *
- * Every entity but Infantry is a clone of its role's prototype model plus a health bar that turns to
- * face the camera. Infantry is a three-soldier squad instead: one shared root carries three cloned
- * soldier rigs (`models/soldier.ts`) whose legs and rifle arm this view swings every frame from the
- * entity's `status`, entirely as view-layer state — `src/core` never sees a walk cycle. Every mesh
- * carries the owning entity's id, so a click on any soldier resolves back to core state.
+ * Every entity but Infantry and FPV Operators is a clone of its role's prototype model plus a health
+ * bar that turns to face the camera. Those two are squads instead: one shared root carries cloned
+ * soldier rigs (`models/soldier.ts`) — four riflemen, or three operators — whose legs and arms this
+ * view swings every frame from the entity's `status`, entirely as view-layer state — `src/core`
+ * never sees a walk cycle. The visible members are presentation only: how many stand is a function
+ * of the entity's health (`models/squadCasualties.ts`), and a squad is still one entity with one
+ * health pool, selection, order and footprint. Every mesh carries the owning entity's id, so a click
+ * on any soldier resolves back to core state.
  */
 
 /** Health bar size in tiles, and how far above the model it floats. */
@@ -93,15 +98,24 @@ interface ModelDisplay extends DisplayBase {
 }
 
 interface SquadAnimationState {
-  /** Only advances while the entity is moving; frozen — not reset — the instant it stops. */
-  walkPhaseRadians: number;
-  /** Always advances, so idle sway keeps breathing however long the squad has been standing still. */
-  elapsedSeconds: number;
+  /** Per-member phases allow slightly different continuous stride tempos. */
+  readonly walkPhaseRadians: number[];
+  /** Per-member idle clocks keep breathing and weapon sway out of lockstep. */
+  readonly idleElapsedSeconds: number[];
 }
 
 interface SquadDisplay extends DisplayBase {
   readonly kind: 'squad';
+  readonly role: SquadRoleId;
   readonly soldiers: readonly SoldierInstance[];
+  /** Which members stand, are mid-fall or are gone. Derived from the entity's health each frame. */
+  readonly roster: SquadRoster;
+  /** Seconds since each soldier last fired; infinite while its rifle is at rest. Cosmetic only. */
+  readonly recoilElapsed: number[];
+  /** The soldier who took the last shot, so the next shot is taken by the next one standing. */
+  lastShooter: number | null;
+  /** The squad's drone prop, when its model is loaded. FPV Operators only. */
+  readonly drone: Mesh | null;
   readonly animation: SquadAnimationState;
   readonly entrenchmentCover: readonly Mesh[];
 }
@@ -138,7 +152,7 @@ export class EntitiesView {
     this.dust = new VehicleDustView(scene, materials);
     void loadInfantryParts(scene).then(parts => {
       if (this.disposed) {
-        for (const set of parts.values()) disposeSoldierParts(set);
+        for (const squad of parts.values()) disposeInfantrySquad(squad);
         return;
       }
       this.soldierKit.useModel(parts);
@@ -208,17 +222,43 @@ export class EntitiesView {
   }
 
   /**
-   * A shooter's barrel fires: kicks its recoil, holds its turret on `target` for a moment, and
-   * returns where the shell leaves the barrel (reused scratch vector, copy before keeping). `null`
-   * when the shooter has no articulated turret on screen, so callers fall back to its position.
+   * A shooter fires: kicks its recoil and returns where the shot leaves it (reused scratch vector,
+   * copy before keeping) — the barrel of a turreted vehicle, the rifle of the next soldier standing
+   * in an Infantry squad, or the drone of an FPV squad. `null` when the shooter is not on screen or
+   * has no such origin, so callers fall back to its position.
    */
   public fireWeapon(attackerId: string, target: Vec2): Vector3 | null {
     const display = this.displays.get(attackerId as EntityId);
-    const turret = display?.kind === 'model' ? display.vehicle?.turret : null;
-    if (display === undefined || !turret || !display.root.isEnabled()) return null;
+    if (display === undefined || !display.root.isEnabled()) return null;
+    if (display.kind === 'squad') return this.fireSquad(display);
+    const turret = display.vehicle?.turret;
+    if (!turret) return null;
     const muzzle = turret.muzzlePointToRef(display.root.rotation.y, this.muzzleScratch);
     turret.noteShot(target, VEHICLE_FX.shotAimHoldSeconds);
     return muzzle;
+  }
+
+  /**
+   * Infantry: the next standing soldier (never a casualty) shoulders a recoil and the shot starts at
+   * their actual muzzle. FPV Operators: no rifle and no recoil, so the shot starts at the drone, or
+   * at the lead operator's equipment while the drone model is unavailable.
+   */
+  private fireSquad(display: SquadDisplay): Vector3 | null {
+    if (display.role === 'fpvOperators') {
+      const origin = display.drone ?? display.soldiers[0]?.root;
+      if (origin === undefined) return null;
+      origin.computeWorldMatrix(true);
+      this.muzzleScratch.copyFrom(origin.getAbsolutePosition());
+      this.muzzleScratch.y += display.drone === null ? display.modelHeight * 0.55 : SQUAD_DRONE_CONFIG.launchHeightTiles;
+      return this.muzzleScratch;
+    }
+    const index = nextShooterIndex(display.lastShooter, display.roster.visibleCount);
+    const soldier = index === null ? undefined : display.soldiers[index];
+    if (index === null || soldier === undefined) return null;
+    display.lastShooter = index;
+    display.recoilElapsed[index] = 0;
+    soldier.muzzle.computeWorldMatrix(true);
+    return this.muzzleScratch.copyFrom(soldier.muzzle.getAbsolutePosition());
   }
 
   /** Advances the dust puffs. Called with the effect clock, which a paused match never ticks. */
@@ -252,29 +292,42 @@ export class EntitiesView {
 
     if (isInfantryRole(entity)) {
       if (entity.type === 'fpvOperators' && !this.fpvModelRequested) this.loadFpvModel();
-      const squadParts = this.soldierKit.squadPartsFor(entity.owner, entity.type);
-      const parts = squadParts[0] ?? this.soldierKit.partsFor(entity.owner, entity.type);
-      const soldiers = squadFormationSlots(SQUAD_CONFIG.formation).map((slot, index) =>
+      const role = entity.type;
+      const slots = variedSquadFormationSlots(SQUAD_ROLES[role], entity.id);
+      const squadParts = this.soldierKit.squadPartsFor(entity.owner, role);
+      const parts = squadParts[0] ?? this.soldierKit.partsFor(entity.owner, role);
+      const soldiers = slots.map((slot, index) =>
         instantiateSoldier(this.scene, squadParts[index] ?? parts, root, slot, `entity:${entity.id}:soldier${index}`),
       );
-      const entrenchmentCover = entity.type === 'fpvOperators' ? this.createEntrenchmentCover(root, entity.id) : [];
-      const drone = entity.type === 'fpvOperators' ? this.createDrone(root, entity) : [];
-      const pickableMeshes = [...soldiers.flatMap((soldier) => soldier.meshes), ...entrenchmentCover, ...drone];
+      const entrenchmentCover = role === 'fpvOperators' ? this.createEntrenchmentCover(root, entity.id) : [];
+      const drone = role === 'fpvOperators' ? this.createDrone(root, entity) : null;
+      const pickableMeshes = [...soldiers.flatMap((soldier) => soldier.meshes), ...entrenchmentCover, ...(drone === null ? [] : [drone])];
       const barWidth = clamp(this.displayWidth(entity) * 0.9, BAR_MIN_WIDTH, BAR_MAX_WIDTH);
-      const bar = this.createBar(entity.id, root, parts.standHeightTiles);
+      const overheadTiles = parts.standHeightTiles + SQUAD_ROLES[role].overheadLiftTiles;
+      const bar = this.createBar(entity.id, root, overheadTiles);
       this.registerPickable(pickableMeshes, entity.id);
 
+      // A squad created already hurt (a restored save, or an online snapshot) starts with only its
+      // surviving members; nobody falls just because the display was built late.
       return {
         kind: 'squad',
+        role,
         root,
         soldiers,
+        roster: new SquadRoster(slots.length, visibleMembers(entity, slots.length)),
+        recoilElapsed: slots.map(() => Infinity),
+        lastShooter: null,
+        drone,
         bar: bar.node,
         barFill: bar.fill,
         barRest: bar.rest,
         barWidth,
-        modelHeight: parts.standHeightTiles,
+        modelHeight: overheadTiles,
         pickableMeshes,
-        animation: { walkPhaseRadians: 0, elapsedSeconds: 0 },
+        animation: {
+          walkPhaseRadians: SQUAD_ROLES[role].memberMotion.map(profile => profile.stridePhaseRadians),
+          idleElapsedSeconds: SQUAD_ROLES[role].memberMotion.map(profile => profile.idleOffsetSeconds),
+        },
         entrenchmentCover,
       };
     }
@@ -345,33 +398,33 @@ export class EntitiesView {
   }
 
   /** The squad's drone resting on the ground, when the Blender model is loaded. */
-  private createDrone(root: TransformNode, entity: ReadonlyUnit): readonly Mesh[] {
+  private createDrone(root: TransformNode, entity: ReadonlyUnit): Mesh | null {
     const prototype = this.soldierKit.droneFor(entity.owner);
-    if (prototype === null) return [];
+    if (prototype === null) return null;
     const drone = prototype.mesh.clone(`entity:${entity.id}:drone`, root);
     drone.setEnabled(true);
     drone.isPickable = true;
-    drone.position.set(DRONE_SLOT.rightTiles, 0, DRONE_SLOT.forwardTiles);
-    return [drone];
+    drone.position.set(SQUAD_DRONE_CONFIG.slot.rightTiles, 0, SQUAD_DRONE_CONFIG.slot.forwardTiles);
+    return drone;
   }
 
   private createEntrenchmentCover(root: TransformNode, id: EntityId): readonly Mesh[] {
     const soil = this.materials.surface(0x6b5132);
     const mound = CreateTorus(`entity:${id}:earthMound`, {
-      diameter: 1.28, thickness: 0.21, tessellation: 24,
+      diameter: 1.5, thickness: 0.21, tessellation: 24,
     }, this.scene);
     mound.parent = root;
     mound.position.y = 0.055;
-    mound.scaling.z = 0.82;
+    mound.scaling.z = 0.94;
     mound.material = soil;
-    const pit = CreateCylinder(`entity:${id}:firingPit`, { height: 0.025, diameter: 1.04, tessellation: 24 }, this.scene);
+    const pit = CreateCylinder(`entity:${id}:firingPit`, { height: 0.025, diameter: 1.26, tessellation: 24 }, this.scene);
     pit.parent = root;
     pit.position.y = 0.014;
-    pit.scaling.z = 0.82;
+    pit.scaling.z = 0.94;
     pit.material = this.materials.surface(0x30281d);
-    const front = CreateBox(`entity:${id}:raisedEarth`, { width: 0.92, height: 0.16, depth: 0.18 }, this.scene);
+    const front = CreateBox(`entity:${id}:raisedEarth`, { width: 1.0, height: 0.16, depth: 0.16 }, this.scene);
     front.parent = root;
-    front.position.set(0, 0.09, 0.43);
+    front.position.set(0, 0.09, 0.7);
     front.material = soil;
     const cover = [mound, pit, front];
     for (const mesh of cover) {
@@ -428,6 +481,10 @@ export class EntitiesView {
       this.updateVehicleFx(display.vehicle, display.root, entity, deltaSeconds, visible, targetPosition);
     }
 
+    // A squad's casualties follow its health even out of sight, so a squad that comes back into
+    // view already shows the right members instead of replaying a fall it was never seen taking.
+    if (display.kind === 'squad') this.updateRoster(display, entity, visible);
+
     // Disabled roots are neither drawn nor picked, but stay allocated so an enemy can reappear
     // without recreating model geometry or changing its stable mesh-to-entity mapping.
     display.root.setEnabled(visible);
@@ -451,7 +508,7 @@ export class EntitiesView {
     if (display.kind === 'squad' && entity.kind === 'unit') {
       const deployed = entity.type === 'fpvOperators' && entity.entrenchment !== 'mobile';
       for (const cover of display.entrenchmentCover) cover.setEnabled(deployed);
-      this.updateSquadAnimation(display, entity, deltaSeconds);
+      this.updateSquadAnimation(display, entity, deltaSeconds, visibility, deployed);
     }
 
     const fraction = clamp(healthFraction(entity), 0, 1);
@@ -535,30 +592,72 @@ export class EntitiesView {
     }
   }
 
+  /** Moves the roster to the member count the entity's health calls for. */
+  private updateRoster(display: SquadDisplay, entity: ReadonlyEntity, visible: boolean): void {
+    const count = visibleMembers(entity, display.roster.size);
+    if (count !== display.roster.visibleCount || !visible) display.roster.setVisibleCount(count, visible);
+  }
+
   /**
    * Drives the walk cycle from the entity's own `status`: legs and the rifle arm swing while
    * `moving`, and freeze — rather than snap to rest — the instant it stops, so idle sway picks up
-   * from wherever the stride left off.
+   * from wherever the stride left off. Also tips over and fades casualties, and kicks the rifle of
+   * a soldier who just fired. Members who are gone are switched off and not animated at all.
    */
-  private updateSquadAnimation(display: SquadDisplay, entity: ReadonlyUnit, deltaSeconds: number): void {
+  private updateSquadAnimation(
+    display: SquadDisplay,
+    entity: ReadonlyUnit,
+    deltaSeconds: number,
+    baseVisibility: number,
+    deployed: boolean,
+  ): void {
     const moving = entity.status === 'moving';
-    if (moving) {
-      display.animation.walkPhaseRadians =
-        (display.animation.walkPhaseRadians +
-          deltaSeconds * SQUAD_CONFIG.walkCyclesPerSecond * (entity.type === 'fpvOperators' ? 0.82 : 1) * Math.PI * 2) %
-        (Math.PI * 2);
-    }
-    display.animation.elapsedSeconds += deltaSeconds;
+    display.roster.advance(deltaSeconds, SQUAD_CASUALTY_CONFIG.fallSeconds);
+    const sink = deployed ? SQUAD_ROLES[display.role].deployedSinkTiles : 0;
+    const recoilEnd = recoilDurationSeconds(SQUAD_RECOIL_CONFIG);
 
     display.soldiers.forEach((soldier, index) => {
-      const phaseOffset = index * SQUAD_CONFIG.soldierPhaseOffsetRadians;
+      const shown = display.roster.isShown(index);
+      soldier.root.setEnabled(shown);
+      if (!shown) return;
+
+      const casualty = display.roster.poseOf(index, SQUAD_CASUALTY_CONFIG);
+      soldier.root.rotation.x = -casualty.tiltRadians;
+      soldier.root.position.y = -casualty.dropTiles;
+      for (const mesh of soldier.meshes) mesh.visibility = baseVisibility * casualty.visibility;
+      // A falling soldier keeps the pose it fell in rather than walking on.
+      if (display.roster.phaseOf(index) !== 'standing') return;
+
+      const motion = SQUAD_ROLES[display.role].memberMotion[index];
+      if (motion === undefined) return;
+      if (moving) {
+        const roleTempo = entity.type === 'fpvOperators' ? 0.82 : 1;
+        display.animation.walkPhaseRadians[index] =
+          ((display.animation.walkPhaseRadians[index] ?? 0) + deltaSeconds * SQUAD_CONFIG.walkCyclesPerSecond *
+            roleTempo * motion.strideTempoMultiplier * Math.PI * 2) % (Math.PI * 2);
+      }
+      display.animation.idleElapsedSeconds[index] =
+        (display.animation.idleElapsedSeconds[index] ?? 0) + deltaSeconds * motion.idleTempoMultiplier;
       const pose = moving
-        ? walkPose(display.animation.walkPhaseRadians + phaseOffset, SQUAD_CONFIG)
-        : idlePose(display.animation.elapsedSeconds + phaseOffset, SQUAD_CONFIG);
-      soldier.legLeftPivot.rotation.x = pose.legLeftRadians;
-      soldier.legRightPivot.rotation.x = pose.legRightRadians;
-      soldier.armPivot.rotation.x = pose.armRadians;
-      soldier.bob.position.y = pose.bobTiles + (entity.type === 'fpvOperators' && entity.entrenchment !== 'mobile' ? -0.14 : 0);
+        ? walkPose(display.animation.walkPhaseRadians[index] ?? 0, SQUAD_CONFIG)
+        : idlePose(display.animation.idleElapsedSeconds[index] ?? 0, SQUAD_CONFIG);
+      const positionPhase = moving
+        ? (display.animation.walkPhaseRadians[index] ?? 0)
+        : (display.animation.idleElapsedSeconds[index] ?? 0) * SQUAD_CONFIG.idleCyclesPerSecond * Math.PI * 2;
+      const driftScale = moving ? 1 : 0.35;
+      soldier.root.position.x = soldier.slot.rightTiles + Math.sin(positionPhase + index * 0.7) *
+        motion.lateralDriftTiles * driftScale;
+      soldier.root.position.z = soldier.slot.forwardTiles + Math.cos(positionPhase * 0.73 + index) *
+        motion.forwardDriftTiles * driftScale;
+      const elapsed = (display.recoilElapsed[index] ?? Infinity) + deltaSeconds;
+      display.recoilElapsed[index] = elapsed >= recoilEnd ? Infinity : elapsed;
+      const kick = recoilKick(elapsed, SQUAD_RECOIL_CONFIG);
+      soldier.legLeftPivot.rotation.x = pose.legLeftRadians * motion.legSwingMultiplier;
+      soldier.legRightPivot.rotation.x = pose.legRightRadians * motion.legSwingMultiplier;
+      // Negative rotation about x raises the muzzle; the kick also nudges the upper body back.
+      soldier.armPivot.rotation.x = pose.armRadians * motion.armSwingMultiplier - kick * SQUAD_RECOIL_CONFIG.armKickRadians;
+      soldier.bob.position.y = pose.bobTiles * motion.bobMultiplier - sink;
+      soldier.bob.position.z = -kick * SQUAD_RECOIL_CONFIG.bodyKickTiles;
     });
   }
 
@@ -566,4 +665,9 @@ export class EntitiesView {
   private displayWidth(entity: ReadonlyEntity): number {
     return entity.kind === 'building' ? entity.footprint.width : entity.stats.bodySizeTiles;
   }
+}
+
+/** Members of a squad that should stand at the entity's current health. */
+function visibleMembers(entity: ReadonlyEntity, squadSize: number): number {
+  return visibleMemberCount(clamp(healthFraction(entity), 0, 1), squadSize);
 }

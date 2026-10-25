@@ -50,7 +50,7 @@ Credits crystals are the only saturated things on screen. Every model is origina
 is imported, sampled or traced from any other game. Menu reference images are separate from the
 procedurally rendered battlefield.
 
-**Nothing on the field is an asset file.** Units and buildings are boxes and cylinders assembled in
+**Most of the field is still procedural.** Blender `.glb` models replace the procedural ones for vehicles, infantry squads and all six buildings once they load; the boxes and cylinders assembled in
 `src/game/models/`, and most roles are merged into a single mesh per faction that `EntitiesView`
 clones per entity, so a crowded field costs a handful of shapes each rather than a stack of parts.
 `src/game/palette.ts` owns the two palettes both sides are built from — four planes plus a pennant
@@ -58,12 +58,17 @@ tone — and `src/game/materials.ts` caches one material per colour, so two part
 tone share one draw state.
 
 - **Worker** — a compact four-wheeled tractor with an engine hood, semi-enclosed cab and front scoop.
-- **Infantry** — one entity, three soldiers: a compact asymmetric triangle of low-poly figures (helmet,
-  torso and legs, one carrying a rifle) sharing the entity's single health pool, order and selection
-  ring. Legs and rifle arm swing in a small procedural walk cycle while the squad moves, with a tiny
-  phase offset between soldiers so their steps never land together, and settle into a subtle idle sway
-  once it stops — all driven by `EntitiesView`/`src/game/models/soldier.ts` from the entity's own
-  status, never by `src/core`.
+- **Infantry** — one entity, four compact toy-like riflemen in two staggered ranks (oversized helmet,
+  sturdy torso, big boots and rifle, about 0.53 tiles tall), sharing the entity's single health pool,
+  order and selection ring. Legs and arms swing in a small procedural walk cycle while the squad moves,
+  with a phase offset between soldiers so their steps never land together, and settle into a subtle
+  idle sway once it stops. The visible count follows health (4/3/2/1 at 75/50/25% steps, rear members
+  first, with a brief fall and fade), and each shot is fired by the next soldier still standing, from
+  their rifle muzzle, with a small recoil — all driven by `EntitiesView` and `src/game/models/` from
+  the entity's own status and health, never by `src/core`.
+- **FPV Drone Operators** — the same compact style: three specialists (controller, drone case, radio
+  mast) and a drone prop, dropping to 2 and 1 at 2/3 and 1/3 health. They have no rifle; their attack
+  effect leaves the drone, and entrenchment still sinks them into a firing pit.
 - **Tank** — a low hull between two tracks, with a round turret and a barrel past the front.
 - **Rocket** — a six-wheeled chassis carrying three raised tubes, cab in front of them.
 

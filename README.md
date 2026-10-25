@@ -100,6 +100,27 @@ Purely cosmetic, identical in single-player and private online matches, and tune
   smoke, and leaves a scorched, non-interactive wreck that fades out after a few seconds. Destruction
   in fog is not shown. Infantry and buildings keep the simple death ring.
 
+### Infantry and FPV squads
+
+Both are still one entity each (one health pool, selection, order, footprint, production item and
+save/multiplayer entity); the visible soldiers are presentation only, tuned in `src/config/squad.ts`:
+
+- **Compact toy proportions.** About 0.53 tiles tall (`standHeightTiles`; roughly 31% shorter than the original 0.77): short, sturdy
+  bodies, no neck, oversized helmets, big boots and chunky equipment, in the Meridian palette recoloured
+  per owner.
+- **Squad sizes.** Infantry shows four riflemen in two staggered ranks; FPV Operators show three
+  specialists (controller, drone case, radio mast) with their drone prop ahead of them.
+- **Health-driven casualties.** The visible count is `ceil(health fraction x squad size)`: Infantry
+  4 above 75% health, 3 above 50%, 2 above 25%, 1 above 0; FPV 3 above 2/3, 2 above 1/3, 1 above 0. A
+  living squad always shows at least one member, and the lead (first slot) is the last to fall. Crossing a
+  threshold plays a brief tip-over, sink and fade (no gore, no persistent bodies). A restored save, an
+  online snapshot, or a squad coming out of fog shows the right count immediately. Nothing is
+  gameplay: no per-soldier health, damage distribution, healing or reduced squad damage.
+- **Rifle fire.** Each Infantry shot is taken by the next soldier still standing (never a casualty),
+  with a small fast arms/rifle recoil. The flash and tracer start at that soldier's actual rifle muzzle (a
+  `SoldierN_Muzzle` node in the model) and the tracer is thin and quick. FPV Operators have no rifle:
+  their rocket-style effect leaves the drone, and they still attack only while deployed.
+
 The browser uses `ws://localhost:8787/ws` in development. Production keeps the static Vite client
 on Vercel and runs the authoritative process as a separate single-instance Render Web Service; set
 `VITE_MULTIPLAYER_URL` to its `wss://.../ws` endpoint. The online service keeps rooms in memory and
@@ -133,17 +154,50 @@ is retained if loading fails. After regenerating the model, copy the exported `.
 `src/assets/models/` to update the game asset. The studio preview lighting differs from
 the battlefield, and large-army performance still needs profiling.
 
-### Infantry squad study
+### Infantry and FPV squad studies
 
-`scripts/blender/create_meridian_infantry.py` builds a detailed three-soldier Meridian squad in the
-same way (same command, with the script path swapped). Outputs go to
-`assets/models/meridian-infantry-squad/` as `.blend`, `.glb` and `preview.png`. Each soldier
-has `BodyPivot`, `ArmsPivot` (both arms and rifle) and `LegLeftPivot`/`LegRightPivot`
-for a later walk cycle; the squad leader carries a radio mast. Materials follow the tank's naming
+`scripts/blender/create_meridian_infantry.py` (four compact riflemen) and
+`scripts/blender/create_meridian_fpv_operators.py` (three specialists plus the drone) are run the same
+way as the tank, with the script path swapped. Both build on the shared "compact toy soldier" helpers
+in `scripts/blender/meridian_common.py`, so the two squads keep one set of proportions (about 1.06 Blender
+units tall, scaled to `standHeightTiles`, 0.53 tiles). Outputs go to `assets/models/meridian-infantry-squad/` and
+`assets/models/meridian-fpv-operators/` as `.blend`, `.glb` and `preview.png`. Each soldier is a
+`SoldierN` / `OperatorN` pivot with `_Body`, `_Arms` (both arms and the rifle or equipment) and
+`_LegLeft` / `_LegRight` pivots for the walk cycle; each rifleman's `_Arms` also holds a `_Muzzle`
+empty at the rifle's tip, and the FPV study holds `FPVDrone`. Materials follow the tank's naming
 (`Uniform · deep teal`, `Armor · light panels`, `TeamColor`).
 
-The game loads `src/assets/models/meridian-infantry-squad.glb` once per match and builds one
-soldier template from `Soldier2` (body, arms with rifle, two legs, baked relative to their pivots),
-recoloured per owner. Every soldier of an Infantry squad uses it, with the existing formation and
-walk cycle. FPV operators keep the procedural soldier, which is also the fallback while the model
-loads or if loading fails. After regenerating, copy the `.glb` into `src/assets/models/`.
+The game loads `src/assets/models/meridian-infantry-squad.glb` and `meridian-fpv-operators.glb` once
+per match and bakes one prototype per soldier (body, arms, two legs, muzzle offset), recoloured per
+owner, in formation-slot order. The procedural soldier is the fallback while a model loads or if loading
+fails. After regenerating, copy each `.glb` into `src/assets/models/`:
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender --background --python-exit-code 1 --python scripts/blender/create_meridian_infantry.py
+/Applications/Blender.app/Contents/MacOS/Blender --background --python-exit-code 1 --python scripts/blender/create_meridian_fpv_operators.py
+cp assets/models/meridian-infantry-squad/meridian-infantry-squad.glb src/assets/models/
+cp assets/models/meridian-fpv-operators/meridian-fpv-operators.glb src/assets/models/
+```
+
+Keep the Blender slot positions in step with `SQUAD_ROLES` in `src/config/squad.ts` when changing a
+formation (the game places soldiers from the config, not from the study); the generators take the
+slots in tiles and convert them with `SOLDIER_TILES_PER_UNIT`, which must match `standHeightTiles`.
+
+### Buildings
+
+`scripts/blender/create_meridian_{hq,barracks,factory,power_plant,resource_depot,unmanned_systems_center}.py`
+generate the six building models (shared helpers in `meridian_building_common.py`): a stepped plinth,
+armoured hall or drum, vents, pipes, lit windows, door and ramp, drawn to the menu thumbnails. The game
+loads each `.glb` the first time that building appears, scales it to its footprint (less a 0.1 tile
+margin) and recolours the `deep teal`, `light panels` and `TeamColor` materials per owner. The
+procedural model in `src/game/models/buildings.ts` is the fallback while it loads. After regenerating,
+copy each `.glb` into `src/assets/models/`:
+
+```sh
+for n in hq barracks factory power_plant resource_depot unmanned_systems_center; do
+  /Applications/Blender.app/Contents/MacOS/Blender --background --python-exit-code 1 --python scripts/blender/create_meridian_$n.py
+done
+for n in hq barracks factory power-plant resource-depot unmanned-systems-center; do
+  cp assets/models/meridian-$n/meridian-$n.glb src/assets/models/
+done
+```

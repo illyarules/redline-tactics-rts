@@ -19,7 +19,7 @@ export async function loadVehicleModels(
   type: UnitTypeId,
 ): Promise<Map<PlayerId, ModelSpec>> {
   const models = new Map<PlayerId, ModelSpec>();
-  const source = await openVehicleSource(scene, url, type);
+  const source = await openVehicleSource(scene, url, type, UNIT_CONFIG[type].bodySizeTiles);
   if (source === null) return models;
   for (const owner of ['player', 'ai', 'ai2'] as const) models.set(owner, source.build(owner));
   return models;
@@ -30,8 +30,17 @@ export interface VehicleSource {
   build(owner: PlayerId): ModelSpec;
 }
 
-/** Loads `url` once; `null` when the scene was disposed meanwhile. */
-export async function openVehicleSource(scene: Scene, url: string, type: UnitTypeId): Promise<VehicleSource | null> {
+/**
+ * Loads `url` once; `null` when the scene was disposed meanwhile. `name` labels the nodes, and the
+ * model is scaled so its width is `widthTiles`. `turnY` spins it about the vertical axis.
+ */
+export async function openVehicleSource(
+  scene: Scene,
+  url: string,
+  name: string,
+  widthTiles: number,
+  turnY = 0,
+): Promise<VehicleSource | null> {
   const container = await LoadAssetContainerAsync(url, scene);
   if (scene.isDisposed) {
     container.dispose();
@@ -41,15 +50,16 @@ export async function openVehicleSource(scene: Scene, url: string, type: UnitTyp
   scene.onDisposeObservable.addOnce(() => container.dispose());
   return {
     build(owner) {
-      const instance = container.instantiateModelsToScene(name => `${type}:${owner}:${name}`, true, { doNotInstantiate: true });
-      const root = new Mesh(`${type}:${owner}:prototype`, scene);
+      const instance = container.instantiateModelsToScene(node => `${name}:${owner}:${node}`, true, { doNotInstantiate: true });
+      const root = new Mesh(`${name}:${owner}:prototype`, scene);
       for (const node of instance.rootNodes) node.parent = root;
       // Keep the loader's handedness conversion: this asset faces the game's +Z.
       root.computeWorldMatrix(true);
       const bounds = root.getHierarchyBoundingVectors(true);
-      const scale = UNIT_CONFIG[type].bodySizeTiles / (bounds.max.x - bounds.min.x);
+      const scale = widthTiles / (bounds.max.x - bounds.min.x);
       root.scaling.setAll(scale);
       root.position.y = -bounds.min.y * scale;
+      root.rotation.y = turnY;
       recolorVehicle(root, owner);
       root.isPickable = false;
       root.setEnabled(false);

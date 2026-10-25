@@ -323,6 +323,11 @@ export interface CombatEffectWeaponConfig {
   readonly projectileWidthTiles: number;
   readonly muzzleDurationSeconds: number;
   readonly muzzleDiameterTiles: number;
+  /**
+   * Stretches the muzzle flash along the line of fire into a compact directional burst, as a
+   * multiple of its diameter. Absent (or 1) keeps the round puff.
+   */
+  readonly muzzleLengthMultiplier?: number;
   readonly impactDurationSeconds: number;
   readonly impactDiameterTiles: number;
   readonly debrisDiameterTiles: number;
@@ -389,32 +394,89 @@ export interface CombatEffectsConfig {
   readonly weapons: Readonly<Record<AttackerTypeId, CombatEffectWeaponConfig>>;
 }
 
-/**
- * The compact triangular arrangement a three-soldier Infantry squad stands in around its entity's
- * position, in tiles and in the model's own local space (`+z` forward, `+x` right).
- */
-export interface SquadFormationConfig {
-  /** How far the lead soldier stands ahead of the entity's position. */
-  readonly leadOffsetTiles: number;
-  /** How far the two rear soldiers stand behind the entity's position. */
-  readonly rearOffsetTiles: number;
-  /** Half the distance between the two rear soldiers. */
-  readonly rearSpreadTiles: number;
+/** One visible squad member's position relative to the entity root, in tiles. `+z` forward, `+x` right. */
+export interface SquadSlot {
+  readonly rightTiles: number;
+  readonly forwardTiles: number;
+}
+
+/** The two roles drawn as a squad of visible soldiers around one core entity. */
+export type SquadRoleId = 'infantry' | 'fpvOperators';
+
+/** Per-slot animation variation. Fixed values keep replays stable while avoiding cloned motion. */
+export interface SquadMemberMotionConfig {
+  readonly stridePhaseRadians: number;
+  readonly strideTempoMultiplier: number;
+  readonly legSwingMultiplier: number;
+  readonly armSwingMultiplier: number;
+  readonly bobMultiplier: number;
+  readonly idleOffsetSeconds: number;
+  readonly idleTempoMultiplier: number;
+  /** Small local movement around the assigned formation slot; presentation only. */
+  readonly lateralDriftTiles: number;
+  readonly forwardDriftTiles: number;
+}
+
+/** Presentation of one squad role. Purely cosmetic: the entity stays a single core unit. */
+export interface SquadRoleConfig {
+  /**
+   * One slot per visible member, ordered from last casualty to first: slot 0 is the lead and is
+   * the last member standing; the final slot is the first to fall. The array length is the squad's
+   * visible size at full health.
+   */
+  readonly slots: readonly SquadSlot[];
+  /** One deterministic motion profile per slot, in the same order as `slots`. */
+  readonly memberMotion: readonly SquadMemberMotionConfig[];
+  /** How tall a member stands, in tiles; the one-unit-tall Blender model is scaled to it. Health bars and markers sit above it. */
+  readonly standHeightTiles: number;
+  /**
+   * Extra height for the health bar and markers above the standing members, on top of the shared
+   * bar gap, so the bar clears the front rank's helmets at the tactical camera angle.
+   */
+  readonly overheadLiftTiles: number;
+  /** How far members sink while the squad is deployed in a firing pit. */
+  readonly deployedSinkTiles: number;
+}
+
+/** Where an FPV squad's drone prop rests, and how high its attack effect leaves it. */
+export interface SquadDroneConfig {
+  /** Tiles per Blender unit for the drone prop, kept apart from the operators' `standHeightTiles`. */
+  readonly modelScaleTiles: number;
+  readonly slot: SquadSlot;
+  readonly launchHeightTiles: number;
+}
+
+/** A brief, restrained fall followed by a fade. Never a ragdoll, never a persistent body. */
+export interface SquadCasualtyConfig {
+  readonly fallSeconds: number;
+  /** How far the member tips over backwards by the end of the fall. */
+  readonly tiltRadians: number;
+  /** How far the member sinks into the ground by the end of the fall. */
+  readonly dropTiles: number;
+  /** Share of the fall at which the fade begins; the member is gone at 1. */
+  readonly fadeStartFraction: number;
+}
+
+/** A small, fast rifle kick and its smooth return. Cosmetic only. */
+export interface SquadRecoilConfig {
+  readonly attackSeconds: number;
+  readonly releaseSeconds: number;
+  /** Extra rotation of the arms and rifle at the peak of the kick (muzzle rises). */
+  readonly armKickRadians: number;
+  /** How far the upper body is pushed back at the peak of the kick. */
+  readonly bodyKickTiles: number;
 }
 
 /**
- * Procedural walk-cycle tuning for the Infantry squad. Angles are radians, distances are tiles.
+ * Procedural walk-cycle tuning for the squads. Angles are radians, distances are tiles.
  * Purely a rendering concern: the simulation never sees these values.
  */
 export interface SquadAnimationConfig {
-  readonly formation: SquadFormationConfig;
-  /** Full stride cycles per second while an Infantry entity is moving. */
+  /** Full stride cycles per second while a squad entity is moving. */
   readonly walkCyclesPerSecond: number;
   readonly legSwingRadians: number;
   readonly armSwingRadians: number;
   readonly walkBobTiles: number;
-  /** Radians of cycle phase each soldier is offset from the last, so steps never land in lockstep. */
-  readonly soldierPhaseOffsetRadians: number;
   /** Breathing cycles per second while idle. */
   readonly idleCyclesPerSecond: number;
   readonly idleBobTiles: number;
