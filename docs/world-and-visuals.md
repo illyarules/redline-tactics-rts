@@ -70,7 +70,7 @@ tone share one draw state.
   mast) and a drone prop, dropping to 2 and 1 at 2/3 and 1/3 health. They have no rifle; their attack
   effect leaves the drone, and entrenchment still sinks them into a firing pit.
 - **Tank** — a low hull between two tracks, with a round turret and a barrel past the front.
-- **Rocket** — a six-wheeled chassis carrying three raised tubes, cab in front of them.
+- **Rocket** — a six-wheeled HIMARS-style launcher truck: cab in front, a boxy pod with three tubes raised on the rear deck.
 
 The five buildings share one vocabulary: a walled base plate, body walls in the faction colour, a
 dark overhanging roof cap with a lighter deck inset in it, small neutral machinery and one accent.

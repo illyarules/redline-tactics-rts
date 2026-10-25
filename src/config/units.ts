@@ -83,7 +83,7 @@ export const UNIT_CONFIG: Readonly<Record<UnitTypeId, UnitConfig>> = {
     maxHealth: 110,
     speedTilesPerSecond: 1.9,
     visionRangeTiles: 7,
-    bodySizeTiles: 0.86,
+    bodySizeTiles: 0.68,
     armor: 'light',
     requires: [],
     requiresPower: true,
