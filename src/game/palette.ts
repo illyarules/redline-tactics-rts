@@ -57,6 +57,13 @@ export const GAS_FIELD_TONES = {
   pipe: 0xd39a27,
   frame: 0x844632,
   lamp: 0x81d8c8,
+  tank: 0x8d9a98,
+  tankShade: 0x5e6b6a,
+  hazard: 0xe0b020,
+  hazardDark: 0x2a2b28,
+  flame: 0xff9a3c,
+  valve: 0xb5372e,
+  gauge: 0xe8e4d6,
 } as const;
 
 /** The battlefield's own tones: a dark, subdued green that lets the factions be the only loud thing. */

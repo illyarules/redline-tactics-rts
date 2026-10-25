@@ -10,7 +10,7 @@ import type { PlayerId } from '../core/ids';
 import type { MapGrid, ResourceField } from '../core/map';
 import { createGroundTexture } from './groundTexture';
 import type { MaterialLibrary } from './materials';
-import { buildModel, QUARTER_TURN } from './models/kit';
+import { buildModel, QUARTER_TURN, type ModelBuilder } from './models/kit';
 import { generateTerrainSceneryLayout } from './models/terrainScenery';
 import { FIELD_TONES, GAS_FIELD_TONES } from './palette';
 import type { SceneSpace } from './sceneSpace';
@@ -25,9 +25,6 @@ import type { SceneSpace } from './sceneSpace';
 
 /** How far past the map edge the ground keeps going, in map widths, so the horizon is never void. */
 const SURROUND_SCALE = 4;
-
-/** A depleted field still reads as something rather than vanishing outright. */
-const MIN_FIELD_SCALE = 0.08;
 
 export class MapView {
   private readonly meshes: Mesh[] = [];
@@ -86,18 +83,6 @@ export class MapView {
   /** The ground mesh, which is what a click on open ground lands on. */
   public groundMesh(): Mesh {
     return this.ground;
-  }
-
-  /**
-   * Dims a depleted extraction rig while leaving its silhouette on the field. `fraction` is the
-   * remaining Credits over the field's original total.
-   */
-  public setFieldFraction(fieldId: string, fraction: number): void {
-    const mesh = this.gasRigsByField.get(fieldId);
-    if (mesh === undefined) {
-      return;
-    }
-    mesh.visibility = Math.max(fraction, MIN_FIELD_SCALE);
   }
 
   /** Applies fog to resource deposits, which stand above the terrain veil. */
@@ -252,9 +237,57 @@ export class MapView {
         .box({ size: [1.04, 0.07, 0.08], at: [x, 1.55, z - 0.25] }, GAS_FIELD_TONES.frame)
         .box({ size: [1.04, 0.07, 0.08], at: [x, 2.22, z - 0.25] }, GAS_FIELD_TONES.frame)
         .cylinder({ height: 0.18, diameter: 0.17, diameterTop: 0.05, sides: 8, at: [x - 0.18, 2.54, z] }, GAS_FIELD_TONES.lamp, 'glowing');
+      this.addGasRigDetail(builder, x, z);
     });
     model.mesh.setEnabled(true);
     return model.mesh;
+  }
+
+  /** Storage tanks, a flare stack, a railed walkway and valve gear around the separator. */
+  private addGasRigDetail(builder: ModelBuilder, x: number, z: number): void {
+    const tones = GAS_FIELD_TONES;
+    // Hazard stripes along the slab edge.
+    for (const dx of [-0.5, -0.1, 0.3]) {
+      builder.box({ size: [0.14, 0.01, 0.06], at: [x + dx, 0.185, z + 0.56] }, tones.hazard)
+        .box({ size: [0.14, 0.01, 0.06], at: [x + dx + 0.14, 0.185, z + 0.56] }, tones.hazardDark);
+    }
+    // Two horizontal storage tanks on saddles, with end caps and a manway hatch each.
+    for (const [dz, tone] of [[0.36, tones.tank], [0.04, tones.tankShade]] as const) {
+      builder.cylinder({ height: 0.6, diameter: 0.26, sides: 12, at: [x + 0.18, 0.4, z + dz - 0.5], turn: [0, 0, QUARTER_TURN] }, tone)
+        .cylinder({ height: 0.04, diameter: 0.2, diameterTop: 0.12, sides: 12, at: [x + 0.51, 0.4, z + dz - 0.5], turn: [0, 0, QUARTER_TURN] }, tones.columnShade)
+        .cylinder({ height: 0.04, diameter: 0.2, diameterTop: 0.12, sides: 12, at: [x - 0.15, 0.4, z + dz - 0.5], turn: [0, 0, -QUARTER_TURN] }, tones.columnShade)
+        .box({ size: [0.05, 0.14, 0.2], at: [x + 0.0, 0.31, z + dz - 0.5] }, tones.frame)
+        .box({ size: [0.05, 0.14, 0.2], at: [x + 0.36, 0.31, z + dz - 0.5] }, tones.frame)
+        .cylinder({ height: 0.03, diameter: 0.09, sides: 8, at: [x + 0.18, 0.55, z + dz - 0.5] }, tones.pipe);
+    }
+    // Flare stack in the corner with a pilot flame lamp.
+    builder.cylinder({ height: 1.9, diameter: 0.07, diameterTop: 0.05, sides: 8, at: [x + 0.5, 1.15, z + 0.45] }, tones.columnShade)
+      .box({ size: [0.14, 0.05, 0.14], at: [x + 0.5, 0.22, z + 0.45] }, tones.frame)
+      .cylinder({ height: 0.12, diameter: 0.04, diameterTop: 0.16, sides: 8, at: [x + 0.5, 2.15, z + 0.45] }, tones.columnShade)
+      .cylinder({ height: 0.1, diameter: 0.07, diameterTop: 0.01, sides: 6, at: [x + 0.5, 2.26, z + 0.45] }, tones.flame, 'glowing');
+    // Valve manifold: a header pipe with handwheels and gauges.
+    builder.cylinder({ height: 0.8, diameter: 0.07, sides: 8, at: [x - 0.1, 0.34, z + 0.42], turn: [0, 0, QUARTER_TURN] }, tones.pipe);
+    for (const dx of [-0.38, -0.12, 0.14]) {
+      builder.cylinder({ height: 0.14, diameter: 0.045, sides: 6, at: [x + dx, 0.45, z + 0.42] }, tones.pipe)
+        .cylinder({ height: 0.02, diameter: 0.13, sides: 10, at: [x + dx, 0.54, z + 0.42] }, tones.valve);
+    }
+    builder.cylinder({ height: 0.03, diameter: 0.1, sides: 10, at: [x + 0.3, 0.62, z + 0.25], turn: [QUARTER_TURN, 0, 0] }, tones.gauge)
+      .box({ size: [0.02, 0.12, 0.02], at: [x + 0.3, 0.55, z + 0.25] }, tones.frame);
+    // Access walkway on the frame with a ladder and a handrail.
+    builder.box({ size: [1.0, 0.04, 0.3], at: [x, 1.55, z - 0.4] }, tones.platform)
+      .box({ size: [1.0, 0.03, 0.03], at: [x, 1.8, z - 0.54] }, tones.frame)
+      .box({ size: [0.03, 0.26, 0.03], at: [x - 0.48, 1.67, z - 0.54] }, tones.frame)
+      .box({ size: [0.03, 0.26, 0.03], at: [x + 0.48, 1.67, z - 0.54] }, tones.frame)
+      .box({ size: [0.03, 1.4, 0.03], at: [x - 0.52, 0.9, z - 0.55] }, tones.frame)
+      .box({ size: [0.03, 1.4, 0.03], at: [x - 0.38, 0.9, z - 0.55] }, tones.frame);
+    for (let rung = 0; rung < 6; rung++) {
+      builder.box({ size: [0.17, 0.02, 0.02], at: [x - 0.45, 0.35 + rung * 0.22, z - 0.55] }, tones.frame);
+    }
+    // Column bands and a top cap give the separator more of an industrial profile.
+    for (const y of [0.5, 1.2, 1.9]) {
+      builder.cylinder({ height: 0.05, diameter: 0.4, sides: 10, at: [x - 0.18, y, z] }, tones.columnShade);
+    }
+    builder.cylinder({ height: 0.1, diameter: 0.28, diameterTop: 0.12, sides: 10, at: [x - 0.18, 2.45, z] }, tones.columnShade);
   }
 
   private sceneTileCenter(space: SceneSpace, tx: number, ty: number): { x: number; z: number } {

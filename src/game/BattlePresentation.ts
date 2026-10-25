@@ -57,7 +57,7 @@ export class BattlePresentation {
   public constructor(
     engine: Engine,
     canvas: HTMLCanvasElement,
-    private readonly grid: MapGrid,
+    grid: MapGrid,
     openingFocus: Vec2 | null,
     private readonly revealAll = false,
   ) {
@@ -114,9 +114,6 @@ export class BattlePresentation {
     this.selectionMarker.update(selected);
     this.orderMarker.update(selected, state.entities, state.positionOfVisibleTarget);
     this.slotMarker.update(selected);
-    for (const field of this.grid.resourceFields) {
-      this.mapView.setFieldFraction(field.id, state.fieldFractions.get(field.id) ?? 0);
-    }
   }
 
   /** Applies authoritative fog only when its simulation cadence reports a change. */
